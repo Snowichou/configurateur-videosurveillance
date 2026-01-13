@@ -56,7 +56,7 @@
       </section>
 
       <!-- COL 2 -->
-      <aside id="resultCard" class="card" aria-label="Résultats">
+      <aside id="resultCard" class="card hiddenCard" aria-label="Résultats">
         <div class="cardHeader">
           <div class="cardTitle">Résultats</div>
           <div class="cardSubtitle">Visible à la fin (ou via “Afficher résultats”).</div>
@@ -129,12 +129,42 @@
           Tips : conserve les headers. Un backup <code>.bak</code> est fait côté serveur.
         </div>
 
-        <textarea
-          id="adminCsvText"
-          class="textarea mono"
-          spellcheck="false"
-          placeholder="Le contenu CSV s’affiche ici…"
-        ></textarea>
+        <!-- ✅ TABLE EDITOR (UI PRO) -->
+<div class="adminGridWrap">
+
+  <div class="adminGridTop">
+    <div class="muted" id="adminGridMeta">—</div>
+
+    <div class="adminGridActions">
+      <button id="btnAdminAddRow" class="btn secondary" type="button">+ Ajouter</button>
+      <button id="btnAdminDupRow" class="btn secondary" type="button">Dupliquer</button>
+      <button id="btnAdminDelRow" class="btn secondary" type="button">Supprimer</button>
+
+      <span class="adminGridSep"></span>
+
+      <button id="btnAdminToggleExpert" class="btn" type="button">Mode expert</button>
+    </div>
+  </div>
+
+  <!-- ✅ La grille se monte ici -->
+  <div id="adminTableMount" class="adminTableMount"></div>
+
+  <!-- ✅ EXPERT MODE (CSV brut) -->
+  <div id="adminExpertBox" class="adminExpertBox hidden">
+    <div class="adminHint">
+      Mode expert : CSV brut (attention aux virgules/quotes). Les headers doivent rester identiques.
+    </div>
+
+    <textarea
+      id="adminCsvText"
+      class="textarea mono"
+      spellcheck="false"
+      placeholder="Le contenu CSV s’affiche ici…"
+    ></textarea>
+  </div>
+
+</div>
+
 
         <div id="adminMsg" class="muted"></div>
       </div>

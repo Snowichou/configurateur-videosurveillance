@@ -2632,40 +2632,72 @@ async function adminLoadCsv(name){
   const ta = admin$("adminCsvText");
   const msg = admin$("adminMsg");
   if (msg) msg.textContent = `Chargement ${name}.csv…`;
+
   const res = await fetch(`/api/csv/${encodeURIComponent(name)}`, {cache:"no-store"});
   if (!res.ok) throw new Error(`Load CSV failed (${res.status})`);
   const text = await res.text();
+
+  // ✅ Remplit le textarea (mode expert) + la grille
   if (ta) ta.value = text;
+
+  const parsed = parseCSVGrid(text);
+  ADMIN_GRID.csvName = name;
+  ADMIN_GRID.headers = parsed.headers;
+  ADMIN_GRID.rows = parsed.rows;
+  ADMIN_GRID.selectedIndex = ADMIN_GRID.rows.length ? 0 : -1;
+
+  renderAdminGrid();
+
   if (msg) msg.textContent = "✅ Chargé";
 }
+
 
 async function adminSaveCsv(name, content){
   const msg = admin$("adminMsg");
   if (msg) msg.textContent = `Sauvegarde ${name}.csv…`;
+
+  const expertBox = document.getElementById("adminExpertBox");
+  const ta = admin$("adminCsvText");
+
+  let csvToSave = "";
+
+  // ✅ Si mode expert ouvert => on sauve le textarea brut
+  if (expertBox && !expertBox.classList.contains("hidden")) {
+    csvToSave = (ta?.value || "");
+  } else {
+    // ✅ Sinon on sauve depuis la grille
+    csvToSave = toCSVGrid(ADMIN_GRID.headers, ADMIN_GRID.rows);
+    if (ta) ta.value = csvToSave; // sync au cas où
+  }
+
   const res = await fetch(`/api/csv/${encodeURIComponent(name)}`, {
     method:"POST",
     headers:{
       "Content-Type":"application/json",
       "Authorization": `Bearer ${ADMIN_TOKEN}`
     },
-    body: JSON.stringify({content})
+    body: JSON.stringify({content: csvToSave})
   });
+
   if (!res.ok) {
     const t = await res.text().catch(()=> "");
     throw new Error(`Save CSV failed (${res.status}) ${t}`);
   }
+
   if (msg) msg.textContent = "✅ Sauvegardé (backup .bak créé côté serveur)";
 
   // ✅ Recharger les données dans le configurateur après save
   try {
-    await init(); // ta fonction init() recharge les CSV + render
+    await init();
     if (msg) msg.textContent += " • Données rechargées dans le configurateur";
   } catch(e) {
     if (msg) msg.textContent += " • ⚠️ Données sauvegardées, mais reload a échoué (voir console)";
   }
 }
 
+
 function bindAdminPanel(){
+  initAdminGridUI();
   const btnAdmin = document.getElementById("btnAdmin");
   const btnClose = admin$("btnAdminClose");
   const btnLogin = admin$("btnAdminLogin");
@@ -2732,555 +2764,210 @@ function bindAdminPanel(){
 // ⚠️ bind admin une fois que le DOM est prêt
 // (si ton script est defer, ça passe direct)
 bindAdminPanel();
+
 // ==========================================================
-// ADMIN UX PRO (Formulaire + Liste)
+// ADMIN TABLE EDITOR (Grille type Excel)
+// Branche sur ton admin existant (ADMIN_TOKEN + /api/csv)
 // ==========================================================
-const ADMIN = {
-  token: null,
-  csvKey: "cameras",
+
+const ADMIN_GRID = {
+  csvName: "cameras",
   headers: [],
-  rows: [],
+  rows: [],           // array d'objets
   selectedIndex: -1,
-  dirty: false,
 };
 
-// --- CSV parse avec headers (on garde l’ordre) ---
-function parseCsvWithHeaders(text){
-  // on réutilise ton parseCsv, mais on garde les headers réels aussi
-  const lines = String(text || "").replace(/\r/g, "").split("\n").filter(l => l.trim() !== "");
+// ---- helpers DOM
+function q(id){ return document.getElementById(id); }
+function escapeAttr(s){
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+// ---- CSV parse simple (quotes + virgules)
+function parseCSVGrid(csvText){
+  const text = String(csvText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = text.split("\n").filter(l => l.trim().length > 0);
   if (!lines.length) return { headers: [], rows: [] };
 
-  // parsing "simple" de la première ligne header (ça suffit si tes headers n’ont pas de virgules dans des guillemets)
-  // sinon : tu peux faire une version full mais c’est overkill pour des headers
-  const headerLine = lines[0];
-  const headerCells = parseCsv(headerLine + "\n")[0] ? Object.keys(parseCsv(text)[0] || {}) : headerLine.split(",").map(s=>s.trim());
+  const parseLine = (line) => {
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
 
-  // ⚠️ En vrai, ton parseCsv renomme les headers dupliqués (name_2 etc.)
-  // Donc : on se base sur parseCsv(text) qui sort des objets "safe"
-  const objs = parseCsv(text);
-  const headers = objs.length ? Object.keys(objs[0]) : headerLine.split(",").map(s=>s.trim());
+    for (let i=0; i<line.length; i++){
+      const ch = line[i];
+      const next = line[i+1];
 
-  return { headers, rows: objs };
+      if (ch === '"' && inQuotes && next === '"'){
+        cur += '"'; i++; continue;
+      }
+      if (ch === '"'){ inQuotes = !inQuotes; continue; }
+      if (ch === "," && !inQuotes){
+        out.push(cur);
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    out.push(cur);
+    return out;
+  };
+
+  const headers = parseLine(lines[0]).map(h => String(h ?? "").trim());
+  const rows = [];
+
+  for (let i=1; i<lines.length; i++){
+    const cols = parseLine(lines[i]);
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = String(cols[idx] ?? ""));
+    rows.push(obj);
+  }
+
+  return { headers, rows };
 }
 
-function csvEscape(v){
-  const s = String(v ?? "");
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
-function toCsvFromHeaders(headers, rows){
-  const head = headers.join(",");
-  const body = rows.map(r => headers.map(h => csvEscape(r[h] ?? "")).join(",")).join("\n");
+function toCSVGrid(headers, rows){
+  const esc = (v) => {
+    const s = String(v ?? "");
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+    return s;
+  };
+  const head = headers.map(esc).join(",");
+  const body = rows.map(r => headers.map(h => esc(r[h])).join(",")).join("\n");
   return head + "\n" + body + "\n";
 }
 
-// --- API helpers ---
-async function adminApiLogin(password){
-  const res = await fetch("/api/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password }),
-  });
-  if (!res.ok) throw new Error(`Login refusé (${res.status})`);
-  return res.json();
+function syncGridMeta(){
+  const el = q("adminGridMeta");
+  if (!el) return;
+  const sel = ADMIN_GRID.selectedIndex >= 0 ? `Ligne : #${ADMIN_GRID.selectedIndex+1}` : "Aucune ligne";
+  el.textContent = `${sel} • ${ADMIN_GRID.rows.length} lignes • ${ADMIN_GRID.headers.length} colonnes`;
 }
 
-async function adminApiReadCsv(name){
-  const res = await fetch(`/api/csv/${name}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Lecture CSV impossible (${res.status})`);
-  return res.text();
-}
-
-async function adminApiWriteCsv(name, content){
-  const res = await fetch(`/api/csv/${name}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${ADMIN.token}`,
-    },
-    body: JSON.stringify({ content }),
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(()=> "");
-    throw new Error(`Sauvegarde refusée (${res.status}) ${txt}`);
+function syncExpertTextareaIfOpen(){
+  const expertBox = q("adminExpertBox");
+  const ta = q("adminCsvText");
+  if (!expertBox || !ta) return;
+  if (!expertBox.classList.contains("hidden")){
+    ta.value = toCSVGrid(ADMIN_GRID.headers, ADMIN_GRID.rows);
   }
-  return res.text();
 }
 
-// --- Schema : champs UX ---
-const ADMIN_SCHEMAS = {
-  cameras: {
-    title: "Caméras",
-    idField: "id",
-    label: (r) => `${r.id || "—"} — ${r.name || ""}`,
-    subtitle: (r) => `${r.form_factor || r.type || "—"} • ${r.resolution_mp || "—"}MP`,
-    sections: [
-      {
-        title: "Essentiel",
-        grid: 2,
-        fields: [
-          { key: "id", label: "Référence (id)", type: "text", required: true, readonly: false, help: "Identifiant unique (ex: IB04N2ZA)." },
-          { key: "name", label: "Nom", type: "text", required: true, help: "Nom commercial affiché dans le configurateur." },
+function renderAdminGrid(){
+  const mount = q("adminTableMount");
+  if (!mount) return;
 
-          { key: "brand_range", label: "Gamme / range", type: "text", help: "NEXT / WIKIT / …" },
-          { key: "family", label: "Famille", type: "text", help: "standard / …" },
-
-          { key: "form_factor", label: "Form factor (type)", type: "text", help: "bullet / dome / turret / ptz..." },
-          { key: "resolution_mp", label: "Résolution (MP)", type: "number", help: "Ex : 4, 8, 12" },
-        ],
-      },
-      {
-        title: "Emplacement & options",
-        grid: 2,
-        fields: [
-          { key: "Emplacement_Interieur", label: "Intérieur", type: "bool" },
-          { key: "Emplacement_Exterieur", label: "Extérieur", type: "bool" },
-          { key: "Microphone", label: "Microphone", type: "bool" },
-          { key: "low_light_mode", label: "Low light (texte)", type: "text", help: "Ex : Starlight / Low light / True WDR..." },
-        ],
-      },
-      {
-        title: "DORI (m)",
-        grid: 2,
-        fields: [
-          { key: "dori_detection_m", label: "Détection", type: "number" },
-          { key: "dori_observation_m", label: "Observation", type: "number" },
-          { key: "dori_recognition_m", label: "Reconnaissance", type: "number" },
-          { key: "dori_identification_m", label: "Identification", type: "number" },
-        ],
-      },
-      {
-        title: "Use cases",
-        grid: 2,
-        fields: [
-          { key: "use_cases_01", label: "Use case #1", type: "text" },
-          { key: "use_cases_02", label: "Use case #2", type: "text" },
-          { key: "use_cases_03", label: "Use case #3", type: "text" },
-        ],
-      },
-      {
-        title: "Liens & technique (optionnel)",
-        grid: 2,
-        fields: [
-          { key: "image_url", label: "Image URL", type: "text" },
-          { key: "datasheet_url", label: "Fiche technique URL", type: "text" },
-          { key: "poe_w", label: "PoE (W)", type: "number" },
-          { key: "bitrate_mbps_typical", label: "Bitrate typique (Mbps)", type: "number" },
-        ],
-      },
-    ],
-  },
-
-  nvrs: {
-    title: "NVR",
-    idField: "id",
-    label: (r) => `${r.id || "—"} — ${r.name || ""}`,
-    subtitle: (r) => `${r.channels || "—"} canaux • ${r.max_in_mbps || "—"} Mbps`,
-    sections: [
-      {
-        title: "Essentiel",
-        grid: 2,
-        fields: [
-          { key: "id", label: "Référence (id)", type: "text", required: true },
-          { key: "name", label: "Nom", type: "text", required: true },
-
-          { key: "channels", label: "Canaux", type: "number", required: true },
-          { key: "max_in_mbps", label: "Débit max IN (Mbps)", type: "number", required: true },
-
-          { key: "hdd_bays", label: "Nb baies HDD", type: "number" },
-          { key: "max_hdd_tb_per_bay", label: "Max TB / baie", type: "number" },
-
-          { key: "poe_ports", label: "Ports PoE", type: "number" },
-          { key: "poe_budget_w", label: "Budget PoE (W)", type: "number" },
-        ],
-      },
-      {
-        title: "Liens",
-        grid: 2,
-        fields: [
-          { key: "image_url", label: "Image URL", type: "text" },
-          { key: "datasheet_url", label: "Fiche technique URL", type: "text" },
-        ],
-      },
-    ],
-  },
-};
-
-// --- UI elements ---
-const AdminEls = {
-  btnAdmin: document.getElementById("btnAdmin"),
-  modal: document.getElementById("adminModal"),
-  btnClose: document.getElementById("btnAdminClose"),
-
-  loginBox: document.getElementById("adminLoginBox"),
-  pwd: document.getElementById("adminPassword"),
-  btnLogin: document.getElementById("btnAdminLogin"),
-  loginMsg: document.getElementById("adminLoginMsg"),
-
-  editorBox: document.getElementById("adminEditorBox"),
-  csvSelect: document.getElementById("adminCsvSelect"),
-  btnLoad: document.getElementById("btnAdminLoad"),
-  btnSave: document.getElementById("btnAdminSave"),
-  btnLogout: document.getElementById("btnAdminLogout"),
-
-  search: document.getElementById("adminSearch"),
-  list: document.getElementById("adminList"),
-
-  btnAdd: document.getElementById("btnAdminAdd"),
-  btnDup: document.getElementById("btnAdminDuplicate"),
-  btnDel: document.getElementById("btnAdminDelete"),
-
-  form: document.getElementById("adminForm"),
-  title: document.getElementById("adminEditorTitle"),
-  sub: document.getElementById("adminEditorSub"),
-  dirty: document.getElementById("adminDirtyBadge"),
-  msg: document.getElementById("adminMsg"),
-};
-
-// --- Open/Close modal ---
-function adminOpen(){
-  AdminEls.modal?.classList.remove("hidden");
-  AdminEls.pwd?.focus();
-}
-function adminClose(){
-  AdminEls.modal?.classList.add("hidden");
-}
-function adminSetDirty(v){
-  ADMIN.dirty = !!v;
-  if (AdminEls.dirty) AdminEls.dirty.classList.toggle("hidden", !ADMIN.dirty);
-}
-
-// --- Load CSV into admin state ---
-async function adminLoadSelected(){
-  ADMIN.csvKey = AdminEls.csvSelect?.value || "cameras";
-  const schema = ADMIN_SCHEMAS[ADMIN.csvKey];
-  if (!schema) {
-    AdminEls.msg.textContent = "⚠️ Schema non défini pour ce fichier.";
+  if (!ADMIN_GRID.headers.length){
+    mount.innerHTML = `<div class="muted" style="padding:12px">Aucune donnée.</div>`;
+    syncGridMeta();
     return;
   }
 
-  AdminEls.msg.textContent = "Chargement…";
-  const text = await adminApiReadCsv(ADMIN.csvKey);
-  const parsed = parseCsvWithHeaders(text);
+  const ths = ADMIN_GRID.headers.map(h => `<th title="${escapeAttr(h)}">${escapeAttr(h)}</th>`).join("");
 
-  // si CSV vide, on force les headers depuis le schema
-  if (!parsed.headers.length) {
-    const keys = [];
-    for (const sec of schema.sections) for (const f of sec.fields) keys.push(f.key);
-    parsed.headers = [...new Set(keys)];
-  }
+  const trs = ADMIN_GRID.rows.map((row, idx) => {
+    const selected = idx === ADMIN_GRID.selectedIndex ? "selected" : "";
+    const tds = ADMIN_GRID.headers.map(h => {
+      const val = row[h] ?? "";
+      return `<td><input class="adminCell" data-row="${idx}" data-col="${escapeAttr(h)}" value="${escapeAttr(val)}" /></td>`;
+    }).join("");
 
-  ADMIN.headers = parsed.headers;
-  ADMIN.rows = parsed.rows;
-  ADMIN.selectedIndex = ADMIN.rows.length ? 0 : -1;
-  adminSetDirty(false);
-
-  AdminEls.msg.textContent = `✅ ${schema.title} chargé (${ADMIN.rows.length} lignes)`;
-  adminRenderList();
-  adminRenderForm();
-}
-
-function adminRenderList(){
-  const schema = ADMIN_SCHEMAS[ADMIN.csvKey];
-  if (!schema) return;
-
-  const q = String(AdminEls.search?.value || "").trim().toLowerCase();
-  AdminEls.list.innerHTML = "";
-
-  const rows = ADMIN.rows.map((r, idx) => ({ r, idx }))
-    .filter(({r}) => {
-      if (!q) return true;
-      const hay = `${r[schema.idField] || ""} ${r.name || ""} ${r.form_factor || r.type || ""}`.toLowerCase();
-      return hay.includes(q);
-    });
-
-  if (!rows.length) {
-    AdminEls.list.innerHTML = `<div class="muted">Aucun résultat.</div>`;
-    return;
-  }
-
-  for (const {r, idx} of rows){
-    const el = document.createElement("div");
-    el.className = "adminItem" + (idx === ADMIN.selectedIndex ? " active" : "");
-    el.innerHTML = `
-      <div class="adminItemTitle">${safeHtml(schema.label(r))}</div>
-      <div class="adminItemSub">${safeHtml(schema.subtitle(r) || "")}</div>
-    `;
-    el.addEventListener("click", () => {
-      ADMIN.selectedIndex = idx;
-      adminRenderList();
-      adminRenderForm();
-    });
-    AdminEls.list.appendChild(el);
-  }
-}
-
-function adminGetSelectedRow(){
-  if (ADMIN.selectedIndex < 0 || ADMIN.selectedIndex >= ADMIN.rows.length) return null;
-  return ADMIN.rows[ADMIN.selectedIndex];
-}
-
-function adminRenderForm(){
-  const schema = ADMIN_SCHEMAS[ADMIN.csvKey];
-  const row = adminGetSelectedRow();
-
-  if (!schema){
-    AdminEls.form.innerHTML = "";
-    AdminEls.title.textContent = "—";
-    AdminEls.sub.textContent = "";
-    return;
-  }
-
-  if (!row){
-    AdminEls.form.innerHTML = `<div class="muted">Aucune ligne. Clique “Ajouter”.</div>`;
-    AdminEls.title.textContent = `${schema.title} — (vide)`;
-    AdminEls.sub.textContent = "Ajoute une ligne pour commencer";
-    return;
-  }
-
-  AdminEls.title.textContent = schema.label(row);
-  AdminEls.sub.textContent = schema.subtitle(row);
-
-  const sectionsHtml = schema.sections.map(sec => {
-    const gridClass = sec.grid === 2 ? "adminGrid2" : "";
-    const fieldsHtml = sec.fields.map(f => adminFieldHTML(f, row)).join("");
     return `
-      <div class="adminSection">
-        <div class="adminSectionTitle">${safeHtml(sec.title)}</div>
-        <div class="${gridClass}">
-          ${fieldsHtml}
-        </div>
-      </div>
+      <tr class="adminRow ${selected}" data-row="${idx}">
+        <td class="rowSel">#${idx+1}</td>
+        ${tds}
+      </tr>
     `;
   }).join("");
 
-  AdminEls.form.innerHTML = sectionsHtml;
+  mount.innerHTML = `
+    <table class="adminTable">
+      <thead>
+        <tr>
+          <th class="rowSel">—</th>
+          ${ths}
+        </tr>
+      </thead>
+      <tbody>${trs}</tbody>
+    </table>
+  `;
 
-  // bind inputs
-  AdminEls.form.querySelectorAll("[data-admin-field]").forEach((input) => {
-    input.addEventListener("input", () => {
-      const key = input.getAttribute("data-admin-field");
-      if (!key) return;
-
-      if (input.type === "checkbox") row[key] = input.checked ? "true" : "false";
-      else row[key] = input.value;
-
-      // s’assurer que la colonne existe dans headers (si nouveau champ)
-      if (!ADMIN.headers.includes(key)) ADMIN.headers.push(key);
-
-      adminSetDirty(true);
-      adminRenderList(); // pour mettre à jour le label à gauche
-      adminShowMsg("", false);
+  // select row
+  mount.querySelectorAll(".adminRow").forEach(tr => {
+    tr.addEventListener("click", () => {
+      ADMIN_GRID.selectedIndex = Number(tr.dataset.row);
+      renderAdminGrid();
     });
   });
-}
 
-function adminFieldHTML(f, row){
-  const v = row[f.key] ?? "";
-  const required = f.required ? " *" : "";
-  const ro = f.readonly ? "readonly" : "";
-
-  if (f.type === "bool"){
-    const checked = String(v).trim().toLowerCase() === "true" || String(v).trim() === "1" || String(v).trim().toLowerCase() === "yes";
-    return `
-      <div class="adminField">
-        <label>${safeHtml(f.label)}${required}</label>
-        <div class="toggleRow">
-          <label class="toggle">
-            <input data-admin-field="${safeHtml(f.key)}" type="checkbox" ${checked ? "checked" : ""}>
-            <span>${checked ? "Oui" : "Non"}</span>
-          </label>
-          ${f.help ? `<div class="adminHelp">${safeHtml(f.help)}</div>` : ""}
-        </div>
-      </div>
-    `;
-  }
-
-  const type = (f.type === "number") ? "number" : "text";
-  return `
-    <div class="adminField">
-      <label>${safeHtml(f.label)}${required}</label>
-      <input data-admin-field="${safeHtml(f.key)}" type="${type}" value="${safeHtml(v)}" ${ro}
-        ${type === "number" ? 'step="any"' : ""}>
-      ${f.help ? `<div class="adminHelp">${safeHtml(f.help)}</div>` : ""}
-    </div>
-  `;
-}
-
-function adminShowMsg(text, isError=false){
-  if (!AdminEls.msg) return;
-  AdminEls.msg.textContent = text || "";
-  AdminEls.msg.style.color = isError ? "#ff5a67" : "";
-}
-
-// --- Add/Duplicate/Delete ---
-function adminAddRow(){
-  const schema = ADMIN_SCHEMAS[ADMIN.csvKey];
-  const newRow = {};
-  // init keys from schema
-  for (const sec of schema.sections){
-    for (const f of sec.fields){
-      if (!ADMIN.headers.includes(f.key)) ADMIN.headers.push(f.key);
-      newRow[f.key] = (f.type === "bool") ? "false" : "";
-    }
-  }
-  ADMIN.rows.unshift(newRow);
-  ADMIN.selectedIndex = 0;
-  adminSetDirty(true);
-  adminRenderList();
-  adminRenderForm();
-}
-
-function adminDuplicateRow(){
-  const row = adminGetSelectedRow();
-  if (!row) return;
-  const copy = { ...row };
-
-  // petite aide : on vide l’id pour forcer l’utilisateur à le changer
-  copy.id = "";
-
-  ADMIN.rows.unshift(copy);
-  ADMIN.selectedIndex = 0;
-  adminSetDirty(true);
-  adminRenderList();
-  adminRenderForm();
-}
-
-function adminDeleteRow(){
-  if (ADMIN.selectedIndex < 0) return;
-  ADMIN.rows.splice(ADMIN.selectedIndex, 1);
-  ADMIN.selectedIndex = Math.min(ADMIN.selectedIndex, ADMIN.rows.length - 1);
-  adminSetDirty(true);
-  adminRenderList();
-  adminRenderForm();
-}
-
-// --- Validate before save ---
-function adminValidateAll(){
-  const schema = ADMIN_SCHEMAS[ADMIN.csvKey];
-  const errors = [];
-
-  const idKey = schema.idField || "id";
-  const seen = new Set();
-
-  ADMIN.rows.forEach((r, idx) => {
-    const id = String(r[idKey] || "").trim();
-    if (!id) errors.push(`Ligne ${idx+1} : id manquant`);
-    else {
-      const low = id.toLowerCase();
-      if (seen.has(low)) errors.push(`Ligne ${idx+1} : id dupliqué (${id})`);
-      seen.add(low);
-    }
-
-    // required fields
-    for (const sec of schema.sections){
-      for (const f of sec.fields){
-        if (!f.required) continue;
-        const v = String(r[f.key] ?? "").trim();
-        if (!v) errors.push(`Ligne ${idx+1} : champ obligatoire vide (${f.key})`);
-      }
-    }
-
-    // number sanity
-    for (const sec of schema.sections){
-      for (const f of sec.fields){
-        if (f.type !== "number") continue;
-        const v = String(r[f.key] ?? "").trim();
-        if (!v) continue;
-        const n = Number(v);
-        if (!Number.isFinite(n)) errors.push(`Ligne ${idx+1} : ${f.key} n’est pas un nombre (${v})`);
-      }
-    }
+  // edit cell
+  mount.querySelectorAll(".adminCell").forEach(inp => {
+    inp.addEventListener("input", () => {
+      const r = Number(inp.dataset.row);
+      const c = inp.dataset.col;
+      if (!ADMIN_GRID.rows[r]) return;
+      ADMIN_GRID.rows[r][c] = inp.value;
+      syncExpertTextareaIfOpen();
+    });
   });
 
-  return errors;
+  syncGridMeta();
 }
 
-// --- Save ---
-async function adminSave(){
-  const errs = adminValidateAll();
-  if (errs.length){
-    adminShowMsg("❌ " + errs.slice(0, 6).join(" • ") + (errs.length > 6 ? ` … (+${errs.length-6})` : ""), true);
-    return;
+function adminGridAddRow(){
+  if (!ADMIN_GRID.headers.length) return;
+  const obj = {};
+  ADMIN_GRID.headers.forEach(h => obj[h] = "");
+  ADMIN_GRID.rows.push(obj);
+  ADMIN_GRID.selectedIndex = ADMIN_GRID.rows.length - 1;
+  renderAdminGrid();
+  syncExpertTextareaIfOpen();
+}
+
+function adminGridDupRow(){
+  const i = ADMIN_GRID.selectedIndex;
+  if (i < 0 || !ADMIN_GRID.rows[i]) return;
+  const copy = { ...ADMIN_GRID.rows[i] };
+  ADMIN_GRID.rows.splice(i+1, 0, copy);
+  ADMIN_GRID.selectedIndex = i+1;
+  renderAdminGrid();
+  syncExpertTextareaIfOpen();
+}
+
+function adminGridDelRow(){
+  const i = ADMIN_GRID.selectedIndex;
+  if (i < 0 || !ADMIN_GRID.rows[i]) return;
+  ADMIN_GRID.rows.splice(i, 1);
+  ADMIN_GRID.selectedIndex = ADMIN_GRID.rows.length ? Math.min(i, ADMIN_GRID.rows.length-1) : -1;
+  renderAdminGrid();
+  syncExpertTextareaIfOpen();
+}
+
+function initAdminGridUI(){
+  const btnAdd = q("btnAdminAddRow");
+  const btnDup = q("btnAdminDupRow");
+  const btnDel = q("btnAdminDelRow");
+  const btnToggle = q("btnAdminToggleExpert");
+  const expertBox = q("adminExpertBox");
+  const ta = q("adminCsvText");
+
+  if (btnAdd) btnAdd.addEventListener("click", adminGridAddRow);
+  if (btnDup) btnDup.addEventListener("click", adminGridDupRow);
+  if (btnDel) btnDel.addEventListener("click", adminGridDelRow);
+
+  if (btnToggle && expertBox){
+    btnToggle.addEventListener("click", () => {
+      expertBox.classList.toggle("hidden");
+      if (!expertBox.classList.contains("hidden") && ta){
+        ta.value = toCSVGrid(ADMIN_GRID.headers, ADMIN_GRID.rows);
+      }
+    });
   }
-
-  // Reconstruire CSV
-  const content = toCsvFromHeaders(ADMIN.headers, ADMIN.rows);
-
-  AdminEls.msg.textContent = "Sauvegarde…";
-  await adminApiWriteCsv(ADMIN.csvKey, content);
-
-  adminSetDirty(false);
-  adminShowMsg("✅ Sauvegardé. (backup .bak côté serveur)");
 }
-
-// --- Login / Logout UI ---
-async function adminDoLogin(){
-  const pwd = String(AdminEls.pwd?.value || "").trim();
-  if (!pwd) { AdminEls.loginMsg.textContent = "Entre le mot de passe."; return; }
-
-  AdminEls.loginMsg.textContent = "Connexion…";
-  try{
-    const out = await adminApiLogin(pwd);
-    ADMIN.token = out.token;
-
-    AdminEls.loginMsg.textContent = "✅ Connecté";
-    AdminEls.loginBox.classList.add("hidden");
-    AdminEls.editorBox.classList.remove("hidden");
-
-    await adminLoadSelected();
-  }catch(e){
-    AdminEls.loginMsg.textContent = `❌ ${e.message}`;
-  }
-}
-
-function adminLogout(){
-  ADMIN.token = null;
-  ADMIN.headers = [];
-  ADMIN.rows = [];
-  ADMIN.selectedIndex = -1;
-  adminSetDirty(false);
-
-  AdminEls.editorBox.classList.add("hidden");
-  AdminEls.loginBox.classList.remove("hidden");
-  AdminEls.loginMsg.textContent = "";
-  AdminEls.pwd.value = "";
-}
-
-// --- Bind buttons ---
-if (AdminEls.btnAdmin) AdminEls.btnAdmin.addEventListener("click", adminOpen);
-if (AdminEls.btnClose) AdminEls.btnClose.addEventListener("click", adminClose);
-if (AdminEls.modal) {
-  AdminEls.modal.addEventListener("click", (e) => {
-    if (e.target === AdminEls.modal) adminClose();
-  });
-}
-
-if (AdminEls.btnLogin) AdminEls.btnLogin.addEventListener("click", adminDoLogin);
-if (AdminEls.btnLogout) AdminEls.btnLogout.addEventListener("click", adminLogout);
-
-if (AdminEls.btnLoad) AdminEls.btnLoad.addEventListener("click", adminLoadSelected);
-if (AdminEls.btnSave) AdminEls.btnSave.addEventListener("click", adminSave);
-
-if (AdminEls.csvSelect) AdminEls.csvSelect.addEventListener("change", () => {
-  if (!ADMIN.token) return;
-  adminLoadSelected();
-});
-
-if (AdminEls.search) AdminEls.search.addEventListener("input", adminRenderList);
-
-if (AdminEls.btnAdd) AdminEls.btnAdd.addEventListener("click", adminAddRow);
-if (AdminEls.btnDup) AdminEls.btnDup.addEventListener("click", adminDuplicateRow);
-if (AdminEls.btnDel) AdminEls.btnDel.addEventListener("click", adminDeleteRow);
-
-// mini sécurité : prévenir si fermeture avec modifs
-window.addEventListener("beforeunload", (e) => {
-  if (ADMIN.dirty) {
-    e.preventDefault();
-    e.returnValue = "";
-  }
-});
 
   init();
 })();
