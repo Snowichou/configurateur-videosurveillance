@@ -1,0 +1,507 @@
+:root{
+  --bg:#0b0f17;
+  --card:#121a27;
+  --card2:#0f1622;
+  --text:#e8eefc;
+  --muted:#9fb0d0;
+  --line:#223148;
+  --primary:#5aa2ff;
+  --primary2:#2f6bff;
+  --danger:#ff6b6b;
+  --ok:#2ee59d;
+  --warn:#ffd166;
+  --radius:16px;
+
+  /* petits réglages UI */
+  --shadow: 0 18px 40px rgba(0,0,0,.35);
+  --focus: rgba(90,162,255,.45);
+}
+
+/* =========================
+   RESET / BASE
+   ========================= */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(1000px 600px at 20% 0%, #17233a 0%, var(--bg) 55%);
+  color:var(--text);
+}
+
+img, svg, video, canvas{
+  max-width:100%;
+  height:auto;
+  display:block;
+}
+
+a{color:inherit}
+code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace}
+
+/* =========================
+   LAYOUT GLOBAL
+   ========================= */
+.container{max-width:1100px;margin:0 auto;padding:20px}
+
+h1{margin:0 0 6px;font-size:26px}
+.subtitle{margin:0;color:var(--muted)}
+h2{margin:0;font-size:18px}
+
+.top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+
+/* ✅ Grille principale (Besoin / Résultat) */
+.grid{
+  display:grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap:16px;
+  align-items:start;
+}
+
+/* Mode 1 colonne quand résultat masqué */
+.grid.singleCol{
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+@media (max-width: 980px){
+  .grid{grid-template-columns:1fr}
+}
+
+/* =========================
+   CARDS
+   ========================= */
+.card{
+  border:1px solid var(--line);
+  background: linear-gradient(180deg, var(--card) 0%, var(--card2) 100%);
+  border-radius: var(--radius);
+  overflow:hidden;
+  box-shadow: var(--shadow);
+  min-width:0; /* ✅ CRITIQUE: évite les débordements en grid */
+}
+
+.cardHeader{
+  padding:16px 16px 10px;
+  border-bottom:1px solid var(--line);
+}
+
+.card.hiddenCard{
+  display:none !important;
+}
+
+.muted{color:var(--muted);font-size:13px}
+
+.footer{
+  padding:14px 16px 16px;
+  border-top:1px solid var(--line);
+  background: rgba(0,0,0,.15);
+}
+
+.footerRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:10px
+}
+
+/* =========================
+   BUTTONS
+   ========================= */
+.btn{
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding:10px 12px;
+  cursor:pointer;
+  color:var(--text);
+  background: rgba(255,255,255,.06);
+  transition: transform .05s ease, background .15s ease, border-color .15s ease;
+  font-weight:600;
+}
+.btn:hover{background: rgba(255,255,255,.10); border-color:#36507a}
+.btn:active{transform: scale(.99)}
+.btn.primary{
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary2) 100%);
+  border-color: transparent;
+  color:#091224
+}
+.btn.secondary{background: rgba(255,255,255,.06)}
+
+/* tes boutons custom (si tu les utilises dans renderStepCameras) */
+.btnGhost{
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding:10px 12px;
+  cursor:pointer;
+  color:var(--text);
+  background: rgba(255,255,255,.06);
+  font-weight:700;
+}
+.btnGhost:hover{background: rgba(255,255,255,.10); border-color:#36507a}
+.btnPrimary{
+  border:1px solid transparent;
+  border-radius: 12px;
+  padding:10px 12px;
+  cursor:pointer;
+  font-weight:800;
+  color:#091224;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary2) 100%);
+}
+.btnPrimary:hover{filter:brightness(1.05)}
+
+/* =========================
+   STEPS
+   ========================= */
+.steps{padding:14px 16px 2px}
+
+.step{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  padding:12px;
+  margin-bottom:12px;
+  background: rgba(255,255,255,.03);
+  min-width:0;
+}
+
+.stepTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.stepTitle strong{font-size:14px}
+
+.badge{
+  font-size:12px;
+  color:var(--muted);
+  border:1px solid var(--line);
+  padding:4px 8px;
+  border-radius: 999px;
+}
+
+.help{margin-top:6px;color:var(--muted);font-size:13px;line-height:1.35}
+
+/* =========================
+   OPTIONS / CHECKS
+   ========================= */
+.options{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.opt{
+  border:1px solid var(--line);
+  background: rgba(0,0,0,.18);
+  padding:9px 10px;
+  border-radius: 12px;
+  cursor:pointer;
+  user-select:none;
+  font-weight:600;
+  font-size:13px;
+}
+.opt:hover{border-color:#36507a}
+.opt.active{
+  background: rgba(90,162,255,.18);
+  border-color: rgba(90,162,255,.55);
+}
+
+.checkboxRow{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+@media (max-width: 420px){
+  .checkboxRow{grid-template-columns:1fr}
+}
+
+.check{
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding:10px;
+  background: rgba(0,0,0,.18);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  cursor:pointer;
+}
+.check input{transform: scale(1.2)}
+.check:hover{border-color:#36507a}
+
+/* =========================
+   PROGRESS
+   ========================= */
+.progress{
+  height:10px;
+  border-radius: 999px;
+  border:1px solid var(--line);
+  background: rgba(0,0,0,.25);
+  overflow:hidden;
+}
+.bar{
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg, var(--ok), var(--primary));
+  transition: width .2s ease;
+}
+
+/* =========================
+   RESULTS
+   ========================= */
+.empty{padding:18px 16px}
+.emptyTitle{font-weight:800;margin-bottom:6px}
+
+.hidden{display:none}
+.results{padding:14px 16px 16px}
+.resultBlock{margin-bottom:16px}
+.resultTitle{font-weight:900;margin-bottom:10px}
+
+.recoCard{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  padding:12px;
+  background: rgba(0,0,0,.18);
+  min-width:0;
+}
+
+.recoHeader{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start
+}
+.recoName{font-weight:900;font-size:14px}
+.score{font-weight:900;color:var(--ok)}
+
+.kv{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+.kv div{
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding:8px 10px;
+  background: rgba(255,255,255,.03);
+  font-size:13px;
+  min-width:0;
+}
+
+.reasons{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.4}
+
+.altGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width: 520px){
+  .altGrid{grid-template-columns:1fr}
+}
+
+.altCard{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  padding:12px;
+  background: rgba(0,0,0,.18);
+}
+.altCard .small{color:var(--muted);font-size:12px;margin-top:6px}
+
+.alerts{margin:0;padding-left:16px}
+.alerts li{margin-bottom:6px;color:var(--warn)}
+.alerts li.danger{color:var(--danger)}
+
+.exportRow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.exportArea{
+  width:100%;
+  min-height:130px;
+  border-radius: 14px;
+  border:1px solid var(--line);
+  background: rgba(0,0,0,.25);
+  color: var(--text);
+  padding:10px;
+  outline:none;
+  resize:vertical;
+  font-size:12px;
+}
+.footerNote{padding-top:8px;padding-bottom:26px}
+
+/* ==========================================
+   STEP 1 (Caméras) - Split UI
+   ✅ fix images + fix débordements
+   ========================================== */
+.stepSplit{
+  display:grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap:14px;
+  align-items:start;
+  min-width:0;
+}
+
+.blocksCol,
+.proposalsCol{
+  min-width:0;
+}
+
+.blocksCol{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.proposalsCol{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  max-height: 720px;
+  overflow:auto;
+  padding-right:6px;
+}
+
+/* Scrollbar plus clean (optionnel) */
+.proposalsCol::-webkit-scrollbar{width:10px}
+.proposalsCol::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+}
+.proposalsCol::-webkit-scrollbar-track{background: rgba(0,0,0,.12)}
+
+@media (max-width: 1200px){
+  .stepSplit{grid-template-columns:1fr}
+  .proposalsCol{
+    max-height:none;
+    overflow:visible;
+    padding-right:0;
+  }
+}
+
+/* ==========================================
+   Cartes caméras (colonne droite)
+   ✅ images jamais géantes
+   ========================================== */
+.cameraPickCard{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background: rgba(0,0,0,.18);
+  overflow:hidden;
+}
+
+.cameraPickTop{
+  display:flex;
+  gap:12px;
+  padding:12px;
+  align-items:flex-start;
+  min-width:0;
+}
+
+.cameraPickImg{
+  width:92px;
+  height:72px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  object-fit:contain;
+  flex: 0 0 auto;
+}
+
+.cameraPickMeta{
+  min-width:0;
+  flex:1;
+}
+
+.cameraPickMeta strong{
+  display:inline-block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.cameraPickActions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+
+/* inputs/selects focus */
+select, input, textarea, button{
+  outline:none;
+}
+select:focus, input:focus, textarea:focus{
+  box-shadow: 0 0 0 3px rgba(90,162,255,.18);
+  border-color: var(--focus) !important;
+}
+/* =========================
+   BADGES UNIFORMES (Caméras)
+   Objectif: même couleur, même taille, plus compact
+   ========================= */
+
+.badgeRow{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-top:8px;
+}
+
+/* Optionnel: si tu veux éviter le wrap et faire un scroll horizontal
+   -> remplace flex-wrap:wrap par nowrap et active overflow-x */
+.badgeRow.noWrap{
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  padding-bottom:6px;
+}
+.badgeRow.noWrap::-webkit-scrollbar{height:10px}
+.badgeRow.noWrap::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+}
+.badgeRow.noWrap::-webkit-scrollbar-track{background: rgba(0,0,0,.12)}
+
+/* Le badge "pilule" uniforme */
+.badgePill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+
+  /* taille compacte et identique */
+  padding:3px 8px;
+  border-radius:999px;
+
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+
+  font-size:11px;
+  line-height:1;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+/* =========================
+   BOUTONS PETITS (Caméras)
+   ========================= */
+.btnSmall{
+  padding:8px 10px !important;
+  font-size:12px !important;
+  border-radius:12px !important;
+}
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+
+  .actions,
+  #btnCompute, #btnReset, #btnDemo,
+  #btnExportJson, #btnExportCsv, #btnExportPdf,
+  textarea, #exportArea,
+  #dataStatus {
+    display: none !important;
+  }
+
+  #resultCard.hiddenCard, #results.hidden {
+    display: block !important;
+  }
+
+  #mainGrid.singleCol { display: block !important; }
+  .card, .recoCard { box-shadow: none !important; border: none !important; }
+
+  .recoCard, .cameraPickCard {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}

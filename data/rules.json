@@ -1,0 +1,22 @@
+{
+  "elimination": [
+    { "if": { "distance_gt": 20 }, "then": { "min_focal_mm": 4.0 } },
+    { "if": { "distance_gt": 35 }, "then": { "min_focal_mm": 6.0, "allow_ptz": true } },
+    { "if": { "exterior": true }, "then": { "min_ip": 66 } }
+  ],
+  "scoringWeights": {
+    "match_site": 3,
+    "objective_match": 3,
+    "low_light": 2,
+    "vandalism_ik10": 2,
+    "exterior_ip67": 1,
+    "high_resolution_8mp": 1,
+    "long_distance_margin": 2,
+    "audio": 1,
+    "discreet_dome": 1,
+    "ptz_bonus": 2,
+    "thermal_bonus": 2,
+    "multisensor_bonus": 1,
+    "fisheye_bonus": 1
+  }
+}

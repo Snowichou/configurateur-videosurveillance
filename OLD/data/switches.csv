@@ -1,0 +1,7 @@
+id,name,poe_ports,poe_budget_w,uplink_gbps,image_url,datasheet_url
+IPSWP06N100A,"Switch 4 ports PoE + 2 uplink 10/100",4,60,2,https://staticpro.comelitgroup.com/storage/2021/04/27673/ipswp06n100a.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/19650-ipswp06n100a.pdf
+IPSWP06N01A,"Switch PoE 4 ports + 2 liaisons Gbit",4,65,2,https://staticpro.comelitgroup.com/storage/2020/01/23750/ipswp06n01a.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/16942-ipswp06n01a.pdf
+IPSWP08N100A,"Switch 8 ports PoE + 2 uplink 10/100",8,120,2,https://staticpro.comelitgroup.com/storage/2021/04/27674/ipswp08n100a.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/19651-ipswp08n100a.pdf
+IPSWP10N01A,"Switch PoE 8 ports + 2 uplinks Gbit",8,120,2,https://staticpro.comelitgroup.com/storage/2021/01/26600/ipswp10n01a.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/16944-ipswp10n01a.pdf
+IPSWP22N01A,"Switch PoE 16 ports + 4 combo + 2GE",16,250,4,https://staticpro.comelitgroup.com/storage/2020/01/23753/ipswp22n01a.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/16943-ipswp22n01a.pdf
+S24P6GA,"Switch PoE 24 ports + uplinks",24,370,4,https://staticpro.comelitgroup.com/storage/2025/11/51591/s24p6ga.png,https://staticpro.comelitgroup.com/fr-fr/datasheets/24803-s24p6ga.pdf

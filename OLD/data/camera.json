@@ -1,0 +1,30 @@
+[
+  {
+    "id": "CAM-DOME-4MP-28",
+    "name": "Dôme 4MP 2.8mm",
+    "type": "dome",
+    "resolution_mp": 4,
+    "focal_mm": 2.8,
+    "max_distance_m": 15,
+    "low_light": true,
+    "ir_range_m": 20,
+    "ik": 10,
+    "ip": 67,
+    "poe_w": 7,
+    "use_cases": ["maison", "commerce", "copropriete"]
+  },
+  {
+    "id": "CAM-BULLET-8MP-40",
+    "name": "Bullet 8MP 4.0mm",
+    "type": "bullet",
+    "resolution_mp": 8,
+    "focal_mm": 4.0,
+    "max_distance_m": 30,
+    "low_light": true,
+    "ir_range_m": 40,
+    "ik": 8,
+    "ip": 67,
+    "poe_w": 9,
+    "use_cases": ["commerce", "industrie", "tertiaire"]
+  }
+]

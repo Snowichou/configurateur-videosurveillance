@@ -1,0 +1,554 @@
+:root{
+  --bg:#0b0f17;
+  --card:#121a27;
+  --card2:#0f1622;
+  --text:#e8eefc;
+  --muted:#9fb0d0;
+  --line:#223148;
+
+  --primary:#5aa2ff;
+  --primary2:#2f6bff;
+
+  --danger:#ff6b6b;
+  --ok:#2ee59d;
+  --warn:#ffd166;
+
+  --radius:16px;
+  --shadow: 0 18px 40px rgba(0,0,0,.35);
+  --focus: rgba(90,162,255,.45);
+}
+
+/* =========================
+   RESET / BASE
+   ========================= */
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--text);
+  background: radial-gradient(1000px 600px at 20% 0%, #17233a 0%, var(--bg) 55%);
+}
+
+a{ color:inherit; text-decoration:none; }
+img{ max-width:100%; height:auto; display:block; }
+code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+.hidden{ display:none !important; }
+.muted{ color:var(--muted); font-size:13px; line-height:1.35; }
+.hiddenCard{ display:none !important; }
+
+/* =========================
+   HEADER
+   ========================= */
+.appHeader{
+  position:sticky;
+  top:0;
+  z-index:50;
+  padding:14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(10,14,22,.72);
+  backdrop-filter: blur(10px);
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+}
+
+.brand{ min-width:280px; }
+.brandTop{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.brandTitle{
+  font-weight:900;
+  font-size:16px;
+  letter-spacing:.2px;
+}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 10px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--muted);
+  font-weight:800;
+  font-size:12px;
+}
+.statusLine{
+  margin-top:6px;
+  color: var(--muted);
+  font-size:12px;
+}
+
+/* Progress */
+.progressWrap{ margin-top:10px; }
+.progressOuter{
+  height:8px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background: rgba(0,0,0,.25);
+  overflow:hidden;
+}
+.progressBar{
+  height:100%;
+  width:0%;
+  background: linear-gradient(90deg, rgba(46,229,157,.9), rgba(90,162,255,.9));
+  transition: width .2s ease;
+}
+.progressText{
+  margin-top:6px;
+  color: var(--muted);
+  font-size:12px;
+}
+
+/* Actions */
+.headerActions{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.headerActionsLeft,
+.headerActionsRight{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+/* =========================
+   BUTTONS
+   ========================= */
+.btn{
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+  cursor:pointer;
+  color:var(--text);
+  background: rgba(255,255,255,.06);
+  transition: transform .05s ease, background .15s ease, border-color .15s ease, filter .15s ease;
+  font-weight:700;
+}
+.btn:hover{ background: rgba(255,255,255,.10); border-color:#36507a; }
+.btn:active{ transform: scale(.99); }
+
+.btn.primary{
+  background: linear-gradient(180deg, var(--primary) 0%, var(--primary2) 100%);
+  border-color: transparent;
+  color:#091224;
+}
+.btn.secondary{ background: rgba(255,255,255,.06); }
+.btn.icon{ padding:10px 12px; min-width:42px; }
+.btn.full{ width:100%; }
+
+/* =========================
+   MAIN / GRID
+   ========================= */
+.appMain{ padding:16px; }
+.appGrid{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) 420px;
+  gap:16px;
+  align-items:start;
+}
+#mainGrid.singleCol,
+.appGrid.singleCol{
+  grid-template-columns: minmax(0,1fr) !important;
+}
+
+@media (max-width: 1100px){
+  .appGrid{ grid-template-columns:1fr; }
+}
+
+/* =========================
+   CARDS
+   ========================= */
+.card{
+  border:1px solid var(--line);
+  background: linear-gradient(180deg, var(--card) 0%, var(--card2) 100%);
+  border-radius: var(--radius);
+  overflow:hidden;
+  box-shadow: var(--shadow);
+  min-width:0;
+}
+.cardHeader{
+  padding:16px 16px 12px;
+  border-bottom:1px solid var(--line);
+  background: rgba(0,0,0,.12);
+}
+.cardTitle{ font-weight:900; font-size:14px; }
+.cardSubtitle{ margin-top:6px; color:var(--muted); font-size:12px; }
+
+.steps{ padding:14px 16px 2px; }
+.resultsBody{ padding:14px 16px 16px; }
+
+/* =========================
+   STEPS (wrappers générés par JS)
+   ========================= */
+.step{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  padding:12px;
+  margin-bottom:12px;
+  background: rgba(255,255,255,.03);
+  min-width:0;
+}
+
+.stepTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.stepTitle strong{ font-size:14px; }
+
+.badge{
+  font-size:12px;
+  color:var(--muted);
+  border:1px solid var(--line);
+  padding:4px 8px;
+  border-radius: 999px;
+}
+.help{
+  margin-top:6px;
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.35;
+}
+
+/* options / checks (si tu les utilises dans tes steps) */
+.options{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+.opt{
+  border:1px solid var(--line);
+  background: rgba(0,0,0,.18);
+  padding:9px 10px;
+  border-radius: 12px;
+  cursor:pointer;
+  user-select:none;
+  font-weight:700;
+  font-size:13px;
+}
+.opt:hover{ border-color:#36507a; }
+.opt.active{
+  background: rgba(90,162,255,.18);
+  border-color: rgba(90,162,255,.55);
+}
+
+.checkboxRow{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+@media (max-width: 420px){
+  .checkboxRow{ grid-template-columns:1fr; }
+}
+
+.check{
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding:10px;
+  background: rgba(0,0,0,.18);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  cursor:pointer;
+}
+.check input{ transform: scale(1.2); }
+.check:hover{ border-color:#36507a; }
+
+/* =========================
+   RESULTS
+   ========================= */
+.exportRow{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+
+.emptyState{
+  border:1px dashed rgba(255,255,255,.18);
+  border-radius: 14px;
+  padding:14px;
+  background: rgba(0,0,0,.15);
+}
+.emptyTitle{ font-weight:900; margin-bottom:6px; }
+
+.alerts{ margin:10px 0 0 0; padding-left:18px; }
+.alerts li{ margin:6px 0; color: var(--warn); }
+.alerts li.danger{ color: var(--danger); font-weight:900; }
+.alerts li.warn{ color: var(--warn); font-weight:900; }
+
+/* reco cards (si ton JS génère .recoCard/.recoHeader/etc) */
+.recoCard{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  padding:12px;
+  background: rgba(0,0,0,.18);
+  min-width:0;
+}
+.recoHeader{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  align-items:flex-start;
+}
+.recoName{ font-weight:900; font-size:14px; }
+.score{ font-weight:900; color: var(--ok); }
+.kv{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:8px;
+  margin-top:10px;
+}
+.kv div{
+  border:1px solid var(--line);
+  border-radius: 12px;
+  padding:8px 10px;
+  background: rgba(255,255,255,.03);
+  font-size:13px;
+  min-width:0;
+}
+.reasons{ margin-top:10px; color:var(--muted); font-size:13px; line-height:1.4; }
+
+/* =========================
+   FORM CONTROLS
+   ========================= */
+.input, .select, .textarea{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0,0,0,.25);
+  color: var(--text);
+  padding:10px 12px;
+  outline:none;
+}
+.select{ padding:10px 12px; }
+.textarea{ min-height: 320px; resize: vertical; }
+.mono{ font-family: ui-monospace,Consolas,monospace; font-size:12px; line-height:1.45; }
+
+.input:focus, .select:focus, .textarea:focus{
+  box-shadow: 0 0 0 3px rgba(90,162,255,.18);
+  border-color: var(--focus);
+}
+
+.field{ display:flex; flex-direction:column; gap:8px; margin-top:8px; }
+.field.inline{ flex-direction:row; align-items:center; gap:10px; }
+.label{ color: var(--muted); font-size:12px; font-weight:800; }
+
+/* =========================
+   MODAL (ADMIN)
+   ========================= */
+.modal{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: rgba(0,0,0,.55);
+  padding:16px;
+  z-index:9999;
+}
+
+.modalCard{
+  width: min(980px, 96vw);
+  background: rgba(16,18,26,.96);
+  border:1px solid var(--line);
+  border-radius: 16px;
+  padding:14px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+}
+
+.modalHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  padding-bottom:10px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.modalTitle{ font-weight:900; font-size:16px; }
+.modalSubtitle{ margin-top:4px; color:var(--muted); font-size:12px; }
+
+.adminSection{ margin-top:12px; }
+.adminToolbar{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+}
+.toolbarBtns{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.adminHint{
+  margin-top:10px;
+  color: var(--muted);
+  font-size:12px;
+}
+
+/* ==========================================
+   ✅ STEP 1 (Caméras) - Split UI (CRITIQUE)
+   Si ce bloc manque -> tout devient “en liste”
+   ========================================== */
+.stepSplit{
+  display:grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap:14px;
+  align-items:start;
+  min-width:0;
+}
+
+.blocksCol,
+.proposalsCol{
+  min-width:0;
+}
+
+.blocksCol{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+
+.proposalsCol{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  max-height: 720px;
+  overflow:auto;
+  padding-right:6px;
+}
+
+/* Scrollbar clean */
+.proposalsCol::-webkit-scrollbar{ width:10px }
+.proposalsCol::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+}
+.proposalsCol::-webkit-scrollbar-track{ background: rgba(0,0,0,.12) }
+
+@media (max-width: 1200px){
+  .stepSplit{ grid-template-columns:1fr; }
+  .proposalsCol{
+    max-height:none;
+    overflow:visible;
+    padding-right:0;
+  }
+}
+
+/* Cartes caméras à droite */
+.cameraPickCard{
+  border:1px solid var(--line);
+  border-radius:14px;
+  background: rgba(0,0,0,.18);
+  overflow:hidden;
+}
+
+.cameraPickTop{
+  display:flex;
+  gap:12px;
+  padding:12px;
+  align-items:flex-start;
+  min-width:0;
+}
+
+.cameraPickImg{
+  width:92px;
+  height:72px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.03);
+  object-fit:contain;
+  flex: 0 0 auto;
+}
+
+.cameraPickMeta{ min-width:0; flex:1; }
+.cameraPickMeta strong{
+  display:inline-block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.cameraPickActions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+
+/* Badges uniformes */
+.badgeRow{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-top:8px;
+}
+.badgePill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+
+  padding:3px 8px;
+  border-radius:999px;
+
+  border:1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+
+  font-size:11px;
+  line-height:1;
+  font-weight:800;
+  white-space:nowrap;
+}
+
+/* Petits boutons */
+.btnSmall{
+  padding:8px 10px !important;
+  font-size:12px !important;
+  border-radius:12px !important;
+}
+
+/* =========================
+   PRINT
+   ========================= */
+@media print{
+  body{ background:#fff !important; color:#000 !important; }
+
+  .appHeader,
+  .actions,
+  #btnAdmin,
+  #btnCompute, #btnReset, #btnDemo,
+  #btnExportXlsx,
+  .modal{
+    display:none !important;
+  }
+
+
+  /* montre les résultats */
+  
+  #resultsEmpty{ display:none !important; }
+  #results.hidden{ display:block !important; }
+  #resultCard{ box-shadow:none !important; border:none !important; }
+
+  .card, .recoCard, .cameraPickCard{
+    box-shadow:none !important;
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+
+  .appGrid{ display:block !important; }
+}
