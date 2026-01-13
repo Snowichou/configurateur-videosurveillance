@@ -9,7 +9,7 @@ BASE_DIR = os.path.abspath(os.path.join(APP_ROOT, ".."))  # C:\AI\Configurateur
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 DATA_DIR = os.path.join(BASE_DIR, "data")    # C:\AI\Configurateur\data
 
-ADMIN_PASSWORD = "admin"
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 TOKENS = {}
 
 ALLOWED = {
