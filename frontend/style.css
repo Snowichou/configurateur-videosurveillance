@@ -537,9 +537,6 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
     display:none !important;
   }
 
-
-  /* montre les résultats */
-  
   #resultsEmpty{ display:none !important; }
   #results.hidden{ display:block !important; }
   #resultCard{ box-shadow:none !important; border:none !important; }
@@ -549,6 +546,110 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
     break-inside:avoid;
     page-break-inside:avoid;
   }
+
+  .appGrid{ display:block !important; }
+}
+
+/* =========================
+   ADMIN TABLE EDITOR (PRO)
+   ========================= */
+.adminGridWrap{ margin-top:12px; display:flex; flex-direction:column; gap:10px; }
+
+.adminGridTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.adminGridActions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.adminGridSep{
+  width:1px; height:22px;
+  background: rgba(255,255,255,.10);
+  display:inline-block;
+}
+
+.adminTableMount{
+  border:1px solid var(--line);
+  border-radius: 14px;
+  overflow:auto; /* ✅ scroll horizontal/vertical */
+  background: rgba(0,0,0,.18);
+  max-height: 56vh; /* ✅ évite que ça dépasse la modal */
+}
+
+/* table layout */
+.adminTable{
+  width: max-content;   /* ✅ prend la largeur nécessaire */
+  min-width: 100%;      /* ✅ mais au moins la largeur du conteneur */
+  border-collapse:separate;
+  border-spacing:0;
+  table-layout: fixed;
+}
+
+.adminTable thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  text-align:left;
+  font-size:12px;
+  color: var(--muted);
+  padding:10px;
+  background: rgba(0,0,0,.35);
+  border-bottom:1px solid rgba(255,255,255,.08);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.adminTable tbody td{
+  border-bottom:1px solid rgba(255,255,255,.06);
+  padding:0;
+}
+
+.adminCell{
+  width: 220px;          /* ✅ largeur stable */
+  max-width: 220px;
+  border:0;
+  background: transparent;
+  color: var(--text);
+  padding:10px;
+  font-size:13px;
+  outline:none;
+}
+
+.adminCell:focus{
+  box-shadow: inset 0 0 0 2px rgba(90,162,255,.25);
+  background: rgba(90,162,255,.08);
+}
+
+.adminRow{ cursor:pointer; }
+.adminRow.selected{ background: rgba(90,162,255,.10); }
+.adminRow.selected .adminCell{ background: rgba(90,162,255,.06); }
+
+/* first col (row selector) */
+.adminTable .rowSel{
+  width:70px;
+  text-align:center;
+  color: var(--muted);
+  font-weight:900;
+  font-size:12px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: rgba(0,0,0,.45);
+}
+
+.adminExpertBox{
+  border:1px dashed rgba(255,255,255,.18);
+  border-radius: 14px;
+  padding:10px;
+  background: rgba(0,0,0,.12);
+}
+
+@media (max-width: 720px){
+  .adminCell{ width: 160px; max-width: 160px; }
+}
 
   /* =========================
    ADMIN TABLE EDITOR (PRO)
@@ -651,8 +752,6 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 }
 
   .appGrid{ display:block !important; }
-}
-
 /* ============================
    ADMIN MODAL — RESPONSIVE FIX
    ============================ */
@@ -794,4 +893,37 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 #adminModal *{
   min-width: 0;
 }
+
+/* =========================
+   ✅ ADMIN MODAL FIT SCREEN
+   ========================= */
+#adminModal{
+  padding: 16px;
+}
+
+#adminModal .modalCard{
+  width: min(1200px, 96vw);
+  max-height: 88vh;          /* ✅ ne dépasse jamais l’écran */
+  overflow: hidden;           /* ✅ pas de scroll sur le wrapper */
+  display: flex;              /* ✅ layout colonne */
+  flex-direction: column;
+}
+
+#adminModal .modalHeader{
+  flex: 0 0 auto;             /* ✅ header fixe */
+}
+
+/* zone qui scroll (login ou editor) */
+#adminModal #adminLoginBox,
+#adminModal #adminEditorBox{
+  flex: 1 1 auto;
+  min-height: 0;              /* ✅ CRUCIAL pour que overflow marche */
+  overflow: auto;             /* ✅ scroll interne */
+}
+
+/* petits garde-fous anti débordement */
+#adminModal *{
+  min-width: 0;
+}
+
 
