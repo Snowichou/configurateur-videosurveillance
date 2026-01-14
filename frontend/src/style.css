@@ -390,9 +390,38 @@ code{ font-family: var(--mono); font-size: .95em; }
 /* ---------- 8) Camera pick cards ---------- */
 .stepSplit{
   display:grid;
-  grid-template-columns: 1.15fr .85fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
   gap: 12px;
   align-items: start;
+}
+
+
+/* 🔒 Fix grid overflow (évite que la colonne droite passe dessous) */
+.stepSplit > *{
+  min-width: 0;
+}
+.blocksCol, .proposalsCol{
+  min-width: 0;
+}
+
+/* ⭐ Colonne propositions “collée” (confort) */
+.proposalsCol{
+  position: sticky;
+  top: 92px; /* ajuste selon la hauteur de ton header */
+  align-self: start;
+}
+/* 🧯 Anti-débordement textes */
+.recoName, .muted{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cameraPickMeta{
+  min-width: 0;
+}
+
+.cameraPickActions{
+  min-width: 0;
 }
 
 .blocksCol, .proposalsCol{ display: grid; gap: 12px; }

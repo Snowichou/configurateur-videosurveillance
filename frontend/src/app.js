@@ -110,6 +110,148 @@
     if (obj === "detection") return "dori_detection_m";
     return "dori_identification_m";
   };
+  
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+  function getMpFromCam(cam){
+  const num = Number(String(cam?.resolution_mp ?? "").replace(",", "."));
+  return Number.isFinite(num) ? num : null;
+}
+
+
+  function getIrFromCam(cam){
+  const num = Number(String(cam?.ir_range_m ?? "").replace(",", "."));
+  return Number.isFinite(num) ? num : null;
+}
+
+
+  function getDoriForObjective(cam, objective){
+  // objective: "dissuasion" | "detection" | "identification"
+  if (!cam) return null;
+
+  let v = null;
+  if (objective === "dissuasion") v = cam.dori_observation_m;
+  else if (objective === "detection") v = cam.dori_detection_m;
+  else if (objective === "identification") v = cam.dori_identification_m;
+  else v = null;
+
+  const num = Number(String(v ?? "").replace(",", "."));
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+/**
+ * Score global projet (pondéré par quantité)
+ * Alias utilisé par le résumé + PDF.
+ */
+/**
+ * Score global projet (pondéré par quantité)
+ * Alias utilisé par le résumé + PDF.
+ */
+function computeProjectScore(){
+  let sumQty = 0;
+  let sumScore = 0;
+
+  for (const blk of (MODEL.cameraBlocks || [])){
+    if (!blk.validated) continue;
+
+    const line = MODEL.cameraLines.find(l => l.fromBlockId === blk.id);
+    if (!line) continue;
+
+    const qty = clampInt(line.qty || 1, 1, 999);
+    const s = Number(blk.selectedCameraScore);
+    const used = Number.isFinite(s) ? s : 50;
+
+    sumQty += qty;
+    sumScore += used * qty;
+  }
+
+  if (sumQty <= 0) return null;
+
+  const avg = Math.round(sumScore / sumQty);
+  return clamp(avg, 0, 100);
+}
+
+
+
+  /**
+   * Retourne { score, parts[], ratio, dori, required }
+   */
+function scoreCameraForBlock(block, cam){
+    const ans = block?.answers || {};
+    const required = Number(ans.distance_m || 0);
+    const objective = ans.objective || "";
+    const dori = getDoriForObjective(cam, objective);
+
+    // 1) Distance vs DORI (60)
+    // ratio = dori / required ; >= 1 = OK
+    let ratio = null;
+    let scoreDori = 0;
+
+    if (required > 0 && Number.isFinite(required) && dori && dori > 0) {
+      ratio = dori / required;
+      // courbe douce :
+      // - ratio >= 1.3 => 60
+      // - ratio = 1.0 => 52
+      // - ratio = 0.8 => 40
+      // - ratio = 0.6 => 25
+      // - ratio < 0.4 => 10
+      const r = ratio;
+      if (r >= 1.3) scoreDori = 60;
+      else if (r >= 1.0) scoreDori = 52 + (r - 1.0) * (60 - 52) / 0.3;
+      else if (r >= 0.8) scoreDori = 40 + (r - 0.8) * (52 - 40) / 0.2;
+      else if (r >= 0.6) scoreDori = 25 + (r - 0.6) * (40 - 25) / 0.2;
+      else if (r >= 0.4) scoreDori = 10 + (r - 0.4) * (25 - 10) / 0.2;
+      else scoreDori = 6;
+      scoreDori = clamp(Math.round(scoreDori), 0, 60);
+    } else {
+      // info manquante => on reste prudent
+      scoreDori = 18;
+    }
+
+    // 2) MP (15)
+    const mp = getMpFromCam(cam);
+    // barème simple (à ajuster à ta gamme)
+    let scoreMp = 0;
+    if (mp == null) scoreMp = 7;
+    else if (mp >= 8) scoreMp = 15;
+    else if (mp >= 5) scoreMp = 13;
+    else if (mp >= 4) scoreMp = 11;
+    else if (mp >= 2) scoreMp = 9;
+    else scoreMp = 7;
+
+    // 3) IR (15)
+    const ir = getIrFromCam(cam);
+    let scoreIr = 0;
+    if (ir == null) scoreIr = 7;
+    else if (ir >= 60) scoreIr = 15;
+    else if (ir >= 40) scoreIr = 13;
+    else if (ir >= 30) scoreIr = 11;
+    else if (ir >= 20) scoreIr = 9;
+    else scoreIr = 7;
+
+    // 4) Bonus cohérence (10)
+    // On fait simple : extérieur favorise IR un peu + housings, intérieur favorise MP/détails
+    let bonus = 0;
+    const empl = normalizeEmplacement(ans.emplacement);
+    if (empl === "exterieur" && ir != null && ir >= 30) bonus += 6;
+    if (empl === "interieur" && mp != null && mp >= 4) bonus += 6;
+
+    // Bonus petite marge DORI si ratio bien au-dessus
+    if (ratio != null && ratio >= 1.15) bonus += 4;
+
+    bonus = clamp(bonus, 0, 10);
+
+    const score = clamp(scoreDori + scoreMp + scoreIr + bonus, 0, 100);
+
+    const parts = [
+      `DORI vs distance : ${scoreDori}/60${(ratio!=null ? ` (x${ratio.toFixed(2)})` : "")}`,
+      `Qualité capteur : ${scoreMp}/15${(mp!=null ? ` (${mp}MP)` : "")}`,
+      `IR / nuit : ${scoreIr}/15${(ir!=null ? ` (${ir}m)` : "")}`,
+      `Cohérence usage : ${bonus}/10`
+    ];
+
+    return { score, parts, ratio, dori, required };
+  }
 
   const objectiveLabel = (obj) =>
     obj === "dissuasion" ? "Dissuasion" : obj === "detection" ? "Détection" : "Identification";
@@ -598,6 +740,7 @@ const DOM = {
   function createEmptyCameraBlock() {
     return {
       id: uid("B"),
+      label: "", // ✅ NOM DU BLOC (ex: "Parking entrée")
       qty: 1,
       quality: "standard",
       answers: {
@@ -613,6 +756,7 @@ const DOM = {
       accessories: [],
     };
   }
+
 
   function rebuildAccessoryLinesFromBlocks() {
     const out = [];
@@ -731,7 +875,9 @@ const DOM = {
       return;
     }
 
-    const qty = clampInt(block.qty, 1, 999);
+    const qty = clampInt(Number(block.qty || 1), 1, 999);
+    block.qty = qty; // ✅ on fixe le type définitivement après validation
+
     const quality = block.quality || "standard";
 
     if (block.validatedLineId) {
@@ -755,6 +901,11 @@ const DOM = {
     block.validated = true;
     block.selectedCameraId = cam.id;
 
+    // ✅ Score /100 stocké dans le bloc (sert pour Résumé + PDF)
+    const sc = scoreCameraForBlock(block, cam);
+    block.selectedCameraScore = sc.score;
+    block.selectedCameraScoreParts = sc.parts; // optionnel
+
     suggestAccessoriesForBlock(block);
     rebuildAccessoryLinesFromBlocks();
   }
@@ -765,6 +916,27 @@ const DOM = {
   function getTotalCameras() {
     return sum(MODEL.cameraLines, (l) => (l.qty || 0));
   }
+
+  function computeSolutionScore(){
+  let totalQty = 0;
+  let totalScore = 0;
+
+  for (const blk of MODEL.cameraBlocks){
+    if (!blk.validated) continue;
+    const line = MODEL.cameraLines.find(l => l.fromBlockId === blk.id);
+    if (!line) continue;
+
+    const qty = clampInt(line.qty || 1, 1, 999);
+    const s = Number(blk.selectedCameraScore);
+    const used = Number.isFinite(s) ? s : 50;
+
+    totalQty += qty;
+    totalScore += used * qty;
+  }
+  if (!totalQty) return null;
+  return Math.round(totalScore / totalQty);
+}
+
 
   function estimateCameraBitrateMbps(camera, rec, quality) {
     let br = camera.bitrate_mbps_typical ?? ((camera.resolution_mp ?? 4) * 1.2);
@@ -907,59 +1079,76 @@ const DOM = {
   }
 
   function computeProject() {
-    const totalCameras = getTotalCameras();
-    const { totalInMbps, totalPoeW } = computeTotals();
+  const totalCameras = getTotalCameras();
+  const { totalInMbps, totalPoeW } = computeTotals();
 
-    const nvrPick = pickNvr(totalCameras, totalInMbps);
-    const switches = planPoESwitches(totalCameras, MODEL.recording.reservePortsPct);
+  const alerts = []; // ✅ d'abord
 
-    const requiredTB = mbpsToTB(
-      totalInMbps,
-      MODEL.recording.hoursPerDay,
-      MODEL.recording.daysRetention,
-      MODEL.recording.overheadPct
-    );
-  
-    const disks = nvrPick.nvr ? pickDisks(requiredTB, nvrPick.nvr) : null;
+  const nvrPick = pickNvr(totalCameras, totalInMbps);
+  const switches = planPoESwitches(totalCameras, MODEL.recording.reservePortsPct);
 
-    const alerts = [];
-    if (totalCameras <= 0) {
-      alerts.push({
-        level: "danger",
-        text: "Valide au moins 1 caméra (bouton 'Je valide cette caméra') pour ajouter des caméras au panier.",
-      });
-    }
-    if (!nvrPick.nvr) {
-      alerts.push({ level: "danger", text: "Aucun NVR compatible. Vérifie nvrs.csv (channels / max_in_mbps)." });
-    }
-    if (nvrPick.nvr && totalInMbps > nvrPick.nvr.max_in_mbps) {
-      alerts.push({
-        level: "danger",
-        text: `Débit total ${totalInMbps.toFixed(1)} Mbps > limite NVR (${nvrPick.nvr.max_in_mbps} Mbps).`,
-      });
-    }
+  // ✅ check budget PoE switches si dispo
+  const swBudget = (switches.plan || []).reduce(
+    (t, p) => t + (Number(p.item.poe_budget_w || 0) * (p.qty || 0)),
+    0
+  );
 
-    if (switches.required) {
-      if (!CATALOG.SWITCHES.length) {
-        alerts.push({
-          level: "warn",
-          text: "switches.csv non chargé : plan PoE généré avec valeurs génériques (4/8/16/24).",
-        });
-      }
-      if (switches.totalPorts < switches.portsNeeded) {
-        alerts.push({ level: "danger", text: "Plan switch PoE insuffisant (ports)." });
-      }
-    }
-
-    if (disks && requiredTB > disks.maxTotalTB) {
-      alerts.push({
-        level: "danger",
-        text: `Stockage requis ~${requiredTB.toFixed(1)} TB > capacité max NVR (${disks.maxTotalTB} TB).`,
-      });
-    }
-
-    return { totalCameras, totalInMbps, totalPoeW, nvrPick, switches, requiredTB, disks, alerts };
+  if (swBudget > 0 && totalPoeW > swBudget) {
+    alerts.push({
+      level: "warn",
+      text: `PoE total estimé ${totalPoeW.toFixed(0)}W > budget switches ${swBudget.toFixed(0)}W (à vérifier).`,
+    });
   }
+
+  const requiredTB = mbpsToTB(
+    totalInMbps,
+    MODEL.recording.hoursPerDay,
+    MODEL.recording.daysRetention,
+    MODEL.recording.overheadPct
+  );
+
+  const disks = nvrPick.nvr ? pickDisks(requiredTB, nvrPick.nvr) : null;
+
+  if (totalCameras <= 0) {
+    alerts.push({
+      level: "danger",
+      text: "Valide au moins 1 caméra (bouton 'Je valide cette caméra') pour ajouter des caméras au panier.",
+    });
+  }
+
+  if (!nvrPick.nvr) {
+    alerts.push({ level: "danger", text: "Aucun NVR compatible. Vérifie nvrs.csv (channels / max_in_mbps)." });
+  }
+
+  if (nvrPick.nvr && totalInMbps > nvrPick.nvr.max_in_mbps) {
+    alerts.push({
+      level: "danger",
+      text: `Débit total ${totalInMbps.toFixed(1)} Mbps > limite NVR (${nvrPick.nvr.max_in_mbps} Mbps).`,
+    });
+  }
+
+  if (switches.required) {
+    if (!CATALOG.SWITCHES.length) {
+      alerts.push({
+        level: "warn",
+        text: "switches.csv non chargé : plan PoE généré avec valeurs génériques (4/8/16/24).",
+      });
+    }
+    if (switches.totalPorts < switches.portsNeeded) {
+      alerts.push({ level: "danger", text: "Plan switch PoE insuffisant (ports)." });
+    }
+  }
+
+  if (disks && requiredTB > disks.maxTotalTB) {
+    alerts.push({
+      level: "danger",
+      text: `Stockage requis ~${requiredTB.toFixed(1)} TB > capacité max NVR (${disks.maxTotalTB} TB).`,
+    });
+  }
+
+  return { totalCameras, totalInMbps, totalPoeW, nvrPick, switches, requiredTB, disks, alerts };
+}
+
 
     // ==========================================================
   // PROJECT CACHE + NAV GUARDS (fixes manquants)
@@ -1017,22 +1206,28 @@ const DOM = {
     for (const al of alerts) {
       const li = document.createElement("li");
       if (al.level === "danger") li.classList.add("danger");
+      if (al.level) li.classList.add(al.level);
       li.textContent = al.text;
       DOM.alertsEl.appendChild(li);
     }
   }
 
   function renderFinalSummary(proj) {
+  const projectScore = computeProjectScore();
   const line = (qty, ref, name) => `• ${qty} × ${safeHtml(ref || "—")} — ${safeHtml(name || "")}`;
 
   const cams = MODEL.cameraLines
-    .map((l) => {
-      const cam = getCameraById(l.cameraId);
-      if (!cam) return null;
-      return line(l.qty || 0, cam.id, cam.name);
-    })
-    .filter(Boolean)
-    .join("<br>");
+  .map((l) => {
+    const cam = getCameraById(l.cameraId);
+    if (!cam) return null;
+
+    const blk = MODEL.cameraBlocks.find((b) => b.id === l.fromBlockId) || null;
+    const label = blk?.label ? `${blk.label} → ` : "";
+
+    return `• ${safeHtml(label)}${safeHtml(String(l.qty || 0))} × ${safeHtml(cam.id || "—")} — ${safeHtml(cam.name || "")}`;
+  })
+  .filter(Boolean)
+  .join("<br>");
 
   const accs = (MODEL.accessoryLines || [])
     .map((a) => line(a.qty || 0, a.accessoryId, a.name || a.accessoryId))
@@ -1061,7 +1256,7 @@ const DOM = {
           <div class="recoName">Résumé de la solution</div>
           <div class="muted">Format devis (Qté × Réf — Désignation)</div>
         </div>
-        <div class="score">✅</div>
+        <div class="score">${projectScore != null ? `${projectScore}/100` : "✅"}</div>
       </div>
 
       <div class="reasons">
@@ -1088,21 +1283,37 @@ const DOM = {
   function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
+  const projectScore = computeProjectScore();
+  const solutionScore = computeSolutionScore(); // 0..100 ou null
+
 
   // Tables : caméras
   const camsRows = MODEL.cameraLines.map((l) => {
-    const cam = getCameraById(l.cameraId);
-    if (!cam) return "";
-    return `
-      <tr>
-        <td>${safeHtml(cam.id)}</td>
-        <td>${safeHtml(cam.name)}</td>
-        <td style="text-align:center">${safeHtml(String(l.quality || "standard"))}</td>
-        <td style="text-align:right">${safeHtml(String(l.qty || 0))}</td>
-        <td style="text-align:right">${(cam.poe_w ?? 0).toFixed(1)} W</td>
-      </tr>
-    `;
-  }).join("");
+  const cam = getCameraById(l.cameraId);
+  if (!cam) return "";
+
+  const blk = MODEL.cameraBlocks.find((b) => b.id === l.fromBlockId) || null;
+  const label = blk?.label ? blk.label : "";
+
+  const scoreCell =
+    (blk?.selectedCameraScore != null && Number.isFinite(Number(blk.selectedCameraScore)))
+      ? `${Number(blk.selectedCameraScore)}/100`
+      : "—";
+
+  return `
+    <tr>
+      <td>${safeHtml(label)}</td>
+      <td>${safeHtml(cam.id)}</td>
+      <td>${safeHtml(cam.name)}</td>
+      <td style="text-align:right;font-weight:800">${safeHtml(scoreCell)}</td>
+      <td style="text-align:center">${safeHtml(String(l.quality || "standard"))}</td>
+      <td style="text-align:right">${safeHtml(String(l.qty || 0))}</td>
+      <td style="text-align:right">${(cam.poe_w ?? 0).toFixed(1)} W</td>
+    </tr>
+  `;
+}).join("");
+
+
 
   // Tables : accessoires
   const accRows = (MODEL.accessoryLines || []).map((a) => `
@@ -1142,133 +1353,121 @@ const DOM = {
   <div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:#111;">
 
     <style>
-      .pdfPage{
-        padding: 22px 22px 18px 22px;
-      }
+      *{ box-sizing:border-box; }
+      html, body{ width:100%; }
+      img{ max-width:100%; height:auto; display:block; }
+
+      .pdfPage{ padding:22px 22px 18px; }
+
       .pdfHeader{
-        display:flex;
-        justify-content:space-between;
-        align-items:flex-start;
-        gap:16px;
-        border-bottom: 2px solid #111;
-        padding-bottom: 10px;
-        margin-bottom: 14px;
+        border-bottom:2px solid #111;
+        padding-bottom:10px;
+        margin-bottom:14px;
       }
-      .pdfTitle{
-        font-size: 18px;
-        font-weight: 800;
-        margin: 0;
+
+      /* ✅ KPI en table (stable) */
+      .kpiTable{
+        width:100%;
+        border-collapse:separate;
+        border-spacing:10px;
+        margin-top:10px;
       }
-      .pdfMeta{
-        font-size: 11px;
-        color:#444;
-        margin-top: 4px;
-        line-height: 1.25;
+      .kpiCell{
+        border:1px solid #eee;
+        border-radius:10px;
+        background:#fafafa;
+        padding:10px;
+        vertical-align:top;
       }
-      .pill{
-        display:inline-block;
-        padding: 4px 8px;
-        border: 1px solid #999;
-        border-radius: 999px;
-        font-size: 11px;
-        margin-left: 6px;
-      }
+      .kpiLabel{ font-size:11px; color:#555; }
+      .kpiValue{ margin-top:4px; font-size:14px; font-weight:800; }
+
       .section{
-        margin-top: 12px;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 10px;
+        margin-top:12px;
+        padding:12px;
+        border:1px solid #ddd;
+        border-radius:10px;
+        page-break-inside: avoid;
       }
       .sectionTitle{
-        font-size: 13px;
-        font-weight: 800;
-        margin: 0 0 8px 0;
+        font-size:13px;
+        font-weight:800;
+        margin:0 0 8px 0;
+        page-break-after: avoid;
       }
-      .grid2{
-        display:grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-      }
-      .kpi{
-        padding: 10px;
-        border: 1px solid #eee;
-        border-radius: 10px;
-        background: #fafafa;
-      }
-      .kpiLabel{
-        font-size: 11px;
-        color:#555;
-      }
-      .kpiValue{
-        margin-top: 4px;
-        font-size: 14px;
-        font-weight: 800;
-      }
+
+      /* ✅ tables robustes */
       table{
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 8px;
-        font-size: 11px;
+        width:100%;
+        border-collapse:collapse;
+        margin-top:8px;
+        font-size:11px;
+        table-layout:fixed;
+        word-break:break-word;
       }
       th, td{
-        border: 1px solid #e5e5e5;
-        padding: 7px 8px;
-        vertical-align: top;
+        border:1px solid #e5e5e5;
+        padding:7px 8px;
+        vertical-align:top;
+        page-break-inside:avoid;
       }
-      th{
-        background: #f2f2f2;
-        text-align: left;
-        font-weight: 800;
-      }
-      .muted{
-        color:#666;
-        font-size: 11px;
-        line-height: 1.35;
-      }
-      .alerts{
-        margin: 6px 0 0 0;
-        padding-left: 16px;
-      }
-      .alerts li{
-        margin-bottom: 4px;
-      }
-      .danger{ color: #c1121f; font-weight: 700; }
-      .warn{ color: #b45309; font-weight: 700; }
+      th{ background:#f2f2f2; text-align:left; font-weight:800; }
 
-      /* ✅ sauts de pages */
+      .muted{ color:#666; font-size:11px; line-height:1.35; }
+      .danger{ color:#c1121f; font-weight:700; }
+      .warn{ color:#b45309; font-weight:700; }
+
+      /* ✅ page break plus fiable */
       .pageBreak{
-        page-break-before: always;
+        page-break-after: always;
+        break-after: page;
+        height:1px;
       }
     </style>
 
     <div class="pdfPage">
       <div class="pdfHeader">
-        <div>
-          <h1 class="pdfTitle">Rapport de configuration Vidéosurveillance</h1>
-          <div class="pdfMeta">
-            Généré le ${safeHtml(dateStr)}<br>
-            Configurateur Comelit (MVP) <span class="pill">PDF v1</span>
-          </div>
-        </div>
-
-        <div style="text-align:right">
-          <div class="pdfMeta">Total caméras</div>
-          <div style="font-size:22px;font-weight:900">${proj.totalCameras}</div>
-        </div>
+  <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start">
+    <div>
+      <h1 class="pdfTitle" style="font-size:18px;font-weight:800;margin:0">Rapport de configuration Vidéosurveillance</h1>
+      <div class="pdfMeta" style="font-size:11px;color:#444;margin-top:4px;line-height:1.25">
+        Généré le ${safeHtml(dateStr)}<br>
+        Configurateur Comelit (MVP) <span class="pill" style="display:inline-block;padding:4px 8px;border:1px solid #999;border-radius:999px;font-size:11px;margin-left:6px">PDF v1</span>
       </div>
+    </div>
 
-      <div class="grid2">
-        <div class="kpi">
-          <div class="kpiLabel">Débit total estimé</div>
-          <div class="kpiValue">${proj.totalInMbps.toFixed(1)} Mbps</div>
-          <div class="muted">Selon fps / codec / mode / qualité.</div>
-        </div>
-        <div class="kpi">
-          <div class="kpiLabel">Stockage requis</div>
-          <div class="kpiValue">~${proj.requiredTB.toFixed(1)} TB</div>
-          <div class="muted">Inclut marge ${MODEL.recording.overheadPct}%.</div>
-        </div>
+    <div style="text-align:right">
+      <div class="pdfMeta" style="font-size:11px;color:#444">Total caméras</div>
+      <div style="font-size:22px;font-weight:900">${proj.totalCameras}</div>
+
+      <div style="margin-top:10px" class="pdfMeta">Score solution</div>
+      <div style="font-size:18px;font-weight:900">
+        ${solutionScore != null ? `${solutionScore}/100` : "—"}
       </div>
+    </div>
+  </div>
+</div>
+
+<table class="kpiTable">
+  <tr>
+    <td class="kpiCell">
+      <div class="kpiLabel">Débit total estimé</div>
+      <div class="kpiValue">${proj.totalInMbps.toFixed(1)} Mbps</div>
+      <div class="muted">Selon fps / codec / mode / qualité.</div>
+    </td>
+    <td class="kpiCell">
+      <div class="kpiLabel">Stockage requis</div>
+      <div class="kpiValue">~${proj.requiredTB.toFixed(1)} TB</div>
+      <div class="muted">Inclut marge ${MODEL.recording.overheadPct}%.</div>
+    </td>
+    <td class="kpiCell">
+      <div class="kpiLabel">Score solution</div>
+      <div class="kpiValue">${projectScore != null ? `${projectScore}/100` : "—"}</div>
+      <div class="muted">Moyenne pondérée par quantité.</div>
+    </td>
+  </tr>
+</table>
+
 
       <div class="section">
         <div class="sectionTitle">NVR + Stockage</div>
@@ -1292,15 +1491,17 @@ const DOM = {
         <table>
           <thead>
             <tr>
+              <th>Zone / Bloc</th>
               <th>Réf</th>
               <th>Modèle</th>
+              <th style="text-align:right">Score</th>
               <th style="text-align:center">Qualité</th>
               <th style="text-align:right">Qté</th>
               <th style="text-align:right">PoE/cam</th>
             </tr>
           </thead>
           <tbody>
-            ${camsRows || `<tr><td colspan="5" class="muted">Aucune caméra validée.</td></tr>`}
+            ${camsRows || `<tr><td colspan="7" class="muted">Aucune caméra validée.</td></tr>`}
           </tbody>
         </table>
         <div class="muted" style="margin-top:8px">
@@ -1464,6 +1665,7 @@ const DOM = {
     const lowLight = cam.low_light_raw || (cam.low_light ? "Oui" : "Non");
     const ai = cam.analytics_level || "—";
     const focal = `Focale ${cam.focal_min_mm ?? "—"}${cam.focal_max_mm ? `-${cam.focal_max_mm}` : ""}mm`;
+    const sc = scoreCameraForBlock(blk, cam);
 
     return `
       <div class="cameraPickCard">
@@ -1474,6 +1676,18 @@ const DOM = {
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <strong>${safeHtml(code)} — ${safeHtml(cam.name)}</strong>
             </div>
+          <div class="scoreWrap">
+            <div class="scoreTop">
+              <div class="scoreBadge">Score <strong>${sc.score}</strong>/100</div>
+              <div class="scoreHint">${sc.ratio != null ? `Marge DORI : x${sc.ratio.toFixed(2)}` : "Données partielles (score estimé)"}</div>
+            </div>
+          <div class="scoreBarOuter" aria-label="Score">
+            <div class="scoreBarInner" style="width:${sc.score}%;"></div>
+          </div>
+            <div class="scoreDetails">
+              ${sc.parts.map(p => `<div class="muted">• ${safeHtml(p)}</div>`).join("")}
+            </div>
+          </div>
 
             <div class="badgeRow" style="margin-top:8px">
               ${badgeHtml(label)}
@@ -1530,13 +1744,34 @@ const DOM = {
              style="padding:12px;cursor:pointer;${isActive ? "outline:1px solid rgba(0,150,255,.35)" : ""}">
           <div class="recoHeader">
             <div>
-              <div class="recoName">Bloc caméra ${idx + 1} • ${blk.validated ? "✅ Validé" : "⏳ En cours"} ${isActive ? `<span style="margin-left:8px" class="badgePill">Actif</span>` : ""}</div>
+              <div class="recoName">
+                Bloc caméra ${idx + 1}
+                ${blk.label ? `• ${safeHtml(blk.label)}` : ""}
+                • ${blk.validated ? "✅ Validé" : "⏳ En cours"}
+                ${isActive ? `<span style="margin-left:8px" class="badgePill">Actif</span>` : ""}
+              </div>
               <div class="muted">Remplis ici → puis choisis/valides la caméra à droite</div>
             </div>
             <div class="score">${blk.qty || 1}x</div>
           </div>
 
-          <div class="kv" style="margin-top:10px">
+                    <div style="margin-top:10px">
+            <strong>Nom du bloc (zone)</strong>
+            <input
+              data-action="inputBlockLabel"
+              data-bid="${safeHtml(blk.id)}"
+              type="text"
+              maxlength="60"
+              value="${safeHtml(blk.label ?? "")}"
+              placeholder="ex: Parking entrée, Couloir RDC…"
+              style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)"
+            />
+            <div class="muted" style="margin-top:6px">
+              Ce nom apparaîtra dans le résumé et le PDF.
+            </div>
+          </div>
+
+          <div class="kv" style="margin-top:12px">
             <div>
               <strong>Use case</strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="use_case"
@@ -1607,6 +1842,7 @@ const DOM = {
               </select>
             </div>
           </div>
+
 
           <div class="reasons" style="margin-top:12px">
             ${
@@ -2169,14 +2405,32 @@ function render() {
   }
 
   if (action === "validateCamera") {
-    const camId = el.getAttribute("data-camid");
-    const blk = MODEL.cameraBlocks.find((b) => b.id === MODEL.ui.activeBlockId);
-    if (!blk) return;
-    const reco = buildRecoForBlock(blk);
-    validateBlock(blk, reco, camId);
-    render();
-    return;
-  }
+  const camId = el.getAttribute("data-camid");
+  const blk = MODEL.cameraBlocks.find((b) => b.id === MODEL.ui.activeBlockId);
+  if (!blk) return;
+
+  const reco = buildRecoForBlock(blk);
+
+  const cam =
+    (reco?.primary?.camera && reco.primary.camera.id === camId)
+      ? reco.primary.camera
+      : (reco?.alternatives || []).map(x => x.camera).find(c => c && c.id === camId)
+        || getCameraById(camId);
+
+  validateBlock(blk, reco, camId);
+
+  // (Optionnel) tu peux laisser : validateBlock le fait déjà maintenant
+  // if (cam) {
+  //   const sc = scoreCameraForBlock(blk, cam);
+  //   blk.selectedCameraScore = sc.score;
+  //   blk.selectedCameraScoreParts = sc.parts;
+  // }
+
+  render();
+  return;
+}
+
+
 
   if (action === "recalcAccessories") {
     suggestAccessories();
@@ -2205,6 +2459,17 @@ function render() {
   if (!action) return;
 
   // 1) Champs SELECT des blocs caméra
+
+  if (action === "inputBlockLabel") {
+  const bid = el.getAttribute("data-bid");
+  const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
+  if (!blk) return;
+
+  blk.label = String(el.value ?? "").slice(0, 60);
+  MODEL.ui.activeBlockId = bid;
+  render(); // ✅ met à jour le titre du bloc
+  return;
+}
   if (action === "changeBlockField") {
     const bid = el.getAttribute("data-bid");
     const field = el.getAttribute("data-field");
@@ -2232,16 +2497,19 @@ function render() {
 
   // 2) COMMIT des inputs blocs caméra (fin de saisie)
   if (action === "inputBlockQty") {
-    const bid = el.getAttribute("data-bid");
-    const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
-    if (!blk) return;
+  const bid = el.getAttribute("data-bid");
+  const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
+  if (!blk) return;
 
-    invalidateIfNeeded(blk);
-    blk.qty = clampInt(el.value, 1, 999);
-    MODEL.ui.activeBlockId = bid;
-    render();
-    return;
-  }
+  invalidateIfNeeded(blk);
+
+  // stock brut pendant saisie (digits uniquement)
+  blk.qty = String(el.value ?? "").replace(/[^\d]/g, "");
+
+  MODEL.ui.activeBlockId = bid;
+  return; // pas de render pendant frappe
+}
+
 
   if (action === "inputBlockField") {
     const bid = el.getAttribute("data-bid");
@@ -2282,40 +2550,65 @@ function render() {
   const action = el.getAttribute("data-action");
   if (!action) return;
 
-  // 1) Champs du bloc caméra
-  if (action === "inputBlockField") {
+  // ======================================================
+  // 1) Label (nom du bloc) : PAS d'invalidation + pas render
+  // ======================================================
+  if (action === "inputBlockLabel") {
     const bid = el.getAttribute("data-bid");
-    const field = el.getAttribute("data-field");
     const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
     if (!blk) return;
 
-    invalidateIfNeeded(blk);
-
-    const v = el.value;
-
-    if (field === "distance_m") {
-      blk.answers[field] = String(v ?? "").replace(/[^\d]/g, "");
-    } else {
-      blk.answers[field] = v;
-    }
-
+    blk.label = String(el.value ?? "").slice(0, 60);
     MODEL.ui.activeBlockId = bid;
     return; // pas de render pendant frappe
   }
 
-  if (action === "inputBlockQty") {
-    const bid = el.getAttribute("data-bid");
-    const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
-    if (!blk) return;
+  // ======================================================
+  // 2) Champs du bloc caméra (distance / etc.) : invalide + brut
+  // ======================================================
+  if (action === "inputBlockField") {
+  const bid = el.getAttribute("data-bid");
+  const field = el.getAttribute("data-field");
+  const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
+  if (!blk) return;
 
-    invalidateIfNeeded(blk);
+  const raw = el.value;
 
-    blk.qty = String(el.value ?? "").replace(/[^\d]/g, "");
-    MODEL.ui.activeBlockId = bid;
-    return;
+  // on invalide si on modifie un bloc déjà validé
+  invalidateIfNeeded(blk);
+
+  if (field === "distance_m") {
+    blk.answers[field] = String(raw ?? "").replace(/[^\d]/g, "");
+  } else {
+    blk.answers[field] = raw;
   }
 
-  // 2) Accessoires
+  MODEL.ui.activeBlockId = bid;
+  return; // pas de render pendant frappe
+}
+
+
+  // ======================================================
+  // 3) Quantité bloc : invalide + brut (digits)
+  // ======================================================
+  if (action === "inputBlockQty") {
+  const bid = el.getAttribute("data-bid");
+  const blk = MODEL.cameraBlocks.find((b) => b.id === bid);
+  if (!blk) return;
+
+  invalidateIfNeeded(blk);
+
+  // stock brut pendant saisie
+  blk.qty = String(el.value ?? "").replace(/[^\d]/g, "");
+
+  MODEL.ui.activeBlockId = bid;
+  return; // pas de render pendant frappe
+}
+
+
+  // ======================================================
+  // 4) Accessoires : qty live + rebuild
+  // ======================================================
   if (action === "accQty") {
     const bid = el.getAttribute("data-bid");
     const li = parseInt(el.getAttribute("data-li"), 10);
@@ -2327,12 +2620,15 @@ function render() {
     return;
   }
 
-  // 3) Paramètres d’enregistrement (stock brut pendant saisie)
+  // ======================================================
+  // 5) Paramètres enregistrement : stock brut pendant saisie
+  // ======================================================
   if (action === "recDays")    { MODEL.recording.daysRetention   = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
   if (action === "recHours")   { MODEL.recording.hoursPerDay     = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
   if (action === "recOver")    { MODEL.recording.overheadPct     = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
   if (action === "recReserve") { MODEL.recording.reservePortsPct = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
 }
+
 
   // ==========================================================
   // 12) EXPORT
@@ -2364,7 +2660,7 @@ function render() {
   host.style.position = "fixed";
   host.style.left = "-10000px";
   host.style.top = "0";
-  host.style.width = "794px";
+  host.style.width = "210mm";
   host.style.background = "#fff";
   host.innerHTML = buildPdfHtml(proj);
   document.body.appendChild(host);
@@ -2499,6 +2795,7 @@ bind(DOM.btnDemo, "click", () => {
   const demoUseCase = useCases[0] || "";
 
   const b1 = createEmptyCameraBlock();
+  b1.label = "Parking entrée"
   b1.qty = 8;
   b1.quality = "high";
   b1.answers.use_case = demoUseCase;
@@ -2508,6 +2805,7 @@ bind(DOM.btnDemo, "click", () => {
   b1.answers.mounting = "wall";
 
   const b2 = createEmptyCameraBlock();
+  b2.label = "Acceuil/Intérieur"
   b2.qty = 16;
   b2.quality = "standard";
   b2.answers.use_case = demoUseCase;
