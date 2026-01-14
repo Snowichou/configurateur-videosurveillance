@@ -2633,14 +2633,23 @@ async function adminLoadCsv(name){
   const msg = admin$("adminMsg");
   if (msg) msg.textContent = `Chargement ${name}.csv…`;
 
-  const res = await fetch(`/api/csv/${encodeURIComponent(name)}`, {cache:"no-store"});
-  if (!res.ok) throw new Error(`Load CSV failed (${res.status})`);
-  const text = await res.text();
+  const res = await fetch(`/api/csv/${encodeURIComponent(name)}`, {
+    cache: "no-store",
+    headers: ADMIN_TOKEN ? { "Authorization": `Bearer ${ADMIN_TOKEN}` } : {},
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(()=> "");
+    throw new Error(`Load CSV failed (${res.status}) ${t}`);
+  }
+
+  // ✅ variable unique : txt
+  const txt = await res.text();
 
   // ✅ Remplit le textarea (mode expert) + la grille
-  if (ta) ta.value = text;
+  if (ta) ta.value = txt;
 
-  const parsed = parseCSVGrid(text);
+  const parsed = parseCSVGrid(txt);
   ADMIN_GRID.csvName = name;
   ADMIN_GRID.headers = parsed.headers;
   ADMIN_GRID.rows = parsed.rows;
@@ -2650,6 +2659,7 @@ async function adminLoadCsv(name){
 
   if (msg) msg.textContent = "✅ Chargé";
 }
+
 
 
 async function adminSaveCsv(name, content){

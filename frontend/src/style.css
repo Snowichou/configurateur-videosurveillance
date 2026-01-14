@@ -1,0 +1,713 @@
+/* ============================================================
+   Configurateur Vidéosurveillance (MVP) — style.css (Vite)
+   Clean + moderne + compatible avec ton app.js
+   ============================================================ */
+
+/* ---------- 1) Design tokens ---------- */
+:root{
+  --bg: #0b0f17;
+  --panel: rgba(255,255,255,.06);
+  --panel2: rgba(255,255,255,.08);
+  --line: rgba(255,255,255,.10);
+  --line2: rgba(255,255,255,.16);
+  --text: rgba(255,255,255,.92);
+  --muted: rgba(255,255,255,.65);
+
+  --accent: #4ea1ff;
+  --accent2: #7c5cff;
+
+  --danger: #ff4d4d;
+  --warn: #ffb020;
+  --ok: #37d67a;
+
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+  --shadow2: 0 6px 18px rgba(0,0,0,.25);
+
+  --r12: 12px;
+  --r16: 16px;
+  --r20: 20px;
+
+  --pad: 14px;
+  --pad2: 18px;
+
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+
+  color-scheme: dark;
+}
+
+/* ---------- 2) Reset / base ---------- */
+*{ box-sizing: border-box; }
+html, body{ height: 100%; }
+
+body{
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background:
+    radial-gradient(900px 600px at 20% -10%, rgba(78,161,255,.18), transparent 60%),
+    radial-gradient(900px 600px at 90% 0%, rgba(124,92,255,.18), transparent 55%),
+    radial-gradient(900px 700px at 50% 110%, rgba(55,214,122,.10), transparent 60%),
+    var(--bg);
+}
+
+a{ color: var(--accent); text-decoration: none; }
+a:hover{ text-decoration: underline; }
+
+code{ font-family: var(--mono); font-size: .95em; }
+
+/* Vite container */
+#app{
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ---------- 3) Buttons (compat app.js) ---------- */
+.btn{
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
+  user-select: none;
+}
+.btn:hover{
+  background: rgba(255,255,255,.10);
+  border-color: var(--line2);
+}
+.btn:active{ transform: translateY(1px); }
+.btn:disabled{
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.btn.primary{
+  border-color: rgba(78,161,255,.35);
+  background: linear-gradient(180deg, rgba(78,161,255,.25), rgba(78,161,255,.12));
+}
+.btn.primary:hover{
+  border-color: rgba(78,161,255,.60);
+  background: linear-gradient(180deg, rgba(78,161,255,.32), rgba(78,161,255,.14));
+}
+
+.btn.secondary{
+  border-color: rgba(124,92,255,.30);
+  background: linear-gradient(180deg, rgba(124,92,255,.20), rgba(124,92,255,.10));
+}
+.btn.secondary:hover{
+  border-color: rgba(124,92,255,.55);
+  background: linear-gradient(180deg, rgba(124,92,255,.28), rgba(124,92,255,.12));
+}
+
+.btn.icon{
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.btn.full{ width: 100%; }
+
+/* Ces classes sont utilisées dans ton HTML généré côté JS */
+.btnGhost{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.btnGhost:hover{ background: rgba(255,255,255,.10); border-color: var(--line2); }
+
+.btnPrimary{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(78,161,255,.55);
+  background: rgba(78,161,255,.18);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+}
+.btnPrimary:hover{ background: rgba(78,161,255,.25); border-color: rgba(78,161,255,.75); }
+
+.btnSmall{ padding: 8px 10px; border-radius: 12px; font-weight: 800; }
+.btnGhost.btnSmall{ padding: 8px 10px; }
+
+/* ---------- 4) Header ---------- */
+.appHeader{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  background: rgba(11,15,23,.72);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow2);
+
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.brand{
+  display: grid;
+  gap: 10px;
+  min-width: 260px;
+}
+
+.brandTop{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.brandTitle{
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+
+.pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.statusLine{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* progress */
+.progressWrap{
+  display: grid;
+  gap: 6px;
+  max-width: 460px;
+}
+.progressOuter{
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  overflow: hidden;
+}
+.progressBar{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(78,161,255,.90), rgba(124,92,255,.80));
+}
+.progressText{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.headerActions{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.headerActionsLeft, .headerActionsRight{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* app.js cherche ".actions" pour ajouter btnToggleResults */
+.actions{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- 5) Main layout ---------- */
+.appMain{
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.appGrid{
+  width: min(1280px, 100%);
+  display: grid;
+  grid-template-columns: 1.35fr .95fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Quand app.js met .singleCol => on masque la colonne résultats */
+.appGrid.singleCol{
+  grid-template-columns: 1fr;
+}
+
+.card{
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r20);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.hiddenCard{ display: none; }
+
+.cardHeader{
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.04);
+}
+
+.cardTitle{
+  font-size: 14px;
+  font-weight: 900;
+}
+.cardSubtitle{
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.steps{
+  padding: 14px;
+}
+
+.resultsBody{
+  padding: 14px;
+}
+
+.exportRow{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ---------- 6) Step wrapper (render()) ---------- */
+.step{ display: grid; gap: 12px; }
+
+.stepTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: rgba(255,255,255,.05);
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(78,161,255,.35);
+  background: rgba(78,161,255,.14);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.help{
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 0 2px;
+}
+
+/* ---------- 7) Cards internes (reco) ---------- */
+.recoCard{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  border-radius: var(--r16);
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+
+.recoHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.recoName{
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.muted{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score{
+  min-width: 44px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+}
+
+.reasons{
+  margin-top: 10px;
+  color: var(--text);
+  line-height: 1.35;
+  font-size: 13px;
+}
+
+.kv{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.kv > div{
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.18);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* ---------- 8) Camera pick cards ---------- */
+.stepSplit{
+  display:grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.blocksCol, .proposalsCol{ display: grid; gap: 12px; }
+
+.proposalsTitle{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.cameraPickCard{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  border-radius: var(--r16);
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.cameraPickTop{
+  display:flex;
+  gap: 12px;
+  align-items:flex-start;
+}
+
+.cameraPickImg{
+  width: 112px;
+  height: 92px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.04);
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.cameraPickMeta{ flex: 1; min-width: 0; }
+
+.cameraPickActions{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* badges */
+.badgeRow{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badgePill{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* ---------- 9) Empty + results toggle ---------- */
+.hidden{ display: none !important; }
+
+.emptyState{
+  padding: 14px;
+  border: 1px dashed var(--line2);
+  border-radius: var(--r16);
+  background: rgba(255,255,255,.04);
+}
+.emptyTitle{
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+/* Alerts list */
+.alerts{
+  margin: 12px 0 0 0;
+  padding-left: 18px;
+}
+.alerts li{
+  margin: 6px 0;
+  color: var(--muted);
+}
+.alerts li.danger{ color: rgba(255,77,77,.95); font-weight: 900; }
+.alerts li.warn{ color: rgba(255,176,32,.95); font-weight: 900; }
+
+/* ---------- 10) Form controls ---------- */
+input, select, textarea{
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+}
+
+.input, .select, .textarea{
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.20);
+  color: var(--text);
+}
+
+.textarea{
+  min-height: 240px;
+  resize: vertical;
+}
+
+.mono{ font-family: var(--mono); }
+
+/* ---------- 11) Modal (Admin) ---------- */
+.modal{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 16px;
+  z-index: 50;
+}
+.modal.hidden{ display:none; }
+
+.modalCard{
+  width: min(1100px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: var(--r20);
+  border: 1px solid var(--line);
+  background: rgba(15,20,30,.92);
+  box-shadow: var(--shadow);
+}
+
+.modalHeader{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(15,20,30,.92);
+  backdrop-filter: blur(10px);
+}
+
+.modalTitle{ font-weight: 950; }
+.modalSubtitle{ margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+.adminSection{
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.field{ display:grid; gap: 8px; }
+.field.inline{
+  grid-auto-flow: column;
+  grid-auto-columns: max-content 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.label{
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+/* ---------- 12) Admin toolbar + grid ---------- */
+.adminToolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbarBtns{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adminHint{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.adminGridWrap{
+  display:grid;
+  gap: 12px;
+}
+
+.adminGridTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adminGridActions{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+.adminGridSep{
+  width: 1px;
+  height: 26px;
+  background: var(--line);
+  display:inline-block;
+  margin: 0 2px;
+}
+
+.adminTableMount{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: rgba(0,0,0,.18);
+  overflow: auto;
+  max-height: 52vh;
+}
+
+/* Table “Excel-like” */
+.adminTable{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  min-width: 840px;
+}
+
+.adminTable thead th{
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(18,24,35,.98);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  text-align: left;
+  padding: 10px 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.adminTable tbody td{
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.rowSel{
+  width: 72px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--mono);
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+
+.adminRow.selected{
+  outline: 1px solid rgba(78,161,255,.30);
+  background: rgba(78,161,255,.08);
+}
+
+.adminCell{
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+}
+.adminCell:focus{
+  border-color: rgba(78,161,255,.65);
+  box-shadow: 0 0 0 3px rgba(78,161,255,.14);
+}
+
+/* Expert textarea */
+.adminExpertBox{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  padding: 12px;
+  background: rgba(255,255,255,.04);
+}
+.adminExpertBox.hidden{ display:none; }
+
+/* ---------- 13) Responsive ---------- */
+@media (max-width: 980px){
+  .appGrid{ grid-template-columns: 1fr; }
+  .hiddenCard{ display: block; } /* on garde la carte mais app.js va gérer hiddenCard aussi */
+  .stepSplit{ grid-template-columns: 1fr; }
+  .cameraPickTop{ flex-direction: column; }
+  .cameraPickImg{ width: 100%; height: 160px; }
+  .kv{ grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px){
+  .appHeader{ padding: 12px; }
+  .brand{ min-width: auto; width: 100%; }
+  .headerActions{ width: 100%; justify-content: space-between; }
+  .actions{ width: 100%; }
+  .btn{ width: 100%; justify-content: center; }
+}
+
+/* ---------- 14) Print / PDF safety ---------- */
+@media print{
+  body{ background: #fff !important; color: #111 !important; }
+  .appHeader{ position: static; box-shadow: none; background: #fff; color: #111; }
+  .card, .recoCard{ box-shadow: none; }
+}

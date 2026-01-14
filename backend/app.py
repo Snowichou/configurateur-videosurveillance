@@ -1,7 +1,10 @@
-from fastapi import FastAPI, HTTPException, Header, Body
+from fastapi import FastAPI, HTTPException, Header, Body, Depends, Request
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import os, secrets, time
+from collections import defaultdict, deque
+
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.abspath(os.path.join(APP_ROOT, ".."))  # C:\AI\Configurateur
@@ -11,6 +14,13 @@ DATA_DIR = os.path.join(BASE_DIR, "data")    # C:\AI\Configurateur\data
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
 TOKENS = {}
+TOKEN_TTL_SECONDS = 8 * 60 * 60  # 8h (ajuste si tu veux)
+security = HTTPBasic()
+
+# anti brute-force login (local-friendly)
+LOGIN_WINDOW_SEC = 60
+LOGIN_MAX_ATTEMPTS = 8
+LOGIN_ATTEMPTS = defaultdict(lambda: deque())  # ip -> timestamps
 
 ALLOWED = {
     "cameras": "cameras.csv",
@@ -28,7 +38,25 @@ def require_auth(auth: str | None):
     if not exp or exp < time.time():
         TOKENS.pop(token, None)
         raise HTTPException(status_code=401, detail="Invalid/expired token")
-    return token
+    return True
+
+def require_basic_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    # Popup navigateur: user=admin, password=ADMIN_PASSWORD
+    ok_user = secrets.compare_digest(credentials.username, "admin")
+    ok_pwd = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+    if not (ok_user and ok_pwd):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+
+def check_login_rate_limit(ip: str):
+    now = time.time()
+    q = LOGIN_ATTEMPTS[ip]
+    while q and (now - q[0]) > LOGIN_WINDOW_SEC:
+        q.popleft()
+    if len(q) >= LOGIN_MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many attempts, retry later")
+    q.append(now)
 
 app = FastAPI()
 
@@ -54,20 +82,38 @@ def home():
         raise HTTPException(status_code=500, detail=f"index.html introuvable: {index_path}")
     return FileResponse(index_path)
 
+@app.get("/admin")
+def admin_page(_=Depends(require_basic_admin)):
+    admin_path = os.path.join(FRONTEND_DIR, "admin.html")
+    if not os.path.isfile(admin_path):
+        raise HTTPException(status_code=500, detail=f"admin.html introuvable: {admin_path}")
+    return FileResponse(admin_path)
+
+
 # ---------------------------
 # API D'ABORD (IMPORTANT)
 # ---------------------------
 @app.post("/api/login")
-def login(payload: dict = Body(...)):
+def login(request: Request, payload: dict = Body(...)):
+    ip = request.client.host if request.client else "unknown"
+    check_login_rate_limit(ip)
+
     pwd = (payload.get("password") or "").strip()
     if pwd != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="Bad password")
+
     token = secrets.token_urlsafe(32)
-    TOKENS[token] = time.time() + 60 * 60  # 1h
-    return {"token": token, "expires_in": 3600}
+    TOKENS[token] = time.time() + TOKEN_TTL_SECONDS
+    return {"token": token, "expires_in": TOKEN_TTL_SECONDS}
+
 
 @app.get("/api/csv/{name}", response_class=PlainTextResponse)
-def read_csv(name: str):
+def read_csv(
+    name: str,
+    authorization: str | None = Header(default=None),
+):
+    require_auth(authorization)
+
     if name not in ALLOWED:
         raise HTTPException(status_code=404, detail="Unknown CSV")
 
@@ -77,6 +123,7 @@ def read_csv(name: str):
 
     with open(path, "r", encoding="utf-8") as f:
         return f.read()
+
 
 @app.post("/api/csv/{name}", response_class=PlainTextResponse)
 def write_csv(
