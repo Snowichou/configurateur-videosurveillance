@@ -139,25 +139,21 @@
   return Number.isFinite(num) && num > 0 ? num : null;
 }
 
-/**
- * Score global projet (pondéré par quantité)
- * Alias utilisé par le résumé + PDF.
- */
-/**
- * Score global projet (pondéré par quantité)
- * Alias utilisé par le résumé + PDF.
- */
-function computeProjectScore(){
+// ==========================================================
+// Score global projet (pondéré par quantité)
+// ==========================================================
+function computeProjectScoreWeighted(){
   let sumQty = 0;
   let sumScore = 0;
 
-  for (const blk of (MODEL.cameraBlocks || [])){
+  for (const blk of (MODEL.cameraBlocks || [])) {
     if (!blk.validated) continue;
 
-    const line = MODEL.cameraLines.find(l => l.fromBlockId === blk.id);
+    const line = (MODEL.cameraLines || []).find(l => l.fromBlockId === blk.id);
     if (!line) continue;
 
     const qty = clampInt(line.qty || 1, 1, 999);
+
     const s = Number(blk.selectedCameraScore);
     const used = Number.isFinite(s) ? s : 50;
 
@@ -172,11 +168,59 @@ function computeProjectScore(){
 }
 
 
+// ==========================================================
+// AXE 1 — Lecture “pastilles” (strict)
+// ==========================================================
+function levelFromScore(score){
+  const s = Number(score);
+  if (!Number.isFinite(s)) {
+    return { level: "LIM", dot: "🟠", label: "LIM" };
+  }
+  if (s >= 78) return { level: "OK",  dot: "🟢", label: "OK"  };
+  if (s >= 60) return { level: "LIM", dot: "🟠", label: "LIM" };
+  return          { level: "BAD", dot: "🔴", label: "BAD" };
+}
+
+// ==========================================================
+// Adaptateur score -> niveaux stricts (ok/warn/bad)
+// ==========================================================
+function levelFromScoreStrict(score){
+  const base = levelFromScore(score); // { level:"OK"|"LIM"|"BAD", dot, label }
+  const lvl =
+    base.level === "OK"  ? "ok" :
+    base.level === "LIM" ? "warn" : "bad";
+
+  return { ...base, level: lvl };
+}
+
+
+// ==========================================================
+// Comptage des niveaux de risque (AXE 1)
+// ==========================================================
+function computeRiskCounters(){
+  let ok = 0, warn = 0, bad = 0;
+
+  for (const blk of (MODEL.cameraBlocks || [])){
+    if (!blk.validated) continue;
+
+    const sc = Number(blk.selectedCameraScore);
+    const safeScore = Number.isFinite(sc) ? sc : 60; // défaut "LIM" plutôt que crash/rouge
+
+    const lvl = levelFromScoreStrict(safeScore).level;
+
+    if (lvl === "ok") ok++;
+    else if (lvl === "warn") warn++;
+    else bad++;
+  }
+
+  return { ok, warn, bad, total: ok + warn + bad };
+}
+
 
   /**
    * Retourne { score, parts[], ratio, dori, required }
    */
-function scoreCameraForBlock(block, cam){
+  function scoreCameraForBlock(block, cam){
     const ans = block?.answers || {};
     const required = Number(ans.distance_m || 0);
     const objective = ans.objective || "";
@@ -252,6 +296,119 @@ function scoreCameraForBlock(block, cam){
 
     return { score, parts, ratio, dori, required };
   }
+
+/**
+ * Interprétation score → 3 niveaux + motif principal + phrase
+ * Hard rule (A):
+ * - Identification : ratio < 0.85 => rouge
+ * - Dissuasion / Détection : ratio < 0.80 => rouge
+ */
+/**
+ * Interprétation "métier" du score (3 niveaux) + hard rule DORI
+ * - OK / LIMITE / INADAPTÉ
+ * - Seuils plus stricts (C) :
+ *   OK >= 80
+ *   LIMITE 60..79
+ *   INADAPTÉ < 60
+ * - Hard rule (A) sur la marge DORI :
+ *   Identification : ratio < 0.85 => INADAPTÉ
+ *   Dissuasion/Détection : ratio < 0.80 => INADAPTÉ
+ */
+function interpretScoreForBlock(block, cam){
+  const sc = scoreCameraForBlock(block, cam);
+  const ans = block?.answers || {};
+  const obj = String(ans.objective || "").toLowerCase();
+
+  // Base sur score (strict)
+  let level = "ok";   // ok | warn | bad
+  let badge = "OK";
+  let message = "Adaptée au besoin.";
+
+  if (sc.score >= 80) {
+    level = "ok"; badge = "OK"; message = "Adaptée au besoin.";
+  } else if (sc.score >= 60) {
+    level = "warn"; badge = "LIMITE"; message = "Acceptable mais marge faible / compromis.";
+  } else {
+    level = "bad"; badge = "INADAPTÉ"; message = "Non recommandée pour ce besoin.";
+  }
+
+  // Hard rule DORI
+  let hardRule = false;
+  if (sc.ratio != null && Number.isFinite(sc.ratio)) {
+    const minRatio = (obj === "identification") ? 0.85 : 0.80;
+    if (sc.ratio < minRatio) {
+      level = "bad";
+      badge = "INADAPTÉ";
+      message = `Marge DORI insuffisante (x${sc.ratio.toFixed(2)} < x${minRatio.toFixed(2)}).`;
+      hardRule = true;
+    }
+  }
+
+  return { ...sc, level, badge, message, hardRule };
+}
+
+
+/**
+ * Motif principal "propre" (sans parsing de texte)
+ * On sort: "DORI" | "Détails" | "Nuit/IR" | "Cohérence"
+ */
+function computeMainReason(block, cam, sc){
+  // On ré-estime chaque sous-part (mêmes barèmes que scoreCameraForBlock)
+  const ans = block?.answers || {};
+  const required = Number(ans.distance_m || 0);
+  const objective = ans.objective || "";
+  const empl = normalizeEmplacement(ans.emplacement);
+
+  // DORI
+  let scoreDori = 18;
+  const dori = getDoriForObjective(cam, objective);
+  const ratio = (required > 0 && dori && dori > 0) ? (dori / required) : null;
+  if (ratio != null){
+    const r = ratio;
+    if (r >= 1.3) scoreDori = 60;
+    else if (r >= 1.0) scoreDori = 52 + (r - 1.0) * (60 - 52) / 0.3;
+    else if (r >= 0.8) scoreDori = 40 + (r - 0.8) * (52 - 40) / 0.2;
+    else if (r >= 0.6) scoreDori = 25 + (r - 0.6) * (40 - 25) / 0.2;
+    else if (r >= 0.4) scoreDori = 10 + (r - 0.4) * (25 - 10) / 0.2;
+    else scoreDori = 6;
+    scoreDori = clamp(Math.round(scoreDori), 0, 60);
+  }
+
+  // MP
+  const mp = getMpFromCam(cam);
+  let scoreMp = 7;
+  if (mp == null) scoreMp = 7;
+  else if (mp >= 8) scoreMp = 15;
+  else if (mp >= 5) scoreMp = 13;
+  else if (mp >= 4) scoreMp = 11;
+  else if (mp >= 2) scoreMp = 9;
+
+  // IR
+  const ir = getIrFromCam(cam);
+  let scoreIr = 7;
+  if (ir == null) scoreIr = 7;
+  else if (ir >= 60) scoreIr = 15;
+  else if (ir >= 40) scoreIr = 13;
+  else if (ir >= 30) scoreIr = 11;
+  else if (ir >= 20) scoreIr = 9;
+
+  // Bonus cohérence
+  let bonus = 0;
+  if (empl === "exterieur" && ir != null && ir >= 30) bonus += 6;
+  if (empl === "interieur" && mp != null && mp >= 4) bonus += 6;
+  if (ratio != null && ratio >= 1.15) bonus += 4;
+  bonus = clamp(bonus, 0, 10);
+
+  // On veut le "point faible" => normaliser en % de leur max
+  const norm = [
+    { key: "DORI",       val: scoreDori / 60 },
+    { key: "Détails",    val: scoreMp   / 15 },
+    { key: "Nuit/IR",    val: scoreIr   / 15 },
+    { key: "Cohérence",  val: bonus     / 10 },
+  ].sort((a,b) => a.val - b.val);
+
+  return String(norm[0]?.key || "DORI");
+}
 
   const objectiveLabel = (obj) =>
     obj === "dissuasion" ? "Dissuasion" : obj === "detection" ? "Détection" : "Identification";
@@ -552,6 +709,55 @@ const DOM = {
       notes: raw.notes || "",
     };
   }
+
+  function safeStr(v) {
+  return (v ?? "").toString().trim();
+}
+
+function safeNum(v) {
+  const n = Number((v ?? "").toString().replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** "A|B|C|" => ["A","B","C"] */
+function parsePipeList(v) {
+  return safeStr(v)
+    .split("|")
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+  function normalizeScreen(row) {
+  const id = safeStr(row.id);
+  return {
+    id,
+    name: safeStr(row.name) || id || "—",
+    size_inch: safeNum(row.size_inch),
+    format: safeStr(row.format) || "—",
+    vesa: safeStr(row.vesa) || "—",
+
+    // ton CSV a "Resolution" (R majuscule)
+    resolution: safeStr(row.Resolution || row.resolution) || "—",
+
+    image_url: safeStr(row.image_url) || "",
+    datasheet_url: safeStr(row.datasheet_url) || "",
+  };
+}
+  function normalizeEnclosure(row) {
+  const id = safeStr(row.id);
+  return {
+    id,
+    name: safeStr(row.name) || id || "—",
+
+    // peut être vide, ou une ref unique, ou plusieurs refs séparées par |
+    screen_compatible_with: parsePipeList(row.screen_compatible_with),
+
+    // liste NVR / XVR compatibles
+    compatible_with: parsePipeList(row.compatible_with),
+
+    image_url: safeStr(row.image_url) || "",
+    datasheet_url: safeStr(row.datasheet_url) || "",
+  };
+}
 
   // ==========================================================
   // 4B) ACCESSORIES MAPPING (✅ aligné sur TON CSV)
@@ -917,26 +1123,27 @@ const DOM = {
     return sum(MODEL.cameraLines, (l) => (l.qty || 0));
   }
 
-  function computeSolutionScore(){
-  let totalQty = 0;
-  let totalScore = 0;
 
-  for (const blk of MODEL.cameraBlocks){
-    if (!blk.validated) continue;
-    const line = MODEL.cameraLines.find(l => l.fromBlockId === blk.id);
-    if (!line) continue;
+  /**
+   * AXE 1 — Score solution critique
+   * Règle : le score le plus faible parmi les blocs validés
+   */
+  function computeCriticalProjectScore() {
+    let worst = null;
 
-    const qty = clampInt(line.qty || 1, 1, 999);
-    const s = Number(blk.selectedCameraScore);
-    const used = Number.isFinite(s) ? s : 50;
+    for (const blk of MODEL.cameraBlocks || []) {
+      if (!blk.validated) continue;
 
-    totalQty += qty;
-    totalScore += used * qty;
+      const s = Number(blk.selectedCameraScore);
+      if (!Number.isFinite(s)) continue;
+
+      if (worst === null || s < worst) {
+        worst = s;
+      }
+    }
+
+    return worst; // null si aucun bloc validé
   }
-  if (!totalQty) return null;
-  return Math.round(totalScore / totalQty);
-}
-
 
   function estimateCameraBitrateMbps(camera, rec, quality) {
     let br = camera.bitrate_mbps_typical ?? ((camera.resolution_mp ?? 4) * 1.2);
@@ -1213,40 +1420,43 @@ const DOM = {
   }
 
   function renderFinalSummary(proj) {
-  const projectScore = computeProjectScore();
-  const line = (qty, ref, name) => `• ${qty} × ${safeHtml(ref || "—")} — ${safeHtml(name || "")}`;
+  const projectScore = computeCriticalProjectScore();
+  const risk = computeRiskCounters();
 
-  const cams = MODEL.cameraLines
-  .map((l) => {
-    const cam = getCameraById(l.cameraId);
-    if (!cam) return null;
+  const line = (qty, ref, name) =>
+    `• ${qty} × ${safeHtml(ref || "—")} — ${safeHtml(name || "")}`;
 
-    const blk = MODEL.cameraBlocks.find((b) => b.id === l.fromBlockId) || null;
-    const label = blk?.label ? `${blk.label} → ` : "";
+  const cams = (MODEL.cameraLines || [])
+    .map((l) => {
+      const cam = getCameraById(l.cameraId);
+      if (!cam) return null;
 
-    return `• ${safeHtml(label)}${safeHtml(String(l.qty || 0))} × ${safeHtml(cam.id || "—")} — ${safeHtml(cam.name || "")}`;
-  })
-  .filter(Boolean)
-  .join("<br>");
+      const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
+      const label = blk && blk.label ? `${blk.label} → ` : "";
+
+      return `• ${safeHtml(label)}${safeHtml(String(l.qty || 0))} × ${safeHtml(cam.id || "—")} — ${safeHtml(cam.name || "")}`;
+    })
+    .filter(Boolean)
+    .join("<br>");
 
   const accs = (MODEL.accessoryLines || [])
     .map((a) => line(a.qty || 0, a.accessoryId, a.name || a.accessoryId))
     .filter(Boolean)
     .join("<br>");
 
-  const nvr = proj.nvrPick?.nvr || null;
+  const nvr = proj && proj.nvrPick ? proj.nvrPick.nvr : null;
   const nvrHtml = nvr ? line(1, nvr.id, nvr.name) : "—";
 
-  const sw = proj.switches.required
-    ? proj.switches.plan
-        .map((p) => line(p.qty || 0, p.item.id || "", p.item.name || ""))
+  const sw = proj && proj.switches && proj.switches.required
+    ? (proj.switches.plan || [])
+        .map((p) => line(p.qty || 0, (p.item && p.item.id) || "", (p.item && p.item.name) || ""))
         .join("<br>")
     : "• (non obligatoire)";
 
-  const disk = proj.disks;
-  const hdd = disk?.hddRef || null;
+  const disk = proj ? proj.disks : null;
+  const hdd = disk ? disk.hddRef : null;
   const hddHtml = disk
-    ? line(disk.count, hdd?.id || `${disk.sizeTB}TB`, hdd?.name || `Disques ${disk.sizeTB} TB`)
+    ? line(disk.count, (hdd && hdd.id) || `${disk.sizeTB}TB`, (hdd && hdd.name) || `Disques ${disk.sizeTB} TB`)
     : "—";
 
   return `
@@ -1256,35 +1466,43 @@ const DOM = {
           <div class="recoName">Résumé de la solution</div>
           <div class="muted">Format devis (Qté × Réf — Désignation)</div>
         </div>
-        <div class="score">${projectScore != null ? `${projectScore}/100` : "✅"}</div>
+
+        <div class="score">
+          ${projectScore != null ? `${projectScore}/100` : "—"}
+          <div class="muted" style="margin-top:6px;text-align:right;line-height:1.3">
+            🟢 <strong>${risk.ok}</strong>&nbsp;
+            🟠 <strong>${risk.warn}</strong>&nbsp;
+            🔴 <strong>${risk.bad}</strong>
+          </div>
+        </div>
       </div>
 
       <div class="reasons">
         <strong>Caméras</strong><br>${cams || "—"}<br><br>
         <strong>Supports / accessoires</strong><br>${accs || "—"}<br><br>
-        <strong>NVR</strong><br>${nvrHtml}<br><br>
-        <strong>Switch PoE</strong><br>${sw}<br><br>
-        <strong>Stockage</strong><br>${hddHtml}<br><br>
+        <strong>NVR</strong><br>${nvrHtml || "—"}<br><br>
+        <strong>Switch PoE</strong><br>${sw || "—"}<br><br>
+        <strong>Stockage</strong><br>${hddHtml || "—"}<br><br>
+
         <strong>Calcul</strong><br>
-        • Débit total estimé : ${proj.totalInMbps.toFixed(1)} Mbps<br>
-        • Stockage requis : ~${proj.requiredTB.toFixed(1)} TB
+        • Débit total estimé : ${(proj && proj.totalInMbps != null ? proj.totalInMbps : 0).toFixed(1)} Mbps<br>
+        • Stockage requis : ~${(proj && proj.requiredTB != null ? proj.requiredTB : 0).toFixed(1)} TB
       </div>
     </div>
   `;
 }
-
 
   function setFinalContent(proj) {
   DOM.primaryRecoEl.innerHTML = renderFinalSummary(proj);
   renderAlerts(proj.alerts);
 }
 
-
   function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
-  const projectScore = computeProjectScore();
-  const solutionScore = computeSolutionScore(); // 0..100 ou null
+  const projectScore = computeProjectScoreWeighted();
+  const risk = computeRiskCounters();
+  risk.total = risk.total ?? (risk.ok + risk.warn + risk.bad);
 
 
   // Tables : caméras
@@ -1294,6 +1512,9 @@ const DOM = {
 
   const blk = MODEL.cameraBlocks.find((b) => b.id === l.fromBlockId) || null;
   const label = blk?.label ? blk.label : "";
+
+  const scNum = Number(blk?.selectedCameraScore);
+  const interp = levelFromScore(scNum);
 
   const scoreCell =
     (blk?.selectedCameraScore != null && Number.isFinite(Number(blk.selectedCameraScore)))
@@ -1305,6 +1526,7 @@ const DOM = {
       <td>${safeHtml(label)}</td>
       <td>${safeHtml(cam.id)}</td>
       <td>${safeHtml(cam.name)}</td>
+      <td style="text-align:center;font-weight:900">${safeHtml(interp.dot)} ${safeHtml(interp.label)}</td>
       <td style="text-align:right;font-weight:800">${safeHtml(scoreCell)}</td>
       <td style="text-align:center">${safeHtml(String(l.quality || "standard"))}</td>
       <td style="text-align:right">${safeHtml(String(l.qty || 0))}</td>
@@ -1312,6 +1534,7 @@ const DOM = {
     </tr>
   `;
 }).join("");
+
 
 
 
@@ -1440,10 +1663,13 @@ const DOM = {
       <div class="pdfMeta" style="font-size:11px;color:#444">Total caméras</div>
       <div style="font-size:22px;font-weight:900">${proj.totalCameras}</div>
 
-      <div style="margin-top:10px" class="pdfMeta">Score solution</div>
-      <div style="font-size:18px;font-weight:900">
-        ${solutionScore != null ? `${solutionScore}/100` : "—"}
-      </div>
+      <div style="margin-top:10px" class="pdfMeta">Score projet</div>
+        <div style="font-size:18px;font-weight:900">
+          ${projectScore != null ? `${projectScore}/100` : "—"}
+        </div>
+        <div class="muted" style="margin-top:6px">
+          OK ${risk.ok} • LIM ${risk.warn} • BAD ${risk.bad}
+        </div>
     </div>
   </div>
 </div>
@@ -1455,18 +1681,32 @@ const DOM = {
       <div class="kpiValue">${proj.totalInMbps.toFixed(1)} Mbps</div>
       <div class="muted">Selon fps / codec / mode / qualité.</div>
     </td>
+
     <td class="kpiCell">
       <div class="kpiLabel">Stockage requis</div>
       <div class="kpiValue">~${proj.requiredTB.toFixed(1)} TB</div>
       <div class="muted">Inclut marge ${MODEL.recording.overheadPct}%.</div>
     </td>
+
     <td class="kpiCell">
-      <div class="kpiLabel">Score solution</div>
+      <div class="kpiLabel">Score projet</div>
       <div class="kpiValue">${projectScore != null ? `${projectScore}/100` : "—"}</div>
       <div class="muted">Moyenne pondérée par quantité.</div>
     </td>
   </tr>
+
+  <tr>
+    <td class="kpiCell" colspan="3">
+      <div class="kpiLabel">Risque (blocs validés)</div>
+      <div class="kpiValue" style="font-size:13px">
+        🟢 ${risk.ok} &nbsp;&nbsp; 🟠 ${risk.warn} &nbsp;&nbsp; 🔴 ${risk.bad}
+        <span class="muted" style="margin-left:10px">/ ${risk.total}</span>
+      </div>
+      <div class="muted">Lecture rapide : OK ≥ 75 • LIM 60–74 • BAD &lt; 60</div>
+    </td>
+  </tr>
 </table>
+
 
 
       <div class="section">
@@ -1494,6 +1734,7 @@ const DOM = {
               <th>Zone / Bloc</th>
               <th>Réf</th>
               <th>Modèle</th>
+              <th style="text-align:center">Niveau</th>
               <th style="text-align:right">Score</th>
               <th style="text-align:center">Qualité</th>
               <th style="text-align:right">Qté</th>
@@ -1501,7 +1742,7 @@ const DOM = {
             </tr>
           </thead>
           <tbody>
-            ${camsRows || `<tr><td colspan="7" class="muted">Aucune caméra validée.</td></tr>`}
+            ${camsRows || `<tr><td colspan="8" class="muted">Aucune caméra validée.</td></tr>`}
           </tbody>
         </table>
         <div class="muted" style="margin-top:8px">
@@ -1657,69 +1898,112 @@ const DOM = {
     `;
   }
 
-  function camPickCardHTML(blk, cam, label) {
-    const isValidated = blk.validated && blk.selectedCameraId === cam.id;
+ function camPickCardHTML(blk, cam, label) {
+  const isValidated = blk.validated && blk.selectedCameraId === cam.id;
 
-    const code = cam.id || "—";
-    const range = cam.brand_range || "—";
-    const lowLight = cam.low_light_raw || (cam.low_light ? "Oui" : "Non");
-    const ai = cam.analytics_level || "—";
-    const focal = `Focale ${cam.focal_min_mm ?? "—"}${cam.focal_max_mm ? `-${cam.focal_max_mm}` : ""}mm`;
-    const sc = scoreCameraForBlock(blk, cam);
+  const code = cam.id || "—";
+  const range = cam.brand_range || "—";
+  const lowLight = cam.low_light_raw || (cam.low_light ? "Oui" : "Non");
+  const ai = cam.analytics_level || "—";
+  const focal = `Focale ${cam.focal_min_mm ?? "—"}${cam.focal_max_mm ? `-${cam.focal_max_mm}` : ""}mm`;
 
-    return `
-      <div class="cameraPickCard">
-        <div class="cameraPickTop">
-          ${cam.image_url ? `<img class="cameraPickImg" src="${cam.image_url}" alt="">` : `<div class="cameraPickImg"></div>`}
+  const interp = interpretScoreForBlock(blk, cam); // ✅ UNE FOIS
 
-          <div class="cameraPickMeta">
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <strong>${safeHtml(code)} — ${safeHtml(cam.name)}</strong>
-            </div>
-          <div class="scoreWrap">
+  // ✅ mainReason garanti : jamais undefined / null / vide
+  const mainReason = String(computeMainReason(blk, cam, interp) || "DORI");
+
+  // ✅ badge garanti (sécurité)
+  const badge = String(interp?.badge || "OK");
+
+  // ✅ pastille texte (jamais undefined)
+  const pillTxt = `${badge} • ${mainReason}`;
+
+  const levelClass =
+    (interp.level === "ok") ? "scoreOk" :
+    (interp.level === "warn") ? "scoreWarn" : "scoreBad";
+
+  return `
+    <div class="cameraPickCard">
+      <div class="cameraPickTop">
+        ${cam.image_url ? `<img class="cameraPickImg" src="${cam.image_url}" alt="">` : `<div class="cameraPickImg"></div>`}
+
+        <div class="cameraPickMeta">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <strong>${safeHtml(code)} — ${safeHtml(cam.name)}</strong>
+          </div>
+
+          <div class="scoreWrap ${levelClass}">
             <div class="scoreTop">
-              <div class="scoreBadge">Score <strong>${sc.score}</strong>/100</div>
-              <div class="scoreHint">${sc.ratio != null ? `Marge DORI : x${sc.ratio.toFixed(2)}` : "Données partielles (score estimé)"}</div>
+              <div class="scoreBadge">
+                <span class="badgePill" style="font-weight:900">${safeHtml(pillTxt)}</span>
+                &nbsp;•&nbsp; Score <strong>${interp.score}</strong>/100
+              </div>
+              <div class="scoreHint">
+                ${
+                  interp.ratio != null
+                    ? `Marge DORI : x${interp.ratio.toFixed(2)}${interp.hardRule ? " (règle sécurité)" : ""}`
+                    : "Données partielles (score estimé)"
+                }
+              </div>
             </div>
-          <div class="scoreBarOuter" aria-label="Score">
-            <div class="scoreBarInner" style="width:${sc.score}%;"></div>
+
+            <div class="scoreBarOuter" aria-label="Score">
+              <div class="scoreBarInner" style="width:${interp.score}%;"></div>
+            </div>
+
+            <div class="reasons" style="margin-top:8px">
+              <strong>${safeHtml(interp.message)}</strong><br>
+              <span class="muted">Motif principal : <strong>${safeHtml(mainReason)}</strong></span>
+            </div>
+
+            <div class="scoreDetails" style="margin-top:8px">
+              ${(interp.parts || []).map(p => `<div class="muted">• ${safeHtml(p)}</div>`).join("")}
+            </div>
           </div>
-            <div class="scoreDetails">
-              ${sc.parts.map(p => `<div class="muted">• ${safeHtml(p)}</div>`).join("")}
-            </div>
+
+          <div class="badgeRow" style="margin-top:8px">
+            ${badgeHtml(label)}
+            ${badgeHtml(range)}
+            ${badgeHtml(`Low light: ${lowLight}`)}
+            ${badgeHtml(`IA: ${ai}`)}
+            ${isValidated ? badgeHtml("✅ Validé") : ""}
           </div>
 
-            <div class="badgeRow" style="margin-top:8px">
-              ${badgeHtml(label)}
-              ${badgeHtml(range)}
-              ${badgeHtml(`Low light: ${lowLight}`)}
-              ${badgeHtml(`IA: ${ai}`)}
-              ${isValidated ? badgeHtml("✅ Validé") : ""}
-            </div>
+          <div class="badgeRow" style="margin-top:10px">
+            ${badgeHtml(`${safeHtml(cam.type)} • ${cam.resolution_mp ?? "—"}MP`)}
+            ${badgeHtml(focal)}
+            ${cam.microphone ? badgeHtml("Micro: Oui") : ""}
+            ${cam.ip ? badgeHtml(`IP${cam.ip}`) : ""}
+            ${cam.ik ? badgeHtml(`IK${cam.ik}`) : ""}
+          </div>
 
-            <div class="badgeRow" style="margin-top:10px">
-              ${badgeHtml(`${safeHtml(cam.type)} • ${cam.resolution_mp ?? "—"}MP`)}
-              ${badgeHtml(focal)}
-              ${cam.microphone ? badgeHtml("Micro: Oui") : ""}
-              ${cam.ip ? badgeHtml(`IP${cam.ip}`) : ""}
-              ${cam.ik ? badgeHtml(`IK${cam.ik}`) : ""}
-            </div>
+          <div style="margin-top:10px">
+            ${doriBadgesHTML(cam)}
+          </div>
 
-            <div style="margin-top:10px">
-              ${doriBadgesHTML(cam)}
-            </div>
+          <div class="cameraPickActions" style="margin-top:10px">
+            <button
+              data-action="validateCamera"
+              data-camid="${safeHtml(cam.id)}"
+              class="btnPrimary btnSmall"
+            >${safeHtml(
+              interp.level === "ok"
+                ? "Valider cette caméra"
+                : interp.level === "warn"
+                  ? "Valider quand même (limite)"
+                  : "Forcer la sélection (inadap.)"
+            )}</button>
 
-            <div class="cameraPickActions" style="margin-top:10px">
-              <button data-action="validateCamera" data-camid="${safeHtml(cam.id)}" class="btnPrimary btnSmall">Je valide cette caméra</button>
-              ${cam.datasheet_url ? `<a class="btnGhost btnSmall" style="text-decoration:none" href="${cam.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche Technique</a>` : ``}
-            </div>
+            ${cam.datasheet_url ? `<a class="btnGhost btnSmall" style="text-decoration:none" href="${cam.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche Technique</a>` : ``}
           </div>
         </div>
       </div>
-    `;
-  }
+    </div>
+  `;
+}
 
   function renderStepCameras() {
+    const risk = computeRiskCounters();
     if (!Array.isArray(MODEL.cameraBlocks) || !MODEL.cameraBlocks.length) {
       MODEL.cameraBlocks = [createEmptyCameraBlock()];
     }
@@ -1767,7 +2051,7 @@ const DOM = {
               style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)"
             />
             <div class="muted" style="margin-top:6px">
-              Ce nom apparaîtra dans le résumé et le PDF.
+              🟢 ${risk.ok} • 🟠 ${risk.warn} • 🔴 ${risk.bad}
             </div>
           </div>
 
@@ -2404,32 +2688,18 @@ function render() {
     return;
   }
 
-  if (action === "validateCamera") {
+if (action === "validateCamera") {
   const camId = el.getAttribute("data-camid");
-  const blk = MODEL.cameraBlocks.find((b) => b.id === MODEL.ui.activeBlockId);
+  const blk = MODEL.cameraBlocks.find(b => b.id === MODEL.ui.activeBlockId);
   if (!blk) return;
 
-  const reco = buildRecoForBlock(blk);
+  const cam = getCameraById(camId);
+  if (!cam) return;
 
-  const cam =
-    (reco?.primary?.camera && reco.primary.camera.id === camId)
-      ? reco.primary.camera
-      : (reco?.alternatives || []).map(x => x.camera).find(c => c && c.id === camId)
-        || getCameraById(camId);
-
-  validateBlock(blk, reco, camId);
-
-  // (Optionnel) tu peux laisser : validateBlock le fait déjà maintenant
-  // if (cam) {
-  //   const sc = scoreCameraForBlock(blk, cam);
-  //   blk.selectedCameraScore = sc.score;
-  //   blk.selectedCameraScoreParts = sc.parts;
-  // }
-
+  validateBlock(blk, null, cam.id);
   render();
   return;
 }
-
 
 
   if (action === "recalcAccessories") {
@@ -2849,27 +3119,48 @@ bind(DOM.stepsEl, "input", onStepsInput);
     try {
       if (DOM.dataStatusEl) DOM.dataStatusEl.textContent = "Chargement des données…";
 
-      const [camsRaw, nvrsRaw, hddsRaw, swRaw, accRaw] = await Promise.all([
+      const [
+        camsRaw,
+        nvrsRaw,
+        hddsRaw,
+        swRaw,
+        accRaw,
+        screensRaw,
+        enclosuresRaw
+      ] = await Promise.all([
         loadCsv("/data/cameras.csv"),
         loadCsv("/data/nvrs.csv"),
         loadCsv("/data/hdds.csv"),
         loadCsv("/data/switches.csv"),
         loadCsv("/data/accessories.csv"),
+        loadCsv("/data/screens.csv"),      // 🆕 écrans
+        loadCsv("/data/enclosures.csv"),   // 🆕 boîtiers NVR
       ]);
+
 
       CATALOG.CAMERAS = camsRaw.map(normalizeCamera).filter((c) => c.id);
       CATALOG.NVRS = nvrsRaw.map(normalizeNvr).filter((n) => n.id);
       CATALOG.HDDS = hddsRaw.map(normalizeHdd).filter((h) => h.id);
       CATALOG.SWITCHES = swRaw.map(normalizeSwitch).filter((s) => s.id);
+      CATALOG.SCREENS = screensRaw.map(normalizeScreen).filter(s => s.id);
+      CATALOG.ENCLOSURES = enclosuresRaw.map(normalizeEnclosure).filter(e => e.id);
+
 
       // ✅ accessories.csv = MAPPING (camera_id => junction/wall/ceiling)
       const mappings = accRaw.map(normalizeAccessoryMapping).filter(Boolean);
       CATALOG.ACCESSORIES_MAP = new Map(mappings.map((m) => [m.cameraId, m]));
 
       if (DOM.dataStatusEl) {
-        DOM.dataStatusEl.textContent =
-          `Données chargées ✅ Caméras: ${CATALOG.CAMERAS.length} • NVR: ${CATALOG.NVRS.length} • HDD: ${CATALOG.HDDS.length} • Switch: ${CATALOG.SWITCHES.length} • Mappings accessoires: ${CATALOG.ACCESSORIES_MAP.size}`;
-      }
+      DOM.dataStatusEl.textContent =
+    `Données chargées ✅ Caméras: ${CATALOG.CAMERAS.length}
+     • NVR: ${CATALOG.NVRS.length}
+     • HDD: ${CATALOG.HDDS.length}
+     • Switch: ${CATALOG.SWITCHES.length}
+     • Écrans: ${CATALOG.SCREENS.length}
+     • Boîtiers: ${CATALOG.ENCLOSURES.length}
+     • Mappings accessoires: ${CATALOG.ACCESSORIES_MAP.size}`;
+}
+
 
       if (!MODEL.cameraBlocks.length) MODEL.cameraBlocks = [createEmptyCameraBlock()];
       MODEL.ui.activeBlockId = MODEL.cameraBlocks[0].id;

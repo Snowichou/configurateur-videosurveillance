@@ -1,0 +1,5 @@
+id,name,screen_compatible_with,compatible_with,image_url,datasheet_url
+SBOX,Boîtier métal pour NVR et XVR petit,,NIPNVR004N06PASL|NIPNVR008N06PASL|NIPNVR004A08PASL|NIPNVR008A12PASL,https://staticpro.comelitgroup.com/storage/2022/03/30881/sbox-800x800.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20362-sbox.pdf
+MBOX,Boîtier métal pour NVR et XVR medium,,NIPNVR016A12PASL|N32N12A2H0A|NIPNVR032A12NASL,https://staticpro.comelitgroup.com/storage/2022/03/30882/mbox-800x800.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20363-mbox.pdf
+LBOX,Boîtier métal pour NVR et XVR large,MMON185A,IPNVR004N06PASL|NIPNVR008N06PASL|NIPNVR004A08PASL|NIPNVR008A12PASL|NIPNVR016A12PASL|N32N12A2H0A,https://staticpro.comelitgroup.com/storage/2022/03/30883/lbox-800x800.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20364-lbox.pdf
+
