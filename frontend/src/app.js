@@ -3833,56 +3833,77 @@ const ADMIN_GRID = {
 
 // ---- helpers DOM
 function q(id){ return document.getElementById(id); }
-function escapeAttr(s){
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+
+function escapeAttr(v){
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
+
 
 // ---- CSV parse simple (quotes + virgules)
 function parseCSVGrid(csvText){
-  const text = String(csvText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = text.split("\n").filter(l => l.trim().length > 0);
-  if (!lines.length) return { headers: [], rows: [] };
+  const s = String(csvText ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n");
 
-  const parseLine = (line) => {
-    const out = [];
-    let cur = "";
-    let inQuotes = false;
-
-    for (let i=0; i<line.length; i++){
-      const ch = line[i];
-      const next = line[i+1];
-
-      if (ch === '"' && inQuotes && next === '"'){
-        cur += '"'; i++; continue;
-      }
-      if (ch === '"'){ inQuotes = !inQuotes; continue; }
-      if (ch === "," && !inQuotes){
-        out.push(cur);
-        cur = "";
-        continue;
-      }
-      cur += ch;
-    }
-    out.push(cur);
-    return out;
-  };
-
-  const headers = parseLine(lines[0]).map(h => String(h ?? "").trim());
   const rows = [];
+  let row = [];
+  let cur = "";
+  let inQuotes = false;
 
-  for (let i=1; i<lines.length; i++){
-    const cols = parseLine(lines[i]);
-    const obj = {};
-    headers.forEach((h, idx) => obj[h] = String(cols[idx] ?? ""));
-    rows.push(obj);
+  for (let i = 0; i < s.length; i++){
+    const ch = s[i];
+    const next = s[i+1];
+
+    if (ch === '"' && inQuotes && next === '"'){
+      cur += '"'; i++; continue;
+    }
+    if (ch === '"'){
+      inQuotes = !inQuotes; 
+      continue;
+    }
+
+    if (ch === "," && !inQuotes){
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+
+    if (ch === "\n" && !inQuotes){
+      row.push(cur);
+      cur = "";
+      // évite de pousser une ligne vide “à cause” d'un \n final
+      if (row.some(c => String(c).trim() !== "")) rows.push(row);
+      row = [];
+      continue;
+    }
+
+    cur += ch;
   }
 
-  return { headers, rows };
+  // dernière cellule
+  row.push(cur);
+  if (row.some(c => String(c).trim() !== "")) rows.push(row);
+
+  if (!rows.length) return { headers: [], rows: [] };
+
+  const headers = rows[0].map(h => String(h ?? "").trim());
+  const dataRows = [];
+
+  for (let i = 1; i < rows.length; i++){
+    const cols = rows[i];
+    const obj = {};
+    headers.forEach((h, idx) => obj[h] = String(cols[idx] ?? ""));
+    dataRows.push(obj);
+  }
+
+  return { headers, rows: dataRows };
 }
+
 
 function toCSVGrid(headers, rows){
   const esc = (v) => {
@@ -3920,6 +3941,11 @@ function renderAdminGrid(){
     syncGridMeta();
     return;
   }
+function scrollSelectedIntoView(){
+  const mount = q("adminTableMount");
+  const tr = mount?.querySelector(`.adminRow.selected`);
+  tr?.scrollIntoView({ block: "nearest" });
+}
 
   const ths = ADMIN_GRID.headers.map(h => `<th title="${escapeAttr(h)}">${escapeAttr(h)}</th>`).join("");
 
@@ -3950,27 +3976,38 @@ function renderAdminGrid(){
     </table>
   `;
 
-  // select row
-  mount.querySelectorAll(".adminRow").forEach(tr => {
-    tr.addEventListener("click", () => {
-      ADMIN_GRID.selectedIndex = Number(tr.dataset.row);
-      renderAdminGrid();
-    });
-  });
-
-  // edit cell
-  mount.querySelectorAll(".adminCell").forEach(inp => {
-    inp.addEventListener("input", () => {
-      const r = Number(inp.dataset.row);
-      const c = inp.dataset.col;
-      if (!ADMIN_GRID.rows[r]) return;
-      ADMIN_GRID.rows[r][c] = inp.value;
-      syncExpertTextareaIfOpen();
-    });
-  });
-
   syncGridMeta();
 }
+
+function bindAdminGridEventsOnce(){
+  const mount = q("adminTableMount");
+  if (!mount) return;
+  if (mount.dataset.bound === "1") return;
+  mount.dataset.bound = "1";
+
+  mount.addEventListener("click", (e) => {
+    const cell = e.target.closest(".adminCell");
+    if (cell) return; // click dans input => ne pas sélectionner via row click ici
+
+    const tr = e.target.closest(".adminRow");
+    if (!tr) return;
+    ADMIN_GRID.selectedIndex = Number(tr.dataset.row);
+    renderAdminGrid(); // ok
+  });
+
+  mount.addEventListener("input", (e) => {
+    const inp = e.target.closest(".adminCell");
+    if (!inp) return;
+    const r = Number(inp.dataset.row);
+    const c = inp.dataset.col;
+    if (!ADMIN_GRID.rows[r]) return;
+    ADMIN_GRID.rows[r][c] = inp.value;
+    syncExpertTextareaIfOpen();
+    // Option: refresh meta sans rerender complet
+    // syncGridMeta();
+  });
+}
+
 
 function adminGridAddRow(){
   if (!ADMIN_GRID.headers.length) return;
@@ -4024,4 +4061,4 @@ function initAdminGridUI(){
 }
 
   init();
-();
+})();
