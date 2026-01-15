@@ -484,6 +484,42 @@ code{ font-family: var(--mono); font-size: .95em; }
   font-weight: 800;
 }
 
+.pillBtn{
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+  cursor:pointer;
+}
+.pillBtn.pillActive{
+  background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.22);
+}
+.divider{
+  height:1px;
+  background:rgba(255,255,255,.10);
+}
+.alert.warn{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(255,180,0,.25);
+  background:rgba(255,180,0,.08);
+}
+.alert.info{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(120,190,255,.25);
+  background:rgba(120,190,255,.08);
+}
+.alert.ok{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(90,255,160,.18);
+  background:rgba(90,255,160,.07);
+}
+
+
 /* ---------- 9) Empty + results toggle ---------- */
 .hidden{ display: none !important; }
 

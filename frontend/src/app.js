@@ -38,6 +38,12 @@
   let btnToggleResults = null;
   let _renderProjectCache = null;
 
+  window.addEventListener("error", (e) => {
+    console.error("JS Error:", e.error || e.message);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    console.error("Unhandled promise:", e.reason);
+  });
 
   // ==========================================================
   // 0) HELPERS
@@ -137,6 +143,135 @@
 
   const num = Number(String(v ?? "").replace(",", "."));
   return Number.isFinite(num) && num > 0 ? num : null;
+}
+  function getAvailableScreenSizes() {
+  const screens = CATALOG.SCREENS || [];
+  const sizes = new Set();
+  for (const s of screens) {
+    const v = Number(s.size_inch);
+    if (Number.isFinite(v)) sizes.add(v);
+  }
+  return Array.from(sizes).sort((a,b)=>a-b);
+}
+
+function pickScreenBySize(sizeInch) {
+  const screens = CATALOG.SCREENS || [];
+  if (!screens.length) return null;
+
+  // 1) match exact
+  let exact = screens.find(s => Number(s.size_inch) === Number(sizeInch));
+  if (exact) return exact;
+
+  // 2) fallback: closest
+  let best = null, bestDelta = Infinity;
+  for (const s of screens) {
+    const v = Number(s.size_inch);
+    if (!Number.isFinite(v)) continue;
+    const d = Math.abs(v - Number(sizeInch));
+    if (d < bestDelta) { bestDelta = d; best = s; }
+  }
+  return best || screens[0] || null;
+}
+const SCREEN_INSIDE_ONLY_ID = "MMON185A";
+
+function isScreenInsideCompatible(enclosure, screen) {
+  if (!enclosure || !screen) return false;
+
+  // 1) Si le CSV boîtier donne une liste explicite
+  if (Array.isArray(enclosure.screen_compatible_with) && enclosure.screen_compatible_with.length) {
+    return enclosure.screen_compatible_with.includes(screen.id);
+  }
+
+  // 2) fallback selon ta règle business
+  return screen.id === SCREEN_INSIDE_ONLY_ID;
+}
+
+function pickBestEnclosure(proj, screen) {
+  const encs = CATALOG.ENCLOSURES || [];
+  const nvrId = proj?.nvrPick?.nvr?.id || null;
+  if (!encs.length || !nvrId) {
+    return { enclosure: null, reason: "no_nvr_or_catalog", screenInsideOk: false };
+  }
+
+  const encNvrCompatible = encs.filter(e =>
+    Array.isArray(e.compatible_with) && e.compatible_with.includes(nvrId)
+  );
+
+  if (!encNvrCompatible.length) {
+    // Aucun boîtier compatible NVR
+    return { enclosure: null, reason: "no_enclosure_for_nvr", screenInsideOk: false };
+  }
+
+  // Si écran choisi, on tente un boîtier qui accepte l’écran à l’intérieur
+  if (screen) {
+    const encBoth = encNvrCompatible.find(e => isScreenInsideCompatible(e, screen));
+    if (encBoth) return { enclosure: encBoth, reason: "nvr_and_screen_ok", screenInsideOk: true };
+
+    // Sinon on prend le meilleur compatible NVR mais on indiquera écran outside
+    return { enclosure: encNvrCompatible[0], reason: "nvr_ok_screen_not_inside", screenInsideOk: false };
+  }
+
+  // Pas d’écran : on prend le meilleur compatible NVR
+  return { enclosure: encNvrCompatible[0], reason: "nvr_ok_no_screen", screenInsideOk: false };
+}
+function getNvrHdmiOutputs(proj) {
+  const nvr = proj?.nvrPick?.nvr || null;
+  if (!nvr) return null;
+  return clampInt(nvr.nvr_output ?? 1, 1, 8);
+}
+
+function screenQtyWarning(proj) {
+  if (!MODEL.complements.screen.enabled) return null;
+  const qty = clampInt(MODEL.complements.screen.qty ?? 1, 1, 99);
+  const outputs = getNvrHdmiOutputs(proj);
+  if (!outputs) return null;
+
+  if (qty > outputs) {
+    if (outputs === 1) return "Attention, l’enregistreur n’a qu’une sortie HDMI.";
+    return `Attention, l’enregistreur a ${outputs} sorties HDMI.`;
+  }
+  return null;
+}
+function questionSvg(kind) {
+  // kind: "screen" | "enclosure"
+  const title = kind === "screen" ? "Écran" : "Boîtier";
+  return `
+    <svg width="64" height="64" viewBox="0 0 64 64" aria-label="${title}" role="img"
+      style="border-radius:14px; border:1px solid var(--line); background:rgba(255,255,255,.03)">
+      <rect x="12" y="14" width="40" height="26" rx="4" ry="4" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.12)"/>
+      <rect x="16" y="18" width="32" height="18" rx="2" fill="rgba(255,255,255,.10)"/>
+      <path d="M24 44h16" stroke="rgba(255,255,255,.18)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M28 48h8" stroke="rgba(255,255,255,.18)" stroke-width="3" stroke-linecap="round"/>
+      <text x="32" y="60" text-anchor="middle" font-size="10" fill="rgba(255,255,255,.35)">${title}</text>
+    </svg>
+  `;
+}
+function renderEnclosureDecisionMessage(proj, screen, enclosureAuto) {
+  const nvrId = proj?.nvrPick?.nvr?.id || null;
+
+  if (!nvrId) {
+    return `<div class="alert info" style="margin-top:10px">Aucun NVR sélectionné → impossible de proposer un boîtier.</div>`;
+  }
+
+  if (!enclosureAuto?.enclosure) {
+    return `<div class="alert warn" style="margin-top:10px">Aucun boîtier compatible avec cet enregistreur.</div>`;
+  }
+
+  if (screen && enclosureAuto.reason === "nvr_ok_screen_not_inside") {
+    return `<div class="alert warn" style="margin-top:10px">
+      Boîtier compatible NVR, mais <strong>l’écran ne peut pas se mettre à l’intérieur</strong> du boîtier.
+    </div>`;
+  }
+
+  if (screen && enclosureAuto.reason === "nvr_and_screen_ok") {
+    return `<div class="alert ok" style="margin-top:10px">
+      Boîtier compatible avec le NVR et <strong>l’écran peut être intégré</strong>.
+    </div>`;
+  }
+
+  return `<div class="alert ok" style="margin-top:10px">
+    Boîtier compatible avec le NVR.
+  </div>`;
 }
 
 // ==========================================================
@@ -535,11 +670,13 @@ function computeMainReason(block, cam, sc){
   // 1) DATA (catalog)
   // ==========================================================
   const CATALOG = {
-    CAMERAS: [],
-    NVRS: [],
-    HDDS: [],
-    SWITCHES: [],
-    ACCESSORIES_MAP: new Map(), // key = camera_id, value = mapping row
+  CAMERAS: [],
+  NVRS: [],
+  HDDS: [],
+  SWITCHES: [],
+  SCREENS: [],        // ✅ ajouté
+  ENCLOSURES: [],     // ✅ ajouté
+  ACCESSORIES_MAP: new Map(), // key = camera_id, value = mapping row
   };
 
   // ==========================================================
@@ -559,6 +696,19 @@ function computeMainReason(block, cam, sc){
       overheadPct: 20,
       reservePortsPct: 10,
     },
+
+  complements: {
+  screen: {
+    enabled: false,
+    sizeInch: 18,   // default
+    qty: 1,
+  },
+  enclosure: {
+    enabled: false,
+    qty: 1,
+  }
+},
+
 
     ui: {
       activeBlockId: null,
@@ -672,19 +822,21 @@ const DOM = {
   }
 
   function normalizeNvr(raw) {
-    return {
-      id: raw.id,
-      name: raw.name,
-      channels: toNum(raw.channels) ?? 0,
-      max_in_mbps: toNum(raw.max_in_mbps) ?? 0,
-      hdd_bays: toNum(raw.hdd_bays) ?? 0,
-      max_hdd_tb_per_bay: toNum(raw.max_hdd_tb_per_bay) ?? 0,
-      poe_ports: toNum(raw.poe_ports) ?? 0,
-      poe_budget_w: toNum(raw.poe_budget_w) ?? 0,
-      image_url: raw.image_url || "",
-      datasheet_url: raw.datasheet_url || "",
-    };
-  }
+  return {
+    id: raw.id,
+    name: raw.name,
+    channels: toNum(raw.channels) ?? 0,
+    max_in_mbps: toNum(raw.max_in_mbps) ?? 0,
+    nvr_output: clampInt(raw.nvr_output ?? 1, 1, 8), // ✅ raw
+    hdd_bays: toNum(raw.hdd_bays) ?? 0,
+    max_hdd_tb_per_bay: toNum(raw.max_hdd_tb_per_bay) ?? 0,
+    poe_ports: toNum(raw.poe_ports) ?? 0,
+    poe_budget_w: toNum(raw.poe_budget_w) ?? 0,
+    image_url: raw.image_url || "",
+    datasheet_url: raw.datasheet_url || "",
+  };
+}
+
 
   function normalizeHdd(raw) {
     return {
@@ -944,24 +1096,35 @@ function parsePipeList(v) {
   // 7) ENGINE - BLOCS + ACCESSOIRES
   // ==========================================================
   function createEmptyCameraBlock() {
-    return {
-      id: uid("B"),
-      label: "", // ✅ NOM DU BLOC (ex: "Parking entrée")
-      qty: 1,
-      quality: "standard",
-      answers: {
-        use_case: "",
-        emplacement: "interieur",
-        objective: "",
-        distance_m: "",
-        mounting: "wall",
-      },
-      selectedCameraId: null,
-      validated: false,
-      validatedLineId: null,
-      accessories: [],
-    };
+  return {
+    id: uid("B"),
+    label: "",
+    qty: 1,
+    quality: "standard",
+    answers: {
+      use_case: "",
+      emplacement: "interieur",
+      objective: "",
+      distance_m: "",
+      mounting: "wall",
+    },
+    selectedCameraId: null,
+    validated: false,
+    validatedLineId: null,
+    accessories: [],
+  };
+}
+
+// ✅ AJOUTE ÇA JUSTE ICI
+function sanity() {
+  if (!Array.isArray(MODEL.cameraBlocks) || MODEL.cameraBlocks.length === 0) {
+    MODEL.cameraBlocks = [createEmptyCameraBlock()];
   }
+  if (!MODEL.ui) MODEL.ui = {};
+  if (!MODEL.ui.activeBlockId && MODEL.cameraBlocks[0]) {
+    MODEL.ui.activeBlockId = MODEL.cameraBlocks[0].id;
+  }
+}
 
 
   function rebuildAccessoryLinesFromBlocks() {
@@ -1293,6 +1456,8 @@ function parsePipeList(v) {
 
   const nvrPick = pickNvr(totalCameras, totalInMbps);
   const switches = planPoESwitches(totalCameras, MODEL.recording.reservePortsPct);
+  const safeIn = Number.isFinite(totalInMbps) ? totalInMbps : 0;
+
 
   // ✅ check budget PoE switches si dispo
   const swBudget = (switches.plan || []).reduce(
@@ -1355,7 +1520,51 @@ function parsePipeList(v) {
 
   return { totalCameras, totalInMbps, totalPoeW, nvrPick, switches, requiredTB, disks, alerts };
 }
+function recommendScreenForProject(totalCameras) {
+  const screens = CATALOG.SCREENS || [];
+  if (!screens.length) return null;
 
+  // Heuristique simple (tu pourras raffiner plus tard)
+  const target =
+    totalCameras <= 8  ? 24 :
+    totalCameras <= 16 ? 32 :
+    totalCameras <= 32 ? 43 : 55;
+
+  // Choisir le plus proche
+  let best = null;
+  let bestDelta = Infinity;
+
+  for (const s of screens) {
+    const size = Number(s.size_inch);
+    if (!Number.isFinite(size)) continue;
+
+    const d = Math.abs(size - target);
+    if (d < bestDelta) { bestDelta = d; best = s; }
+  }
+
+  return best || screens[0] || null;
+}
+
+function recommendEnclosureForNvr(nvrId) {
+  const encs = CATALOG.ENCLOSURES || [];
+  if (!encs.length || !nvrId) return null;
+
+  // compatible_with = liste de refs NVR séparées par |
+  const found = encs.find(e => Array.isArray(e.compatible_with) && e.compatible_with.includes(nvrId));
+  return found || null;
+}
+
+function getSelectedOrRecommendedScreen(proj) {
+  const screens = CATALOG.SCREENS || [];
+  if (!screens.length) return { selected: null, recommended: null };
+
+  const selected = MODEL.complements.screen.enabled
+    ? pickScreenBySize(MODEL.complements.screen.sizeInch)
+    : null;
+
+  const recommended = recommendScreenForProject(proj.totalCameras) || null;
+  return { selected: selected || null, recommended };
+}
 
     // ==========================================================
   // PROJECT CACHE + NAV GUARDS (fixes manquants)
@@ -1458,6 +1667,16 @@ function parsePipeList(v) {
   const hddHtml = disk
     ? line(disk.count, (hdd && hdd.id) || `${disk.sizeTB}TB`, (hdd && hdd.name) || `Disques ${disk.sizeTB} TB`)
     : "—";
+  const scr = getSelectedOrRecommendedScreen(proj).selected;
+  const enc = getSelectedOrRecommendedEnclosure(proj).selected;
+
+  const screenHtml = scr
+    ? line(MODEL.complements.screen.qty || 1, scr.id, scr.name)
+    : "• —";
+
+  const enclosureHtml = enc
+    ? line(MODEL.complements.enclosure.qty || 1, enc.id, enc.name)
+    : "• —";
 
   return `
     <div class="recoCard">
@@ -1483,6 +1702,10 @@ function parsePipeList(v) {
         <strong>NVR</strong><br>${nvrHtml || "—"}<br><br>
         <strong>Switch PoE</strong><br>${sw || "—"}<br><br>
         <strong>Stockage</strong><br>${hddHtml || "—"}<br><br>
+        <strong>Produits complémentaires</strong><br>
+        <strong>Écran</strong><br>${screenHtml || "—"}<br>
+        <strong>Boîtier NVR</strong><br>${enclosureHtml || "—"}<br><br>
+
 
         <strong>Calcul</strong><br>
         • Débit total estimé : ${(proj && proj.totalInMbps != null ? proj.totalInMbps : 0).toFixed(1)} Mbps<br>
@@ -1560,6 +1783,17 @@ function parsePipeList(v) {
   `).join("");
 
   const nvr = proj.nvrPick?.nvr || null;
+  const scr = getSelectedOrRecommendedScreen(proj).selected;
+  const enc = getSelectedOrRecommendedEnclosure(proj).selected;
+
+  const screenLine = scr
+    ? `${MODEL.complements.screen.qty || 1} × ${safeHtml(scr.id)} — ${safeHtml(scr.name)}`
+    : "—";
+
+  const enclosureLine = enc
+    ? `${MODEL.complements.enclosure.qty || 1} × ${safeHtml(enc.id)} — ${safeHtml(enc.name)}`
+    : "—";
+
   const disk = proj.disks || null;
 
   // Petite logique d’affichage
@@ -1713,6 +1947,8 @@ function parsePipeList(v) {
         <div class="sectionTitle">NVR + Stockage</div>
         <div class="muted"><strong>NVR :</strong> ${nvrLine}</div>
         <div class="muted" style="margin-top:6px"><strong>Stockage :</strong> ${safeHtml(storageLine)}</div>
+        <div class="muted" style="margin-top:6px"><strong>Écran :</strong> ${screenLine}</div>
+        <div class="muted" style="margin-top:6px"><strong>Boîtier NVR :</strong> ${enclosureLine}</div>
       </div>
 
       <div class="section">
@@ -2472,7 +2708,7 @@ function parsePipeList(v) {
     const nvr = proj.nvrPick.nvr;
     const disk = proj.disks;
     const hdd = disk?.hddRef || null;
-
+    
     return `
     <div style="margin-top:10px">
       <div class="kv">
@@ -2590,12 +2826,144 @@ function parsePipeList(v) {
       `
       }
     </div>
+        ${renderComplementsCard(proj)}
   `;
   }
 
+function renderComplementsCard(proj) {
+  const sizes = getAvailableScreenSizes();
+  const screenEnabled = !!MODEL.complements.screen.enabled;
+  const enclosureEnabled = !!MODEL.complements.enclosure.enabled;
+
+  const selectedScreen = screenEnabled ? pickScreenBySize(MODEL.complements.screen.sizeInch) : null;
+
+  // Boîtier auto
+  const enclosureAuto = enclosureEnabled ? pickBestEnclosure(proj, selectedScreen) : { enclosure: null, reason: null, screenInsideOk: false };
+  const enclosureSel = enclosureAuto.enclosure;
+
+  const hdmiWarn = screenQtyWarning(proj);
+
+  // tailles UI
+  const sizePills = sizes.length ? sizes.map(sz => {
+    const active = Number(MODEL.complements.screen.sizeInch) === Number(sz) ? "pillActive" : "";
+    return `<button class="pillBtn ${active}" data-action="screenSize" data-size="${sz}">${sz}&quot;</button>`;
+  }).join("") : `<div class="muted">Aucun écran (screens.csv vide ou tailles manquantes).</div>`;
+
+  return `
+    <div class="recoCard" style="margin-top:10px">
+      <div class="recoHeader">
+        <div>
+          <div class="recoName">Produits complémentaires</div>
+          <div class="muted">Questions simples, choix guidé, et auto-compatibilité</div>
+        </div>
+        <div class="score">+</div>
+      </div>
+
+      <!-- Q1: Écran -->
+      <div style="margin-top:12px; display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap">
+        <div>${questionSvg("screen")}</div>
+        <div style="flex:1; min-width:260px">
+          <div><strong>Voulez-vous un écran ?</strong></div>
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
+            <button class="pillBtn ${screenEnabled ? "pillActive" : ""}" data-action="screenToggle" data-value="1">Oui</button>
+            <button class="pillBtn ${!screenEnabled ? "pillActive" : ""}" data-action="screenToggle" data-value="0">Non</button>
+          </div>
+
+          ${screenEnabled ? `
+            <div style="margin-top:10px">
+              <div class="muted">Choisissez une taille :</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px">${sizePills}</div>
+
+              <div style="display:flex; gap:10px; margin-top:10px; align-items:end; flex-wrap:wrap">
+                <div>
+                  <strong>Quantité</strong><br>
+                  <input data-action="screenQty" type="number" min="1" max="99" value="${safeHtml(String(MODEL.complements.screen.qty || 1))}"
+                    style="width:140px;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)">
+                </div>
+
+                ${selectedScreen?.datasheet_url ? `
+                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${selectedScreen.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche écran</a>
+                ` : ``}
+              </div>
+
+              ${hdmiWarn ? `<div class="alert warn" style="margin-top:10px">${safeHtml(hdmiWarn)}</div>` : ""}
+
+              ${selectedScreen ? `
+                <div style="display:flex; gap:12px; margin-top:12px; align-items:center; flex-wrap:wrap">
+                  ${selectedScreen.image_url ? `
+                    <img src="${selectedScreen.image_url}" alt="${safeHtml(selectedScreen.name)}"
+                      style="width:88px;height:88px;object-fit:cover;border-radius:14px;border:1px solid var(--line)" />
+                  ` : `
+                    <div style="width:88px;height:88px;border-radius:14px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center" class="muted">—</div>
+                  `}
+                  <div>
+                    <div><strong>${safeHtml(selectedScreen.name)}</strong></div>
+                    <div class="muted">${safeHtml(selectedScreen.id)} • ${safeHtml(String(selectedScreen.size_inch || ""))}"</div>
+                  </div>
+                </div>
+              ` : ``}
+            </div>
+          ` : ``}
+        </div>
+      </div>
+
+      <div class="divider" style="margin:14px 0; opacity:.45"></div>
+
+      <!-- Q2: Boîtier -->
+      <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap">
+        <div>${questionSvg("enclosure")}</div>
+        <div style="flex:1; min-width:260px">
+          <div><strong>Voulez-vous un boîtier de protection de l’enregistreur ?</strong></div>
+
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
+            <button class="pillBtn ${enclosureEnabled ? "pillActive" : ""}" data-action="enclosureToggle" data-value="1">Oui</button>
+            <button class="pillBtn ${!enclosureEnabled ? "pillActive" : ""}" data-action="enclosureToggle" data-value="0">Non</button>
+          </div>
+
+          ${enclosureEnabled ? `
+            <div style="margin-top:10px">
+              <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
+                <div>
+                  <strong>Quantité</strong><br>
+                  <input data-action="enclosureQty" type="number" min="1" max="99" value="${safeHtml(String(MODEL.complements.enclosure.qty || 1))}"
+                    style="width:140px;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)">
+                </div>
+
+                ${enclosureSel?.datasheet_url ? `
+                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${enclosureSel.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche boîtier</a>
+                ` : ``}
+              </div>
+
+              ${renderEnclosureDecisionMessage(proj, selectedScreen, enclosureAuto)}
+
+              ${enclosureSel ? `
+                <div style="display:flex; gap:12px; margin-top:12px; align-items:center; flex-wrap:wrap">
+                  ${enclosureSel.image_url ? `
+                    <img src="${enclosureSel.image_url}" alt="${safeHtml(enclosureSel.name)}"
+                      style="width:88px;height:88px;object-fit:cover;border-radius:14px;border:1px solid var(--line)" />
+                  ` : `
+                    <div style="width:88px;height:88px;border-radius:14px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center" class="muted">—</div>
+                  `}
+                  <div>
+                    <div><strong>${safeHtml(enclosureSel.name)}</strong></div>
+                    <div class="muted">${safeHtml(enclosureSel.id)}</div>
+                  </div>
+                </div>
+              ` : ``}
+            </div>
+          ` : ``}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+
 function render() {
-  _renderProjectCache = null; // reset cache pour ce render
+  _renderProjectCache = null;
   ensureToggleButton();
+
+  sanity(); // ✅ AJOUTE ÇA ICI
 
   if (!DOM.stepsEl) {
     console.error("DOM.stepsEl (#steps) introuvable dans le HTML");
@@ -2643,15 +3011,14 @@ function render() {
     if (blk?.validated) unvalidateBlock(blk);
   }
 
- function onStepsClick(e) {
-  const el = e.target?.closest?.("[data-action]");
+  function onStepsClick(e) {
+  const el = e.target.closest("[data-action]");
   if (!el) return;
+  const action = el.dataset.action;
 
-  const action = el.getAttribute("data-action");
-
-  if (action === "setActiveBlock") {
-    const bid = el.getAttribute("data-bid");
-    if (bid) MODEL.ui.activeBlockId = bid;
+  if (action === "screenSize") {
+    const sz = Number(el.dataset.size);
+    if (Number.isFinite(sz)) MODEL.complements.screen.sizeInch = sz;
     render();
     return;
   }
@@ -2671,8 +3038,7 @@ function render() {
       const blk = MODEL.cameraBlocks[idx];
       if (blk.validated) unvalidateBlock(blk);
       MODEL.cameraBlocks.splice(idx, 1);
-      if (!MODEL.cameraBlocks.length) MODEL.cameraBlocks = [createEmptyCameraBlock()];
-      MODEL.ui.activeBlockId = MODEL.cameraBlocks[0].id;
+      sanity();
       render();
     }
     return;
@@ -2715,6 +3081,17 @@ if (action === "validateCamera") {
     if (!blk || !blk.accessories) return;
     blk.accessories.splice(li, 1);
     rebuildAccessoryLinesFromBlocks();
+    render();
+    return;
+  }
+      if (action === "screenToggle") {
+    MODEL.complements.screen.enabled = el.dataset.value === "1";
+    render();
+    return;
+  }
+
+  if (action === "enclosureToggle") {
+    MODEL.complements.enclosure.enabled = el.dataset.value === "1";
     render();
     return;
   }
@@ -2809,6 +3186,39 @@ if (action === "validateCamera") {
   if (action === "recFps")     { MODEL.recording.fps             = parseInt(el.value, 10);     render(); return; }
   if (action === "recCodec")   { MODEL.recording.codec           = el.value;                   render(); return; }
   if (action === "recMode")    { MODEL.recording.mode            = el.value;                   render(); return; }
+
+      if (action === "screenQty") {
+    MODEL.complements.screen.qty = clampInt(el.value, 1, 99);
+    render();
+    return;
+  }
+  if (action === "enclosureQty") {
+    MODEL.complements.enclosure.qty = clampInt(el.value, 1, 99);
+    render();
+    return;
+  }
+
+  // 6) Compléments (select)
+  if (action === "compScreenSelect") {
+    MODEL.complements.screen.selectedId = el.value || null;
+    render();
+    return;
+  }
+  if (action === "compEnclosureSelect") {
+    MODEL.complements.enclosure.selectedId = el.value || null;
+    render();
+    return;
+  }
+    if (action === "compScreenQty") {
+    MODEL.complements.screen.qty = clampInt(el.value, 1, 99);
+    render();
+    return;
+  }
+  if (action === "compEnclosureQty") {
+    MODEL.complements.enclosure.qty = clampInt(el.value, 1, 99);
+    render();
+    return;
+  }
 }
 
 
@@ -2897,6 +3307,16 @@ if (action === "validateCamera") {
   if (action === "recHours")   { MODEL.recording.hoursPerDay     = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
   if (action === "recOver")    { MODEL.recording.overheadPct     = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
   if (action === "recReserve") { MODEL.recording.reservePortsPct = String(el.value ?? "").replace(/[^\d]/g, ""); return; }
+
+    // 6) Compléments (qty live)
+  if (action === "compScreenQty") {
+    MODEL.complements.screen.qty = String(el.value ?? "").replace(/[^\d]/g, "");
+    return;
+  }
+  if (action === "compEnclosureQty") {
+    MODEL.complements.enclosure.qty = String(el.value ?? "").replace(/[^\d]/g, "");
+    return;
+  }
 }
 
 
@@ -3039,6 +3459,12 @@ bind(DOM.btnReset, "click", () => {
   MODEL.cameraBlocks = [createEmptyCameraBlock()];
   MODEL.cameraLines = [];
   MODEL.accessoryLines = [];
+
+  MODEL.complements = {
+    screen: { enabled: false, sizeInch: 18, qty: 1, selectedId: null },
+    enclosure: { enabled: false, qty: 1, selectedId: null }
+  };
+
   MODEL.recording = {
     daysRetention: 14,
     hoursPerDay: 24,
@@ -3048,7 +3474,28 @@ bind(DOM.btnReset, "click", () => {
     overheadPct: 20,
     reservePortsPct: 10,
   };
-  MODEL.ui.activeBlockId = MODEL.cameraBlocks[0].id;
+
+  MODEL.ui.resultsShown = false;
+  MODEL.stepIndex = 0;
+  LAST_PROJECT = null;
+
+  sanity();      // ✅
+  syncResultsUI();
+  render();
+});
+
+  MODEL.accessoryLines = [];
+  MODEL.recording = {
+    daysRetention: 14,
+    hoursPerDay: 24,
+    fps: 15,
+    codec: "h265",
+    mode: "continuous",
+    overheadPct: 20,
+    reservePortsPct: 10,
+  
+  };
+  sanity();
   MODEL.ui.resultsShown = false;
   MODEL.stepIndex = 0;
   LAST_PROJECT = null;
@@ -3119,7 +3566,8 @@ bind(DOM.stepsEl, "input", onStepsInput);
     try {
       if (DOM.dataStatusEl) DOM.dataStatusEl.textContent = "Chargement des données…";
 
-      const [
+      
+       const [
         camsRaw,
         nvrsRaw,
         hddsRaw,
@@ -3133,9 +3581,12 @@ bind(DOM.stepsEl, "input", onStepsInput);
         loadCsv("/data/hdds.csv"),
         loadCsv("/data/switches.csv"),
         loadCsv("/data/accessories.csv"),
-        loadCsv("/data/screens.csv"),      // 🆕 écrans
-        loadCsv("/data/enclosures.csv"),   // 🆕 boîtiers NVR
+
+        // ✅ Fallback: si le fichier n'existe pas, on met []
+        loadCsv("/data/screens.csv").catch(() => []),
+        loadCsv("/data/enclosures.csv").catch(() => []),
       ]);
+
 
 
       CATALOG.CAMERAS = camsRaw.map(normalizeCamera).filter((c) => c.id);
@@ -3151,19 +3602,20 @@ bind(DOM.stepsEl, "input", onStepsInput);
       CATALOG.ACCESSORIES_MAP = new Map(mappings.map((m) => [m.cameraId, m]));
 
       if (DOM.dataStatusEl) {
-      DOM.dataStatusEl.textContent =
-    `Données chargées ✅ Caméras: ${CATALOG.CAMERAS.length}
-     • NVR: ${CATALOG.NVRS.length}
-     • HDD: ${CATALOG.HDDS.length}
-     • Switch: ${CATALOG.SWITCHES.length}
-     • Écrans: ${CATALOG.SCREENS.length}
-     • Boîtiers: ${CATALOG.ENCLOSURES.length}
-     • Mappings accessoires: ${CATALOG.ACCESSORIES_MAP.size}`;
-}
+        const parts = [
+          `Données chargées ✅`,
+          `Caméras: ${CATALOG.CAMERAS.length}`,
+          `NVR: ${CATALOG.NVRS.length}`,
+          `HDD: ${CATALOG.HDDS.length}`,
+          `Switch: ${CATALOG.SWITCHES.length}`,
+          `Écrans: ${CATALOG.SCREENS.length}`,
+          `Boîtiers: ${CATALOG.ENCLOSURES.length}`,
+          `Mappings accessoires: ${CATALOG.ACCESSORIES_MAP.size}`,
+        ];
+        DOM.dataStatusEl.textContent = parts.join(" • ");
+      }
 
-
-      if (!MODEL.cameraBlocks.length) MODEL.cameraBlocks = [createEmptyCameraBlock()];
-      MODEL.ui.activeBlockId = MODEL.cameraBlocks[0].id;
+      sanity();
 
       LAST_PROJECT = null;
       MODEL.ui.resultsShown = false;
@@ -3207,10 +3659,13 @@ async function adminLogin(password){
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({password})
   });
-  if (!res.ok) {
-    const t = await res.text().catch(()=> "");
-    throw new Error(`Login refusé (${res.status}) ${t}`);
-  }
+
+if (!res.ok) {
+  const t = await res.text().catch(()=> "");
+  throw new Error(`Erreur chargement CSV (${res.status}) ${t}`);
+}
+
+
   const data = await res.json();
   ADMIN_TOKEN = data.token;
   if (msg) msg.textContent = "✅ Connecté";
@@ -3569,4 +4024,4 @@ function initAdminGridUI(){
 }
 
   init();
-})();
+();
