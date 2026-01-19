@@ -95,6 +95,30 @@
     return s.split(sep).map((x) => x.trim()).filter(Boolean);
   };
 
+  // ==========================================================
+// BRANDING COMELIT (PDF)
+// ==========================================================
+const COMELIT = {
+  GREEN: "#00BF6F",      // Pantone 7480 C approx
+  BLUE:  "#1C1F2A",      // Pantone 532 C approx
+  WHITE: "#FFFFFF",
+  TITLE_FONT: '"Arial Black", Arial, sans-serif',
+  TEXT_FONT: 'Arial, sans-serif',
+};
+
+// Essaie plusieurs noms possibles (tu ajusteras si besoin)
+// Objectif: ne pas casser si le fichier exact change.
+function getComelitLogoCandidates() {
+  return [
+    "/assets/logo/logo.png",
+    "/assets/logo/logo.svg",
+    "/assets/logo/comelit.png",
+    "/assets/logo/comelit.svg",
+    "/assets/logo/COMELIT.png",
+    "/assets/logo/COMELIT.svg",
+  ];
+}
+
   const uid = (prefix = "ID") =>
     `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
 
@@ -145,14 +169,17 @@
   return Number.isFinite(num) && num > 0 ? num : null;
 }
   function getAvailableScreenSizes() {
-  const screens = CATALOG.SCREENS || [];
-  const sizes = new Set();
-  for (const s of screens) {
-    const v = Number(s.size_inch);
-    if (Number.isFinite(v)) sizes.add(v);
+    const screens = CATALOG.SCREENS || [];
+    const sizes = new Set();
+
+    for (const s of screens) {
+      const v = Number(s.size_inch);
+      if (Number.isFinite(v) && v > 0) sizes.add(v); // ✅ filtre 0 et valeurs invalides
+    }
+
+    return Array.from(sizes).sort((a, b) => a - b);
   }
-  return Array.from(sizes).sort((a,b)=>a-b);
-}
+
 
 function pickScreenBySize(sizeInch) {
   const screens = CATALOG.SCREENS || [];
@@ -272,6 +299,19 @@ function renderEnclosureDecisionMessage(proj, screen, enclosureAuto) {
   return `<div class="alert ok" style="margin-top:10px">
     Boîtier compatible avec le NVR.
   </div>`;
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const res = String(r.result || "");
+      const base64 = res.split(",", 2)[1] || "";
+      resolve(base64);
+    };
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
 }
 
 // ==========================================================
@@ -676,6 +716,7 @@ function computeMainReason(block, cam, sc){
   SWITCHES: [],
   SCREENS: [],        // ✅ ajouté
   ENCLOSURES: [],     // ✅ ajouté
+  SIGNAGE: [],        // ✅ panneaux de signalisation
   ACCESSORIES_MAP: new Map(), // key = camera_id, value = mapping row
   };
 
@@ -706,7 +747,12 @@ function computeMainReason(block, cam, sc){
   enclosure: {
     enabled: false,
     qty: 1,
-  }
+  },
+  signage: {
+    enabled: false,
+    scope: "Public", // "Public" | "Privé"
+    qty: 1,
+  },
 },
 
 
@@ -766,6 +812,7 @@ const DOM = {
 
   btnExportPdf: $("#btnExportPdf"),
   btnExportXlsx: $("#btnExportXlsx"),
+  btnExportPdfPack: $("#btnExportPdfPack"),
 };
 
   // ==========================================================
@@ -879,21 +926,31 @@ function parsePipeList(v) {
     .filter(Boolean);
 }
   function normalizeScreen(row) {
-  const id = safeStr(row.id);
-  return {
-    id,
-    name: safeStr(row.name) || id || "—",
-    size_inch: safeNum(row.size_inch),
-    format: safeStr(row.format) || "—",
-    vesa: safeStr(row.vesa) || "—",
+    const id = safeStr(row.id);
 
-    // ton CSV a "Resolution" (R majuscule)
-    resolution: safeStr(row.Resolution || row.resolution) || "—",
+    // parse robuste (accepte "55", "55.0", "55,0", rejette vide)
+    const raw = safeStr(row.size_inch);
+    const n = Number(String(raw || "").trim().replace(",", "."));
+    const size = Number.isFinite(n) && n > 0 ? n : null;
 
-    image_url: safeStr(row.image_url) || "",
-    datasheet_url: safeStr(row.datasheet_url) || "",
-  };
-}
+    return {
+      id,
+      name: safeStr(row.name) || id || "—",
+
+      // important : null si invalide (pas 0)
+      size_inch: size,
+
+      format: safeStr(row.format) || "—",
+      vesa: safeStr(row.vesa) || "—",
+
+      // ton CSV a "Resolution" (R majuscule)
+      resolution: safeStr(row.Resolution || row.resolution) || "—",
+
+      image_url: safeStr(row.image_url) || "",
+      datasheet_url: safeStr(row.datasheet_url) || "",
+    };
+  }
+
   function normalizeEnclosure(row) {
   const id = safeStr(row.id);
   return {
@@ -910,6 +967,65 @@ function parsePipeList(v) {
     datasheet_url: safeStr(row.datasheet_url) || "",
   };
 }
+
+  // ==========================================================
+  // 4A) SIGNAGE (panneaux de signalisation)
+  // ==========================================================
+  // CSV attendu (tes colonnes):
+  // id,name,material,fixing,Dimension,Prive_Public,image_url,datasheet_url
+  function normalizeSignageRow(raw) {
+    if (!raw) return null;
+    const id = safeStr(raw.id);
+    if (!id) return null;
+
+    const name = safeStr(raw.name) || id;
+    const material = safeStr(raw.material);
+    const fixing = safeStr(raw.fixing);
+    const dimension = safeStr(raw.Dimension ?? raw.dimension);
+
+    // "Public" ou "Privé" (ton CSV = Prive_Public)
+    const scope = safeStr(raw.Prive_Public ?? raw.prive_public ?? raw.scope ?? raw.type) || "Public";
+
+    const image_url = safeStr(raw.image_url);
+    const datasheet_url = safeStr(raw.datasheet_url);
+
+    return { id, name, material, fixing, dimension, scope, image_url, datasheet_url };
+  }
+
+  function getSignages() {
+    return Array.isArray(CATALOG.SIGNAGE) ? CATALOG.SIGNAGE : [];
+  }
+
+  function pickSignageByScope(scope) {
+    const wanted = safeStr(scope || "Public").toLowerCase();
+    const signs = getSignages();
+
+    // match exact d’abord
+    let hit = signs.find((s) => safeStr(s.scope).toLowerCase() === wanted);
+    if (hit) return hit;
+
+    // fallback : si "privé" indispo -> public, et inverse
+    if (wanted.includes("priv")) {
+      hit = signs.find((s) => safeStr(s.scope).toLowerCase().includes("public"));
+      if (hit) return hit;
+    } else {
+      hit = signs.find((s) => safeStr(s.scope).toLowerCase().includes("priv"));
+      if (hit) return hit;
+    }
+
+    // fallback final
+    return signs[0] || null;
+  }
+
+  function getSelectedOrRecommendedSign() {
+    const enabled = !!MODEL.complements?.signage?.enabled;
+    if (!enabled) return { sign: null, reason: "disabled" };
+
+    const scope = MODEL.complements.signage.scope || "Public";
+    const sign = pickSignageByScope(scope);
+    if (!sign) return { sign: null, reason: "no_catalog" };
+    return { sign, reason: "scope_match" };
+  }
 
   // ==========================================================
   // 4B) ACCESSORIES MAPPING (✅ aligné sur TON CSV)
@@ -1565,6 +1681,28 @@ function getSelectedOrRecommendedScreen(proj) {
   const recommended = recommendScreenForProject(proj.totalCameras) || null;
   return { selected: selected || null, recommended };
 }
+function recommendEnclosureForProject(proj) {
+  const nvrId = proj?.nvrPick?.nvr?.id || null;
+  if (!nvrId) return null;
+  return recommendEnclosureForNvr(nvrId);
+}
+
+function getSelectedOrRecommendedEnclosure(proj) {
+  const encs = CATALOG.ENCLOSURES || [];
+  if (!encs.length) return { selected: null, recommended: null };
+
+  // Ton UX actuelle : boîtier "auto" si enabled
+  if (MODEL.complements.enclosure.enabled) {
+    const screenSel = MODEL.complements.screen.enabled
+      ? pickScreenBySize(MODEL.complements.screen.sizeInch)
+      : null;
+
+    const enclosureAuto = pickBestEnclosure(proj, screenSel);
+    return { selected: enclosureAuto.enclosure || null, recommended: recommendEnclosureForProject(proj) };
+  }
+
+  return { selected: null, recommended: recommendEnclosureForProject(proj) };
+}
 
     // ==========================================================
   // PROJECT CACHE + NAV GUARDS (fixes manquants)
@@ -1608,14 +1746,15 @@ function getSelectedOrRecommendedScreen(proj) {
   }
 
   function showResultsUI() {
-    DOM.resultsEmpty.classList.add("hidden");
-    DOM.results.classList.remove("hidden");
+    if (DOM.resultsEmpty) DOM.resultsEmpty.classList.add("hidden");
+    if (DOM.results) DOM.results.classList.remove("hidden");
   }
 
   function hideResultsUI() {
-  DOM.resultsEmpty.classList.remove("hidden");
-  DOM.results.classList.add("hidden");
-}
+    if (DOM.resultsEmpty) DOM.resultsEmpty.classList.remove("hidden");
+    if (DOM.results) DOM.results.classList.add("hidden");
+  }
+
 
   function renderAlerts(alerts) {
     DOM.alertsEl.innerHTML = "";
@@ -1670,6 +1809,19 @@ function getSelectedOrRecommendedScreen(proj) {
   const scr = getSelectedOrRecommendedScreen(proj).selected;
   const enc = getSelectedOrRecommendedEnclosure(proj).selected;
 
+  const signageEnabled = !!MODEL.complements?.signage?.enabled;
+  const signObj = (typeof getSelectedOrRecommendedSign === "function")
+    ? getSelectedOrRecommendedSign()
+    : { sign: null };
+  const sign = signObj?.sign || null;
+
+  const signageHtml = signageEnabled
+    ? (sign
+        ? line(MODEL.complements.signage.qty || 1, sign.id, sign.name)
+        : "• —")
+    : "• (désactivé)";
+
+
   const screenHtml = scr
     ? line(MODEL.complements.screen.qty || 1, scr.id, scr.name)
     : "• —";
@@ -1704,8 +1856,8 @@ function getSelectedOrRecommendedScreen(proj) {
         <strong>Stockage</strong><br>${hddHtml || "—"}<br><br>
         <strong>Produits complémentaires</strong><br>
         <strong>Écran</strong><br>${screenHtml || "—"}<br>
-        <strong>Boîtier NVR</strong><br>${enclosureHtml || "—"}<br><br>
-
+        <strong>Boîtier NVR</strong><br>${enclosureHtml || "—"}<br>
+        <strong>Panneau de signalisation</strong><br>${signageHtml || "—"}<br><br>
 
         <strong>Calcul</strong><br>
         • Débit total estimé : ${(proj && proj.totalInMbps != null ? proj.totalInMbps : 0).toFixed(1)} Mbps<br>
@@ -1720,339 +1872,260 @@ function getSelectedOrRecommendedScreen(proj) {
   renderAlerts(proj.alerts);
 }
 
-  function buildPdfHtml(proj) {
+function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
-  const projectScore = computeProjectScoreWeighted();
-  const risk = computeRiskCounters();
-  risk.total = risk.total ?? (risk.ok + risk.warn + risk.bad);
 
+  const projectScore = (typeof computeCriticalProjectScore === "function")
+    ? computeCriticalProjectScore()
+    : null;
 
-  // Tables : caméras
-  const camsRows = MODEL.cameraLines.map((l) => {
-  const cam = getCameraById(l.cameraId);
-  if (!cam) return "";
+  const risk = (typeof computeRiskCounters === "function")
+    ? computeRiskCounters()
+    : { ok: 0, warn: 0, bad: 0 };
 
-  const blk = MODEL.cameraBlocks.find((b) => b.id === l.fromBlockId) || null;
-  const label = blk?.label ? blk.label : "";
+  const safe = (v) => (typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? ""));
+  const line = (qty, ref, name) => `• ${safe(qty)} × ${safe(ref || "—")} — ${safe(name || "")}<br>`;
 
-  const scNum = Number(blk?.selectedCameraScore);
-  const interp = levelFromScore(scNum);
+  // Cameras
+  const camsHtml = (MODEL.cameraLines || []).map((l) => {
+    const cam = (typeof getCameraById === "function") ? getCameraById(l.cameraId) : null;
+    if (!cam) return "";
+    const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
+    const label = blk?.label ? `${blk.label} → ` : "";
+    return `• ${safe(label)}${safe(l.qty || 0)} × ${safe(cam.id)} — ${safe(cam.name)}<br>`;
+  }).join("") || "—<br>";
 
-  const scoreCell =
-    (blk?.selectedCameraScore != null && Number.isFinite(Number(blk.selectedCameraScore)))
-      ? `${Number(blk.selectedCameraScore)}/100`
-      : "—";
+  // Accessories
+  const accHtml = (MODEL.accessoryLines || []).map((a) =>
+    line(a.qty || 0, a.accessoryId || "—", a.name || a.accessoryId || "")
+  ).join("") || "—<br>";
+
+  // NVR
+  const nvr = proj?.nvrPick?.nvr || null;
+  const nvrHtml = nvr ? line(1, nvr.id, nvr.name) : "—<br>";
+
+  // Switches
+  const swHtml = (proj?.switches?.required)
+    ? (proj?.switches?.plan || []).map((p) => line(p.qty || 0, p?.item?.id || "—", p?.item?.name || "")).join("")
+    : "• (non obligatoire)<br>";
+
+  // Storage
+  const disk = proj?.disks || null;
+  const hdd = disk?.hddRef || null;
+  const hddHtml = disk
+    ? line(disk.count || 0, hdd?.id || `${disk.sizeTB}TB`, hdd?.name || `Disques ${disk.sizeTB} TB`)
+    : "—<br>";
+
+  // Complements
+  const scr = (typeof getSelectedOrRecommendedScreen === "function") ? getSelectedOrRecommendedScreen(proj)?.selected : null;
+  const enc = (typeof getSelectedOrRecommendedEnclosure === "function") ? getSelectedOrRecommendedEnclosure(proj)?.selected : null;
+
+  const signageEnabled = !!(MODEL?.complements?.signage?.enabled ?? MODEL?.complements?.signage?.enable);
+  const sign = (typeof getSelectedOrRecommendedSign === "function") ? (getSelectedOrRecommendedSign()?.sign || null) : null;
+
+  const screenLine = scr ? `${safe(MODEL?.complements?.screen?.qty || 1)} × ${safe(scr.id)} — ${safe(scr.name)}` : "—";
+  const enclosureLine = enc ? `${safe(MODEL?.complements?.enclosure?.qty || 1)} × ${safe(enc.id)} — ${safe(enc.name)}` : "—";
+  const signageLine = (signageEnabled && sign) ? `${safe(MODEL?.complements?.signage?.qty || 1)} × ${safe(sign.id)} — ${safe(sign.name)}` : (signageEnabled ? "—" : "(désactivé)");
+
+  const LOGO_SRC = "/assets/logo.png"; // mets le nom exact si besoin
 
   return `
-    <tr>
-      <td>${safeHtml(label)}</td>
-      <td>${safeHtml(cam.id)}</td>
-      <td>${safeHtml(cam.name)}</td>
-      <td style="text-align:center;font-weight:900">${safeHtml(interp.dot)} ${safeHtml(interp.label)}</td>
-      <td style="text-align:right;font-weight:800">${safeHtml(scoreCell)}</td>
-      <td style="text-align:center">${safeHtml(String(l.quality || "standard"))}</td>
-      <td style="text-align:right">${safeHtml(String(l.qty || 0))}</td>
-      <td style="text-align:right">${(cam.poe_w ?? 0).toFixed(1)} W</td>
-    </tr>
-  `;
-}).join("");
+<div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:#0b1f3a; background:#ffffff;">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width:100%; background:#ffffff; }
+    img { max-width: 100%; height: auto; display:block; }
 
+    :root{
+      --c-green: #22c55e;         /* fallback (tu peux mettre ton 7480C exact) */
+      --c-blue:  #0b1f3a;         /* fallback (tu peux mettre ton 532C exact) */
+      --c-white: #ffffff;
+      --c-muted: #475569;
+      --c-line:  #e5e7eb;
+      --c-soft:  #f8fafc;
 
+      /* IMPORTANT: pas de color-mix() pour html2canvas */
+      --c-blue-soft: #f1f5f9;
+      --c-green-bd:  #bfeedd;
+      --c-green-bg:  #e9fbf4;
+    }
 
+    .pdfPage{ padding:22px 22px 18px; background:var(--c-white); }
 
-  // Tables : accessoires
-  const accRows = (MODEL.accessoryLines || []).map((a) => `
-    <tr>
-      <td>${safeHtml(a.accessoryId)}</td>
-      <td>${safeHtml(a.name || "")}</td>
-      <td>${safeHtml(accessoryTypeLabel(a.type))}</td>
-      <td style="text-align:right">${safeHtml(String(a.qty || 0))}</td>
-    </tr>
-  `).join("");
+    .pdfHeader{
+      border-bottom:3px solid var(--c-blue);
+      padding-bottom:12px;
+      margin-bottom:14px;
+    }
 
-  // Switch plan
-  const sw = proj.switches;
-  const swRows = (sw.plan || []).map((p) => `
-    <tr>
-      <td>${safeHtml(p.item.id || "")}</td>
-      <td>${safeHtml(p.item.name || "")}</td>
-      <td style="text-align:right">${safeHtml(String(p.item.poe_ports ?? ""))}</td>
-      <td style="text-align:right">${safeHtml(String(p.qty || 0))}</td>
-    </tr>
-  `).join("");
+    .brandRow{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+    .brandLeft{ display:flex; gap:12px; align-items:flex-start; }
 
-  const nvr = proj.nvrPick?.nvr || null;
-  const scr = getSelectedOrRecommendedScreen(proj).selected;
-  const enc = getSelectedOrRecommendedEnclosure(proj).selected;
+    .brandLogo{ width:140px; height:auto; object-fit:contain; }
 
-  const screenLine = scr
-    ? `${MODEL.complements.screen.qty || 1} × ${safeHtml(scr.id)} — ${safeHtml(scr.name)}`
-    : "—";
+    .pdfTitle{
+      font-family: "Arial Black", Arial, sans-serif;
+      font-size:20px;
+      margin:0;
+      line-height:1.1;
+      color:var(--c-blue);
+    }
 
-  const enclosureLine = enc
-    ? `${MODEL.complements.enclosure.qty || 1} × ${safeHtml(enc.id)} — ${safeHtml(enc.name)}`
-    : "—";
+    .pdfMeta{ font-size:11px; color:var(--c-muted); margin-top:6px; line-height:1.25; }
 
-  const disk = proj.disks || null;
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:800;
+      border:1px solid var(--c-line);
+      color:var(--c-blue);
+      background:#fff;
+    }
+    .pillGreen{ border-color: var(--c-green-bd); background: var(--c-green-bg); }
 
-  // Petite logique d’affichage
-  const nvrLine = nvr
-    ? `${safeHtml(nvr.id)} — ${safeHtml(nvr.name)} (${nvr.channels} canaux, ${nvr.max_in_mbps} Mbps)`
-    : "Aucun NVR compatible";
+    .kpiTable{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:10px;
+      margin-top:10px;
+    }
+    .kpiCell{
+      border:1px solid var(--c-line);
+      border-radius:12px;
+      background:var(--c-soft);
+      padding:10px;
+      vertical-align:top;
+    }
+    .kpiLabel{ font-size:11px; color:var(--c-muted); }
+    .kpiValue{ margin-top:4px; font-size:14px; font-weight:900; color:var(--c-blue); }
 
-  const storageLine = disk
-    ? `${disk.count} × ${disk.sizeTB} TB (Total ${disk.totalTB} TB) — Max NVR ${disk.maxTotalTB} TB`
-    : "Aucun stockage proposé";
+    .section{
+      margin-top:12px;
+      padding:12px;
+      border:1px solid var(--c-line);
+      border-radius:12px;
+      page-break-inside: avoid;
+      background:#fff;
+    }
+    .sectionTitle{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:13px;
+      margin:0 0 8px 0;
+      color:var(--c-blue);
+    }
 
-  // ✅ HTML rapport (mise en page simple mais clean)
-  return `
-  <div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:#111;">
+    .muted{
+      color:var(--c-muted);
+      font-size:11px;
+      line-height:1.35;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
 
-    <style>
-      *{ box-sizing:border-box; }
-      html, body{ width:100%; }
-      img{ max-width:100%; height:auto; display:block; }
+    .footerLine{
+      margin-top:14px;
+      text-align:center;
+      font-size:10px;
+      color:var(--c-muted);
+    }
+  </style>
 
-      .pdfPage{ padding:22px 22px 18px; }
+  <div class="pdfPage">
+    <div class="pdfHeader">
+      <div class="brandRow">
+        <div class="brandLeft">
+          <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
+          <div>
+            <h1 class="pdfTitle">Rapport de configuration Vidéosurveillance</h1>
+            <div class="pdfMeta">
+              Généré le ${safe(dateStr)}<br>
+              Configurateur Comelit (MVP)
+              <span class="pill pillGreen" style="margin-left:6px">PDF</span>
+            </div>
+          </div>
+        </div>
 
-      .pdfHeader{
-        border-bottom:2px solid #111;
-        padding-bottom:10px;
-        margin-bottom:14px;
-      }
+        <div style="text-align:right">
+          <div class="pdfMeta">Total caméras</div>
+          <div style="font-family:'Arial Black', Arial, sans-serif;font-size:22px;color:var(--c-blue)">${safe(proj?.totalCameras ?? 0)}</div>
 
-      /* ✅ KPI en table (stable) */
-      .kpiTable{
-        width:100%;
-        border-collapse:separate;
-        border-spacing:10px;
-        margin-top:10px;
-      }
-      .kpiCell{
-        border:1px solid #eee;
-        border-radius:10px;
-        background:#fafafa;
-        padding:10px;
-        vertical-align:top;
-      }
-      .kpiLabel{ font-size:11px; color:#555; }
-      .kpiValue{ margin-top:4px; font-size:14px; font-weight:800; }
+          <div style="margin-top:10px" class="pdfMeta">Score projet</div>
+          <div style="font-family:'Arial Black', Arial, sans-serif;font-size:18px;color:var(--c-blue)">
+            ${projectScore != null ? `${safe(projectScore)}/100` : "—"}
+          </div>
 
-      .section{
-        margin-top:12px;
-        padding:12px;
-        border:1px solid #ddd;
-        border-radius:10px;
-        page-break-inside: avoid;
-      }
-      .sectionTitle{
-        font-size:13px;
-        font-weight:800;
-        margin:0 0 8px 0;
-        page-break-after: avoid;
-      }
-
-      /* ✅ tables robustes */
-      table{
-        width:100%;
-        border-collapse:collapse;
-        margin-top:8px;
-        font-size:11px;
-        table-layout:fixed;
-        word-break:break-word;
-      }
-      th, td{
-        border:1px solid #e5e5e5;
-        padding:7px 8px;
-        vertical-align:top;
-        page-break-inside:avoid;
-      }
-      th{ background:#f2f2f2; text-align:left; font-weight:800; }
-
-      .muted{ color:#666; font-size:11px; line-height:1.35; }
-      .danger{ color:#c1121f; font-weight:700; }
-      .warn{ color:#b45309; font-weight:700; }
-
-      /* ✅ page break plus fiable */
-      .pageBreak{
-        page-break-after: always;
-        break-after: page;
-        height:1px;
-      }
-    </style>
-
-    <div class="pdfPage">
-      <div class="pdfHeader">
-  <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start">
-    <div>
-      <h1 class="pdfTitle" style="font-size:18px;font-weight:800;margin:0">Rapport de configuration Vidéosurveillance</h1>
-      <div class="pdfMeta" style="font-size:11px;color:#444;margin-top:4px;line-height:1.25">
-        Généré le ${safeHtml(dateStr)}<br>
-        Configurateur Comelit (MVP) <span class="pill" style="display:inline-block;padding:4px 8px;border:1px solid #999;border-radius:999px;font-size:11px;margin-left:6px">PDF v1</span>
+          <div class="muted" style="margin-top:6px">
+            <span class="pill" style="border-color:var(--c-green-bd)">OK ${safe(risk.ok)}</span>
+            <span class="pill" style="margin-left:6px">LIM ${safe(risk.warn)}</span>
+            <span class="pill" style="margin-left:6px">BAD ${safe(risk.bad)}</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div style="text-align:right">
-      <div class="pdfMeta" style="font-size:11px;color:#444">Total caméras</div>
-      <div style="font-size:22px;font-weight:900">${proj.totalCameras}</div>
+    <table class="kpiTable">
+      <tr>
+        <td class="kpiCell">
+          <div class="kpiLabel">Débit total estimé</div>
+          <div class="kpiValue">${safe((proj?.totalInMbps ?? 0).toFixed ? proj.totalInMbps.toFixed(1) : 0)} Mbps</div>
+          <div class="muted">Selon fps / codec / mode / qualité.</div>
+        </td>
+        <td class="kpiCell">
+          <div class="kpiLabel">Stockage requis</div>
+          <div class="kpiValue">~${safe((proj?.requiredTB ?? 0).toFixed ? proj.requiredTB.toFixed(1) : 0)} TB</div>
+          <div class="muted">Inclut la marge de calcul.</div>
+        </td>
+        <td class="kpiCell">
+          <div class="kpiLabel">Rappel</div>
+          <div class="kpiValue">${safe(proj?.totalCameras ?? 0)} caméras</div>
+          <div class="muted">Synthèse du projet.</div>
+        </td>
+      </tr>
+    </table>
 
-      <div style="margin-top:10px" class="pdfMeta">Score projet</div>
-        <div style="font-size:18px;font-weight:900">
-          ${projectScore != null ? `${projectScore}/100` : "—"}
-        </div>
-        <div class="muted" style="margin-top:6px">
-          OK ${risk.ok} • LIM ${risk.warn} • BAD ${risk.bad}
-        </div>
+    <div class="section">
+      <div class="sectionTitle">Caméras</div>
+      <div class="muted">${camsHtml}</div>
     </div>
+
+    <div class="section">
+      <div class="sectionTitle">Supports / accessoires</div>
+      <div class="muted">${accHtml}</div>
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">NVR</div>
+      <div class="muted">${nvrHtml}</div>
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Switch PoE</div>
+      <div class="muted">${swHtml}</div>
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Stockage</div>
+      <div class="muted">${hddHtml}</div>
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Produits complémentaires</div>
+      <div class="muted"><strong>Écran :</strong> ${screenLine}</div>
+      <div class="muted" style="margin-top:6px"><strong>Boîtier :</strong> ${enclosureLine}</div>
+      <div class="muted" style="margin-top:6px"><strong>Panneau :</strong> ${signageLine}</div>
+    </div>
+
+    <div class="footerLine">Comelit — With you always</div>
   </div>
-</div>
-
-<table class="kpiTable">
-  <tr>
-    <td class="kpiCell">
-      <div class="kpiLabel">Débit total estimé</div>
-      <div class="kpiValue">${proj.totalInMbps.toFixed(1)} Mbps</div>
-      <div class="muted">Selon fps / codec / mode / qualité.</div>
-    </td>
-
-    <td class="kpiCell">
-      <div class="kpiLabel">Stockage requis</div>
-      <div class="kpiValue">~${proj.requiredTB.toFixed(1)} TB</div>
-      <div class="muted">Inclut marge ${MODEL.recording.overheadPct}%.</div>
-    </td>
-
-    <td class="kpiCell">
-      <div class="kpiLabel">Score projet</div>
-      <div class="kpiValue">${projectScore != null ? `${projectScore}/100` : "—"}</div>
-      <div class="muted">Moyenne pondérée par quantité.</div>
-    </td>
-  </tr>
-
-  <tr>
-    <td class="kpiCell" colspan="3">
-      <div class="kpiLabel">Risque (blocs validés)</div>
-      <div class="kpiValue" style="font-size:13px">
-        🟢 ${risk.ok} &nbsp;&nbsp; 🟠 ${risk.warn} &nbsp;&nbsp; 🔴 ${risk.bad}
-        <span class="muted" style="margin-left:10px">/ ${risk.total}</span>
-      </div>
-      <div class="muted">Lecture rapide : OK ≥ 75 • LIM 60–74 • BAD &lt; 60</div>
-    </td>
-  </tr>
-</table>
-
-
-
-      <div class="section">
-        <div class="sectionTitle">NVR + Stockage</div>
-        <div class="muted"><strong>NVR :</strong> ${nvrLine}</div>
-        <div class="muted" style="margin-top:6px"><strong>Stockage :</strong> ${safeHtml(storageLine)}</div>
-        <div class="muted" style="margin-top:6px"><strong>Écran :</strong> ${screenLine}</div>
-        <div class="muted" style="margin-top:6px"><strong>Boîtier NVR :</strong> ${enclosureLine}</div>
-      </div>
-
-      <div class="section">
-        <div class="sectionTitle">Alertes & points d’attention</div>
-        ${
-          (proj.alerts || []).length
-            ? `<ul class="alerts">
-                ${(proj.alerts || []).map(a => `<li class="${safeHtml(a.level)}">${safeHtml(a.text)}</li>`).join("")}
-              </ul>`
-            : `<div class="muted">Aucune alerte.</div>`
-        }
-      </div>
-
-      <div class="section">
-        <div class="sectionTitle">Caméras (panier)</div>
-        <table>
-          <thead>
-            <tr>
-              <th>Zone / Bloc</th>
-              <th>Réf</th>
-              <th>Modèle</th>
-              <th style="text-align:center">Niveau</th>
-              <th style="text-align:right">Score</th>
-              <th style="text-align:center">Qualité</th>
-              <th style="text-align:right">Qté</th>
-              <th style="text-align:right">PoE/cam</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${camsRows || `<tr><td colspan="8" class="muted">Aucune caméra validée.</td></tr>`}
-          </tbody>
-        </table>
-        <div class="muted" style="margin-top:8px">
-          PoE total estimé : <strong>${proj.totalPoeW.toFixed(0)} W</strong>
-        </div>
-      </div>
-
-      <div class="pageBreak"></div>
-
-      <div class="section">
-        <div class="sectionTitle">Accessoires & supports</div>
-        <table>
-          <thead>
-            <tr>
-              <th>Réf</th>
-              <th>Nom</th>
-              <th>Type</th>
-              <th style="text-align:right">Qté</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${accRows || `<tr><td colspan="4" class="muted">Aucun accessoire.</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="section">
-        <div class="sectionTitle">Réseau PoE (plan switches)</div>
-        ${
-          sw.required
-            ? `
-              <div class="muted">
-                Ports requis : <strong>${sw.portsNeeded}</strong> •
-                Ports proposés : <strong>${sw.totalPorts}</strong> •
-                Surplus : <strong>${sw.surplusPorts}</strong>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Réf</th>
-                    <th>Nom</th>
-                    <th style="text-align:right">Ports PoE</th>
-                    <th style="text-align:right">Qté</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${swRows || `<tr><td colspan="4" class="muted">Aucun switch proposé.</td></tr>`}
-                </tbody>
-              </table>
-            `
-            : `<div class="muted">Switch non obligatoire (règle actuelle : obligatoire à partir de 16 caméras).</div>`
-        }
-      </div>
-
-      <div class="section">
-        <div class="sectionTitle">Paramètres d’enregistrement</div>
-        <div class="muted">
-          Jours : <strong>${safeHtml(String(MODEL.recording.daysRetention))}</strong> •
-          Heures/jour : <strong>${safeHtml(String(MODEL.recording.hoursPerDay))}</strong> •
-          FPS : <strong>${safeHtml(String(MODEL.recording.fps))}</strong> •
-          Codec : <strong>${safeHtml(String(MODEL.recording.codec))}</strong> •
-          Mode : <strong>${safeHtml(String(MODEL.recording.mode))}</strong> •
-          Overhead : <strong>${safeHtml(String(MODEL.recording.overheadPct))}%</strong> •
-          Réserve PoE : <strong>${safeHtml(String(MODEL.recording.reservePortsPct))}%</strong>
-        </div>
-      </div>
-
-      <div class="muted" style="margin-top:14px;text-align:center">
-        Document généré par le configurateur • © Comelit • (MVP) • Page 1+
-      </div>
-    </div>
-  </div>
-  `;
+</div>`;
 }
+
+
+
 
   function syncResultsUI() {
   const isLastStep = MODEL.stepIndex >= (STEPS.length - 1);
@@ -2075,6 +2148,7 @@ function getSelectedOrRecommendedScreen(proj) {
 
   if (gridEl) gridEl.classList.toggle("singleCol", !showCol);
   if (resultCard) resultCard.classList.toggle("hiddenCard", !showCol);
+
 
   if (!showCol) {
     hideResultsUI();
@@ -2830,24 +2904,105 @@ function getSelectedOrRecommendedScreen(proj) {
   `;
   }
 
+  // ==========================================================
+  // MAIN RENDER (manquait → causait "render is not defined")
+  // ==========================================================
+  function render() {
+    if (!DOM.stepsEl) return;
+
+    // Assure la structure complements (robuste si import d'anciens projets)
+    MODEL.complements = MODEL.complements || {};
+    MODEL.complements.screen = MODEL.complements.screen || { enabled: false, sizeInch: 18, qty: 1, selectedId: null };
+    MODEL.complements.enclosure = MODEL.complements.enclosure || { enabled: false, qty: 1, selectedId: null };
+    MODEL.complements.signage = MODEL.complements.signage || { enabled: false, scope: "Public", qty: 1, selectedId: null };
+
+    // Clamp step
+    const maxIdx = Math.max(0, (STEPS?.length || 1) - 1);
+    MODEL.stepIndex = clampInt(MODEL.stepIndex ?? 0, 0, maxIdx);
+
+    // Render step
+    let html = "";
+    if (MODEL.stepIndex === 0) html = renderStepCameras();
+    // Étape 2 = Supports / Accessoires (dans ton code historique : renderStepAccessories)
+    else if (MODEL.stepIndex === 1) html = renderStepAccessories();
+    else if (MODEL.stepIndex === 2) html = renderStepNvrNetwork();
+    else html = renderStepStorage();
+
+    DOM.stepsEl.innerHTML = html;
+
+    // UI (progress + results)
+    updateProgress();
+    syncResultsUI();
+  }
+
 function renderComplementsCard(proj) {
+  // Sécurise la structure (évite les crash si projet importé ancien)
+  MODEL.complements = MODEL.complements || {};
+  MODEL.complements.screen = MODEL.complements.screen || { enabled: false, sizeInch: 18, qty: 1, selectedId: null };
+  MODEL.complements.enclosure = MODEL.complements.enclosure || { enabled: false, qty: 1, selectedId: null };
+  MODEL.complements.signage = MODEL.complements.signage || { enabled: false, scope: "Public", qty: 1, selectedId: null };
+
   const sizes = getAvailableScreenSizes();
+
   const screenEnabled = !!MODEL.complements.screen.enabled;
   const enclosureEnabled = !!MODEL.complements.enclosure.enabled;
+  const signageEnabled = !!MODEL.complements.signage.enabled;
 
   const selectedScreen = screenEnabled ? pickScreenBySize(MODEL.complements.screen.sizeInch) : null;
 
   // Boîtier auto
-  const enclosureAuto = enclosureEnabled ? pickBestEnclosure(proj, selectedScreen) : { enclosure: null, reason: null, screenInsideOk: false };
-  const enclosureSel = enclosureAuto.enclosure;
+  const enclosureAuto = enclosureEnabled
+    ? pickBestEnclosure(proj, selectedScreen)
+    : { enclosure: null, reason: "disabled", screenInsideOk: false };
+  const enclosureSel = enclosureAuto?.enclosure || null;
+
+  // Panneau
+  const signageScope = MODEL.complements.signage.scope || "Public";
+  const signageQty = MODEL.complements.signage.qty ?? 1;
+  const signageReco = getSelectedOrRecommendedSign();
+  const signage = signageReco.sign;
+
+  const signageLine = signageEnabled
+    ? (signage
+        ? `
+          <div class="miniRow">
+            <div class="miniLeft">
+              <div class="miniTitle">${safeHtml(signage.name)}</div>
+              <div class="miniMeta">
+                ${badgeHtml(signage.scope)}
+                ${badgeHtml(signage.dimension)}
+                ${badgeHtml(signage.fixing)}
+              </div>
+              ${signage.datasheet_url ? `
+                <div style="margin-top:8px">
+                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${safeHtml(signage.datasheet_url)}" target="_blank" rel="noreferrer">📄 Fiche panneau</a>
+                </div>
+              ` : ``}
+            </div>
+            <div class="miniRight">
+              ${signage.image_url ? `
+                <img
+                  src="${safeHtml(signage.image_url)}"
+                  alt="Panneau"
+                  style="width:88px;height:88px;object-fit:cover;border-radius:14px;border:1px solid var(--line);background: rgba(255,255,255,.03);"
+                />
+              ` : ``}
+            </div>
+          </div>
+        `
+        : `<div class="warnBox">Aucun panneau disponible dans le catalogue.</div>`
+      )
+    : `<div class="muted">Désactivé</div>`;
 
   const hdmiWarn = screenQtyWarning(proj);
 
   // tailles UI
-  const sizePills = sizes.length ? sizes.map(sz => {
-    const active = Number(MODEL.complements.screen.sizeInch) === Number(sz) ? "pillActive" : "";
-    return `<button class="pillBtn ${active}" data-action="screenSize" data-size="${sz}">${sz}&quot;</button>`;
-  }).join("") : `<div class="muted">Aucun écran (screens.csv vide ou tailles manquantes).</div>`;
+  const sizePills = sizes.length
+    ? sizes.map((sz) => {
+        const active = Number(MODEL.complements.screen.sizeInch) === Number(sz) ? "pillActive" : "";
+        return `<button type="button" class="pillBtn ${active}" data-action="screenSize" data-size="${sz}">${sz}&quot;</button>`;
+      }).join("")
+    : `<div class="muted">Aucun écran (screens.csv vide ou tailles manquantes).</div>`;
 
   return `
     <div class="recoCard" style="margin-top:10px">
@@ -2865,8 +3020,8 @@ function renderComplementsCard(proj) {
         <div style="flex:1; min-width:260px">
           <div><strong>Voulez-vous un écran ?</strong></div>
           <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
-            <button class="pillBtn ${screenEnabled ? "pillActive" : ""}" data-action="screenToggle" data-value="1">Oui</button>
-            <button class="pillBtn ${!screenEnabled ? "pillActive" : ""}" data-action="screenToggle" data-value="0">Non</button>
+            <button type="button" class="pillBtn ${screenEnabled ? "pillActive" : ""}" data-action="screenToggle" data-value="1">Oui</button>
+            <button type="button" class="pillBtn ${!screenEnabled ? "pillActive" : ""}" data-action="screenToggle" data-value="0">Non</button>
           </div>
 
           ${screenEnabled ? `
@@ -2882,7 +3037,7 @@ function renderComplementsCard(proj) {
                 </div>
 
                 ${selectedScreen?.datasheet_url ? `
-                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${selectedScreen.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche écran</a>
+                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${safeHtml(selectedScreen.datasheet_url)}" target="_blank" rel="noreferrer">📄 Fiche écran</a>
                 ` : ``}
               </div>
 
@@ -2891,7 +3046,7 @@ function renderComplementsCard(proj) {
               ${selectedScreen ? `
                 <div style="display:flex; gap:12px; margin-top:12px; align-items:center; flex-wrap:wrap">
                   ${selectedScreen.image_url ? `
-                    <img src="${selectedScreen.image_url}" alt="${safeHtml(selectedScreen.name)}"
+                    <img src="${safeHtml(selectedScreen.image_url)}" alt="${safeHtml(selectedScreen.name)}"
                       style="width:88px;height:88px;object-fit:cover;border-radius:14px;border:1px solid var(--line)" />
                   ` : `
                     <div style="width:88px;height:88px;border-radius:14px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center" class="muted">—</div>
@@ -2916,8 +3071,8 @@ function renderComplementsCard(proj) {
           <div><strong>Voulez-vous un boîtier de protection de l’enregistreur ?</strong></div>
 
           <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
-            <button class="pillBtn ${enclosureEnabled ? "pillActive" : ""}" data-action="enclosureToggle" data-value="1">Oui</button>
-            <button class="pillBtn ${!enclosureEnabled ? "pillActive" : ""}" data-action="enclosureToggle" data-value="0">Non</button>
+            <button type="button" class="pillBtn ${enclosureEnabled ? "pillActive" : ""}" data-action="enclosureToggle" data-value="1">Oui</button>
+            <button type="button" class="pillBtn ${!enclosureEnabled ? "pillActive" : ""}" data-action="enclosureToggle" data-value="0">Non</button>
           </div>
 
           ${enclosureEnabled ? `
@@ -2930,16 +3085,16 @@ function renderComplementsCard(proj) {
                 </div>
 
                 ${enclosureSel?.datasheet_url ? `
-                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${enclosureSel.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche boîtier</a>
+                  <a class="btnGhost btnSmall" style="text-decoration:none" href="${safeHtml(enclosureSel.datasheet_url)}" target="_blank" rel="noreferrer">📄 Fiche boîtier</a>
                 ` : ``}
               </div>
 
-              ${renderEnclosureDecisionMessage(proj, selectedScreen, enclosureAuto)}
+              ${typeof renderEnclosureDecisionMessage === "function" ? renderEnclosureDecisionMessage(proj, selectedScreen, enclosureAuto) : ``}
 
               ${enclosureSel ? `
                 <div style="display:flex; gap:12px; margin-top:12px; align-items:center; flex-wrap:wrap">
                   ${enclosureSel.image_url ? `
-                    <img src="${enclosureSel.image_url}" alt="${safeHtml(enclosureSel.name)}"
+                    <img src="${safeHtml(enclosureSel.image_url)}" alt="${safeHtml(enclosureSel.name)}"
                       style="width:88px;height:88px;object-fit:cover;border-radius:14px;border:1px solid var(--line)" />
                   ` : `
                     <div style="width:88px;height:88px;border-radius:14px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center" class="muted">—</div>
@@ -2951,67 +3106,81 @@ function renderComplementsCard(proj) {
                 </div>
               ` : ``}
             </div>
-          ` : ``}
+          ` : `<div style="margin-top:10px" class="muted">Désactivé</div>`}
+        </div>
+      </div>
+
+      <div class="divider" style="margin:14px 0; opacity:.45"></div>
+
+      <!-- Q3: Panneau de signalisation -->
+      <div style="display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap">
+        <div>${questionSvg("signage")}</div>
+        <div style="flex:1; min-width:260px">
+          <div><strong>Voulez-vous un panneau de signalisation ?</strong></div>
+          <div class="muted" style="margin-top:4px">Obligatoire à chaque point d'entrée de la zone.</div>
+
+          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
+            <button type="button" class="pillBtn ${signageEnabled ? "pillActive" : ""}" data-action="signageToggle" data-value="1">Oui</button>
+            <button type="button" class="pillBtn ${!signageEnabled ? "pillActive" : ""}" data-action="signageToggle" data-value="0">Non</button>
+          </div>
+
+          ${signageEnabled ? `
+  <div style="margin-top:10px">
+    <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
+      <div>
+        <strong>Type</strong><br>
+        <select data-action="signageScope"
+          style="width:220px;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)">
+          <option value="Public" ${signageScope === "Public" ? "selected" : ""}>Public</option>
+          <option value="Privé" ${signageScope === "Privé" ? "selected" : ""}>Privé</option>
+        </select>
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap">
+        <div>
+          <strong>Quantité</strong><br>
+          <input data-action="signageQty" type="number" min="1" max="99" value="${safeHtml(String(signageQty))}"
+            style="width:140px;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)">
+        </div>
+
+        ${signage?.datasheet_url ? `
+          <a class="btnGhost btnSmall" style="text-decoration:none; height:36px; display:inline-flex; align-items:center;"
+            href="${safeHtml(signage.datasheet_url)}" target="_blank" rel="noreferrer">📄 Fiche panneau</a>
+        ` : ``}
+      </div>
+    </div>
+
+    ${signage ? `
+      <div style="display:flex; gap:12px; margin-top:12px; align-items:center; flex-wrap:wrap">
+        ${signage.image_url ? `
+          <img src="${safeHtml(signage.image_url)}" alt="${safeHtml(signage.name)}"
+            style="width:88px;height:88px;object-fit:cover;border-radius:14px;border:1px solid var(--line)" />
+        ` : `
+          <div style="width:88px;height:88px;border-radius:14px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center" class="muted">—</div>
+        `}
+        <div style="flex:1; min-width:200px">
+          <div><strong>${safeHtml(signage.name)}</strong></div>
+          <div class="muted">${safeHtml(signage.id)}</div>
+          <div class="muted" style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap">
+            ${badgeHtml(signage.scope)}
+            ${badgeHtml(signage.dimension)}
+            ${badgeHtml(signage.fixing)}
+          </div>
+        </div>
+      </div>
+    ` : `
+      <div class="warnBox" style="margin-top:10px">Aucun panneau disponible dans le catalogue.</div>
+    `}
+  </div>
+` : `<div style="margin-top:10px" class="muted">Désactivé</div>`}
+
         </div>
       </div>
     </div>
   `;
 }
 
-
-function render() {
-  _renderProjectCache = null;
-  ensureToggleButton();
-
-  sanity(); // ✅ AJOUTE ÇA ICI
-
-  if (!DOM.stepsEl) {
-    console.error("DOM.stepsEl (#steps) introuvable dans le HTML");
-    return;
-  }
-
-  // ✅ IMPORTANT : on vide avant de re-rendre
-  DOM.stepsEl.innerHTML = "";
-
-  const step = STEPS[MODEL.stepIndex];
-
-  const wrapper = document.createElement("div");
-  wrapper.className = "step";
-  wrapper.innerHTML = `
-    <div class="stepTitle">
-      <strong>${safeHtml(step.title)}</strong>
-      <span class="badge">${safeHtml(step.badge)}</span>
-    </div>
-    <div class="help">${safeHtml(step.help)}</div>
-    <div id="stepBody"></div>
-  `;
-
-  const body = $("#stepBody", wrapper);
-
-  if (step.id === "cameras") body.innerHTML = renderStepCameras();
-  else if (step.id === "mounts") body.innerHTML = renderStepAccessories();
-  else if (step.id === "nvr_network") body.innerHTML = renderStepNvrNetwork();
-  else if (step.id === "storage") body.innerHTML = renderStepStorage();
-
-  DOM.stepsEl.appendChild(wrapper);
-
-  if (DOM.btnCompute) {
-    DOM.btnCompute.textContent = (MODEL.stepIndex < STEPS.length - 1) ? "Suivant" : "Finaliser";
-  }
-
-  updateProgress();
-  syncResultsUI();
-}
-
-
-  // ==========================================================
-  // 11) EVENTS (delegation)
-  // ==========================================================
-  function invalidateIfNeeded(blk) {
-    if (blk?.validated) unvalidateBlock(blk);
-  }
-
-  function onStepsClick(e) {
+function onStepsClick(e) {
   const el = e.target.closest("[data-action]");
   if (!el) return;
   const action = el.dataset.action;
@@ -3092,6 +3261,13 @@ if (action === "validateCamera") {
 
   if (action === "enclosureToggle") {
     MODEL.complements.enclosure.enabled = el.dataset.value === "1";
+    render();
+    return;
+  }
+
+  if (action === "signageToggle") {
+    MODEL.complements.signage = MODEL.complements.signage || { enabled: false, scope: "Public", qty: 1 };
+    MODEL.complements.signage.enabled = el.dataset.value === "1";
     render();
     return;
   }
@@ -3194,6 +3370,20 @@ if (action === "validateCamera") {
   }
   if (action === "enclosureQty") {
     MODEL.complements.enclosure.qty = clampInt(el.value, 1, 99);
+    render();
+    return;
+  }
+
+  if (action === "signageScope") {
+    MODEL.complements.signage = MODEL.complements.signage || { enabled: true, scope: "Public", qty: 1 };
+    MODEL.complements.signage.scope = el.value || "Public";
+    render();
+    return;
+  }
+
+  if (action === "signageQty") {
+    MODEL.complements.signage = MODEL.complements.signage || { enabled: true, scope: "Public", qty: 1 };
+    MODEL.complements.signage.qty = clampInt(el.value, 1, 99);
     render();
     return;
   }
@@ -3405,6 +3595,289 @@ if (action === "validateCamera") {
     host.remove();
   }
 }
+// ==========================================================
+// EXPORT PACK (PDF + FICHES TECHNIQUES) -> ZIP
+// ==========================================================
+
+// Petit helper: download blob
+function downloadBlob(blob, filename) {
+  const a = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function sanitizeFilename(name) {
+  return String(name || "file")
+    .replace(/[\/\\?%*:|"<>]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Dédup par URL
+function dedupByUrl(items) {
+  const seen = new Set();
+  const out = [];
+  for (const it of items || []) {
+    const u = String(it?.url || "").trim();
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(it);
+  }
+  return out;
+}
+
+// Collecte les datasheet_url depuis le projet (tu peux enrichir ensuite)
+function collectDatasheetUrlsFromProject(proj) {
+  const items = [];
+
+  // Caméras
+  for (const l of (MODEL.cameraLines || [])) {
+    const cam = getCameraById(l.cameraId);
+    if (cam?.datasheet_url) {
+      items.push({
+        url: cam.datasheet_url,
+        path: `fiches_techniques/cameras/${sanitizeFilename(cam.id)}.pdf`,
+      });
+    }
+  }
+
+  // NVR
+  const nvr = proj?.nvrPick?.nvr;
+  if (nvr?.datasheet_url) {
+    items.push({
+      url: nvr.datasheet_url,
+      path: `fiches_techniques/nvr/${sanitizeFilename(nvr.id)}.pdf`,
+    });
+  }
+
+  // HDD (selon ton modèle: proj.disks.hddRef ou proj.disks.disk)
+  const hdd = proj?.disks?.hddRef || proj?.disks?.disk || null;
+  if (hdd?.datasheet_url) {
+    items.push({
+      url: hdd.datasheet_url,
+      path: `fiches_techniques/hdd/${sanitizeFilename(hdd.id)}.pdf`,
+    });
+  }
+
+  // Switches
+  for (const p of (proj?.switches?.plan || [])) {
+    const sw = p?.item;
+    if (sw?.datasheet_url) {
+      items.push({
+        url: sw.datasheet_url,
+        path: `fiches_techniques/switches/${sanitizeFilename(sw.id)}.pdf`,
+      });
+    }
+  }
+
+  // Accessoires (si tu as datasheet_url dans la ligne)
+  for (const a of (MODEL.accessoryLines || [])) {
+    if (a?.datasheet_url) {
+      const id = a.accessoryId || a.id || "accessoire";
+      items.push({
+        url: a.datasheet_url,
+        path: `fiches_techniques/accessoires/${sanitizeFilename(id)}.pdf`,
+      });
+    }
+  }
+
+  // Produits complémentaires (écran / boîtier / panneau si ton projet les expose)
+  try {
+    const scr = getSelectedOrRecommendedScreen(proj)?.selected || null;
+    if (scr?.datasheet_url) {
+      items.push({
+        url: scr.datasheet_url,
+        path: `fiches_techniques/ecrans/${sanitizeFilename(scr.id)}.pdf`,
+      });
+    }
+  } catch {}
+
+  try {
+    const enc = getSelectedOrRecommendedEnclosure(proj)?.selected || null;
+    if (enc?.datasheet_url) {
+      items.push({
+        url: enc.datasheet_url,
+        path: `fiches_techniques/boitiers/${sanitizeFilename(enc.id)}.pdf`,
+      });
+    }
+  } catch {}
+
+  try {
+    if (typeof getSelectedOrRecommendedSign === "function") {
+      const sign = getSelectedOrRecommendedSign()?.sign || null;
+      if (sign?.datasheet_url && MODEL?.complements?.signage?.enabled) {
+        items.push({
+          url: sign.datasheet_url,
+          path: `fiches_techniques/panneaux/${sanitizeFilename(sign.id)}.pdf`,
+        });
+      }
+    }
+  } catch {}
+
+  return dedupByUrl(items);
+}
+
+// Génère un PDF Blob en réutilisant ton buildPdfHtml(proj) + html2pdf
+async function buildPdfBlobFromProject(proj) {
+  const host = document.createElement("div");
+  host.style.position = "fixed";
+  host.style.left = "-10000px";
+  host.style.top = "0";
+  host.style.width = "210mm";
+  host.style.background = "#fff";
+  host.innerHTML = buildPdfHtml(proj);
+  document.body.appendChild(host);
+
+  const root = host.querySelector("#pdfReportRoot") || host;
+
+  // Attendre chargement images
+  const imgs = Array.from(root.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map((img) => new Promise((resolve) => {
+      if (img.complete) return resolve();
+      img.onload = () => resolve();
+      img.onerror = () => resolve();
+    }))
+  );
+
+  if (typeof window.html2pdf !== "function") {
+    host.remove();
+    throw new Error("html2pdf n'est pas chargé.");
+  }
+
+  const worker = window.html2pdf()
+    .set({
+      margin: 10,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+      },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"] },
+    })
+    .from(root);
+
+  try {
+    // IMPORTANT: récupérer le blob sans save()
+    const pdfBlob = await worker.outputPdf("blob");
+    return pdfBlob;
+  } finally {
+    host.remove();
+  }
+}
+
+async function fetchAsBlob(url) {
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error(`HTTP ${res.status} sur ${url}`);
+  return await res.blob();
+}
+
+// ✅ Export ZIP (PDF + fiches tech LOCALES) — Option B
+async function exportProjectPdfWithLocalDatasheetsZip() {
+  const proj = LAST_PROJECT || computeProject();
+  LAST_PROJECT = proj;
+
+  const day = new Date().toISOString().slice(0, 10);
+
+  // 1) Générer le PDF blob
+  let pdfBlob;
+  try {
+    pdfBlob = await buildPdfBlobFromProject(proj);
+  } catch (e) {
+    console.error(e);
+    alert("Impossible de générer le PDF (voir console).");
+    return;
+  }
+
+  // 2) Blob -> base64
+  const pdf_base64 = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = String(r.result || "");
+      const b64 = s.includes(",") ? s.split(",")[1] : s;
+      resolve(b64);
+    };
+    r.onerror = reject;
+    r.readAsDataURL(pdfBlob);
+  });
+
+  // 3) Construire la liste des refs produits
+  const product_ids = collectProductIdsForPack(proj);
+
+  const payload = {
+    pdf_base64,
+    product_ids,
+    zip_name: `export_configurateur_${day}.zip`,
+  };
+
+  // 4) Appel backend local
+  let res;
+  try {
+    res = await fetch("http://127.0.0.1:8000/export/localzip", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.error(e);
+    alert("Impossible de contacter le backend (8000).");
+    return;
+  }
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => "");
+    console.error("ZIP backend error:", res.status, err);
+    alert("Erreur lors de la génération du ZIP (voir console).");
+    return;
+  }
+
+  // 5) Téléchargement du ZIP
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = payload.zip_name;
+  document.body.appendChild(a);
+  a.click();
+
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+
+  function ensurePdfPackButton() {
+    const pdfBtn = document.querySelector("#btnExportPdf");
+    if (!pdfBtn) return false; // pas encore rendu
+
+    // Déjà injecté ? -> ok
+    if (document.querySelector("#btnExportPdfPack")) return true;
+
+    // Crée le bouton
+    const packBtn = document.createElement("button");
+    packBtn.id = "btnExportPdfPack";
+    packBtn.type = "button";
+    packBtn.textContent = "Extraction PDF + Fiches techniques";
+
+    // Copie les classes du bouton PDF pour garder le même style
+    packBtn.className = pdfBtn.className || "";
+
+    // Insère juste après le bouton PDF
+    pdfBtn.insertAdjacentElement("afterend", packBtn);
+
+    // Bind du clic
+    packBtn.addEventListener("click", exportProjectPdfWithLocalDatasheetsZip);
+
+    return true;
+  }
 
   // ==========================================================
 // 13) NAV / BUTTONS (safe bindings)
@@ -3451,6 +3924,7 @@ bind(DOM.btnCompute, "click", () => {
   LAST_PROJECT = proj;
 
   setFinalContent(proj);
+  ensurePdfPackButton();
   MODEL.ui.resultsShown = true;
   syncResultsUI();
 });
@@ -3479,30 +3953,12 @@ bind(DOM.btnReset, "click", () => {
   MODEL.stepIndex = 0;
   LAST_PROJECT = null;
 
-  sanity();      // ✅
-  syncResultsUI();
-  render();
-});
-
-  MODEL.accessoryLines = [];
-  MODEL.recording = {
-    daysRetention: 14,
-    hoursPerDay: 24,
-    fps: 15,
-    codec: "h265",
-    mode: "continuous",
-    overheadPct: 20,
-    reservePortsPct: 10,
-  
-  };
   sanity();
-  MODEL.ui.resultsShown = false;
-  MODEL.stepIndex = 0;
-  LAST_PROJECT = null;
-
+  _renderProjectCache = null;
   syncResultsUI();
   render();
 });
+
 
 bind(DOM.btnDemo, "click", () => {
   MODEL.cameraLines = [];
@@ -3544,9 +4000,56 @@ bind(DOM.btnDemo, "click", () => {
   LAST_PROJECT = null;
   MODEL.ui.resultsShown = false;
 
-  syncResultsUI();
+  syncResultsUI();resultsEmpty
   render();
 });
+function collectProductIdsForPack(proj) {
+  const ids = new Set();
+
+  // Caméras
+  (MODEL.cameraLines || []).forEach((l) => {
+    const cam = getCameraById(l.cameraId);
+    if (cam?.id) ids.add(String(cam.id).trim());
+  });
+
+  // Accessoires
+  (MODEL.accessoryLines || []).forEach((a) => {
+    if (a?.accessoryId) ids.add(String(a.accessoryId).trim());
+  });
+
+  // NVR
+  const nvr = proj?.nvrPick?.nvr;
+  if (nvr?.id) ids.add(String(nvr.id).trim());
+
+  // Switches
+  (proj?.switches?.plan || []).forEach((p) => {
+    const sw = p?.item;
+    if (sw?.id) ids.add(String(sw.id).trim());
+  });
+
+  // HDD
+  const hdd = proj?.disks?.hddRef;
+  if (hdd?.id) ids.add(String(hdd.id).trim());
+
+  // Complements
+  const scr = typeof getSelectedOrRecommendedScreen === "function"
+    ? getSelectedOrRecommendedScreen(proj)?.selected
+    : null;
+  if (scr?.id) ids.add(String(scr.id).trim());
+
+  const enc = typeof getSelectedOrRecommendedEnclosure === "function"
+    ? getSelectedOrRecommendedEnclosure(proj)?.selected
+    : null;
+  if (enc?.id) ids.add(String(enc.id).trim());
+
+  const signObj = (typeof getSelectedOrRecommendedSign === "function")
+    ? getSelectedOrRecommendedSign()
+    : null;
+  const sign = signObj?.sign || null;
+  if (sign?.id) ids.add(String(sign.id).trim());
+
+  return Array.from(ids);
+}
 
 // EXPORT (PDF + EXCEL)
 bind(DOM.btnExportPdf, "click", exportProjectPdfPro);
@@ -3574,7 +4077,8 @@ bind(DOM.stepsEl, "input", onStepsInput);
         swRaw,
         accRaw,
         screensRaw,
-        enclosuresRaw
+        enclosuresRaw,
+        signageRaw
       ] = await Promise.all([
         loadCsv("/data/cameras.csv"),
         loadCsv("/data/nvrs.csv"),
@@ -3585,6 +4089,9 @@ bind(DOM.stepsEl, "input", onStepsInput);
         // ✅ Fallback: si le fichier n'existe pas, on met []
         loadCsv("/data/screens.csv").catch(() => []),
         loadCsv("/data/enclosures.csv").catch(() => []),
+
+        // ✅ panneaux de signalisation (optionnel)
+        loadCsv("/data/signage.csv").catch(() => []),
       ]);
 
 
@@ -3595,6 +4102,9 @@ bind(DOM.stepsEl, "input", onStepsInput);
       CATALOG.SWITCHES = swRaw.map(normalizeSwitch).filter((s) => s.id);
       CATALOG.SCREENS = screensRaw.map(normalizeScreen).filter(s => s.id);
       CATALOG.ENCLOSURES = enclosuresRaw.map(normalizeEnclosure).filter(e => e.id);
+
+      // ✅ panneaux de signalisation
+      CATALOG.SIGNAGE = (signageRaw || []).map(normalizeSignageRow).filter(Boolean);
 
 
       // ✅ accessories.csv = MAPPING (camera_id => junction/wall/ceiling)
@@ -3610,6 +4120,7 @@ bind(DOM.stepsEl, "input", onStepsInput);
           `Switch: ${CATALOG.SWITCHES.length}`,
           `Écrans: ${CATALOG.SCREENS.length}`,
           `Boîtiers: ${CATALOG.ENCLOSURES.length}`,
+          `Panneaux: ${CATALOG.SIGNAGE.length}`,
           `Mappings accessoires: ${CATALOG.ACCESSORIES_MAP.size}`,
         ];
         DOM.dataStatusEl.textContent = parts.join(" • ");

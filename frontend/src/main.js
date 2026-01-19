@@ -103,6 +103,9 @@ document.querySelector("#app").innerHTML = `
               <option value="hdds">hdds.csv</option>
               <option value="switches">switches.csv</option>
               <option value="accessories">accessories.csv</option>
+              <option value="screens">screens.csv</option>
+              <option value="enclosures">enclosures.csv</option>
+              <option value="signage">signage.csv</option>
             </select>
           </label>
 

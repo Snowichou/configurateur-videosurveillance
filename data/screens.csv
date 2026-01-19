@@ -1,6 +1,6 @@
 id,name,size_inch,format,vesa,Resolution,image_url,datasheet_url
-MMON185A,Écran LED 18.5" VGA BNC HDMI Audio HD,18.5,16:9,,HD,https://staticpro.comelitgroup.com/storage/2018/11/19988/MMON185A.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/13584-mmon185a.pdf
-MMON024C,Écran LED 24" Full HD audio,24,16:9,75x75,FULL-HD,https://staticpro.comelitgroup.com/storage/2022/10/34780/mmon022a-mmon024c.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20575-mmon024c.pdf
-MMON032C,ÉCRAN 31.5" FULL HD HDMI VGA,32,16:9,75x75,FULL-HD,https://staticpro.comelitgroup.com/storage/2023/07/40798/hmon032c.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/22301-mmon032c.pdf
-HMON043C,ÉCRAN 43" 4K 2 HDMI DP VGA AUDIO,43,16:9,400x400,4K,https://staticpro.comelitgroup.com/storage/2023/07/40799/hmon043c.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/22302-hmon043c.pdf
-HMON055D,ÉCRAN 4K 55" PROFESSIONNEL,55,16:9,400x400,4K,https://staticpro.comelitgroup.com/storage/2023/07/40800/hmon055d.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20573-hmon055d.pdf
+MMON185A,"Écran LED 18.5"" VGA BNC HDMI Audio HD",18.5,16:9,,HD,https://staticpro.comelitgroup.com/storage/2018/11/19988/MMON185A.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/13584-mmon185a.pdf
+MMON024C,"Écran LED 24"" Full HD audio",24,16:9,75x75,FULL-HD,https://staticpro.comelitgroup.com/storage/2022/10/34780/mmon022a-mmon024c.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20575-mmon024c.pdf
+MMON032C,"ÉCRAN 31.5"" FULL HD HDMI VGA",32,16:9,75x75,FULL-HD,https://staticpro.comelitgroup.com/storage/2023/07/40798/hmon032c.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/22301-mmon032c.pdf
+HMON043C,"ÉCRAN 43"" 4K 2 HDMI DP VGA AUDIO",43,16:9,400x400,4K,https://staticpro.comelitgroup.com/storage/2023/07/40799/hmon043c.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/22302-hmon043c.pdf
+HMON055D,"ÉCRAN 4K 55"" PROFESSIONNEL",55,16:9,400x400,4K,https://staticpro.comelitgroup.com/storage/2023/07/40800/hmon055d.png,https://staticpro.comelitgroup.com/fr_FR/datasheets/20573-hmon055d.pdf

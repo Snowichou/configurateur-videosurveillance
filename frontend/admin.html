@@ -8,22 +8,29 @@
     body { font-family: Arial, sans-serif; margin: 18px; background:#0b0f14; color:#e8eef6; }
     .card { background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; max-width:1100px; }
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    input, button, select, textarea { border-radius:12px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6; padding:10px 12px; }
+    input, button, textarea { border-radius:12px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6; padding:10px 12px; }
     button { cursor:pointer; }
     textarea { width:100%; min-height: 520px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.4; }
     .muted { color: rgba(232,238,246,.7); font-size: 13px; }
     .tabs button { padding:10px 12px; }
     .ok { color:#7CFC98; font-weight:700; }
     .err { color:#ff6b6b; font-weight:700; }
+    .hint { font-size:12px; color: rgba(232,238,246,.55); margin-top:6px; }
   </style>
 </head>
 <body>
   <h1>Admin panel</h1>
+
   <div class="card">
     <div class="row">
       <input id="pwd" type="password" placeholder="Mot de passe admin" style="min-width:260px" />
       <button id="btnLogin">Se connecter</button>
+      <button id="btnLogout" title="Supprime le token">Se déconnecter</button>
       <span id="status" class="muted"></span>
+    </div>
+
+    <div class="hint">
+      ℹ️ Lecture/écriture CSV via API. Si tu vois 401 → reconnecte-toi (token expiré ou manquant).
     </div>
 
     <hr style="border:none;border-top:1px solid rgba(255,255,255,.12); margin:14px 0;">
@@ -34,6 +41,9 @@
       <button data-csv="hdds">hdds.csv</button>
       <button data-csv="switches">switches.csv</button>
       <button data-csv="accessories">accessories.csv</button>
+      <button data-csv="screens">screens.csv</button>
+      <button data-csv="enclosures">enclosures.csv</button>
+      <button data-csv="signage">signage.csv</button>
       <span class="muted" id="activeTab"></span>
     </div>
 
@@ -57,58 +67,133 @@
   let active = "cameras";
 
   const $ = (s) => document.querySelector(s);
-  const status = (msg, kind="muted") => {
+
+  function setStatus(msg, kind = "muted") {
     const el = $("#status");
     el.className = kind;
     el.textContent = msg || "";
-  };
+  }
+
+  function clearToken() {
+    token = "";
+    localStorage.removeItem("admin_token");
+  }
+
+  function authHeaders() {
+    return token ? { "Authorization": `Bearer ${token}` } : {};
+  }
+
+  async function readTextSafe(res) {
+    try { return await res.text(); } catch { return ""; }
+  }
 
   async function login() {
     const password = $("#pwd").value.trim();
-    status("Connexion...");
+    if (!password) {
+      setStatus("Entre le mot de passe.", "err");
+      return;
+    }
+
+    setStatus("Connexion...");
     try {
       const res = await fetch("/api/login", {
         method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ password })
+        headers: { "Content-Type":"application/json" },
+        body: JSON.stringify({ password }),
+        credentials: "same-origin",
       });
-      if (!res.ok) throw new Error("Mot de passe invalide");
-      const data = await res.json();
-      token = data.token;
+
+      const txt = await readTextSafe(res);
+      if (!res.ok) {
+        clearToken();
+        throw new Error(`Login refusé (${res.status}) ${txt || ""}`.trim());
+      }
+
+      let data = null;
+      try { data = JSON.parse(txt); } catch {}
+
+      token = data?.token || "";
+      if (!token) {
+        clearToken();
+        throw new Error("Login OK mais token manquant (réponse invalide).");
+      }
+
       localStorage.setItem("admin_token", token);
-      status("Connecté ✅", "ok");
+      $("#pwd").value = "";
+      setStatus("Connecté ✅", "ok");
       await loadActive();
     } catch (e) {
-      status(e.message, "err");
+      setStatus(e?.message || "Erreur login", "err");
     }
+  }
+
+  async function logout() {
+    clearToken();
+    $("#editor").value = "";
+    setStatus("Déconnecté.", "muted");
   }
 
   async function loadCsv(name) {
-    status("Chargement...");
-    const res = await fetch(`/api/csv/${name}`, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Impossible de charger ${name}`);
-    const txt = await res.text();
+    setStatus(`Chargement ${name}...`);
+
+    const res = await fetch(`/api/csv/${name}`, {
+      cache: "no-store",
+      headers: { ...authHeaders() },
+      credentials: "same-origin",
+    });
+
+    const txt = await readTextSafe(res);
+
+    if (res.status === 401) {
+      clearToken();
+      $("#editor").value = "";
+      setStatus(`401 Unauthorized → reconnecte-toi. ${txt || ""}`.trim(), "err");
+      return;
+    }
+
+    if (!res.ok) {
+      $("#editor").value = "";
+      setStatus(`Erreur chargement (${res.status}) ${txt || ""}`.trim(), "err");
+      return;
+    }
+
     $("#editor").value = txt;
-    status("Chargé ✅", "ok");
+    setStatus("Chargé ✅", "ok");
   }
 
   async function saveCsv(name) {
-    if (!token) throw new Error("Non connecté");
-    status("Sauvegarde...");
+    if (!token) {
+      setStatus("Non connecté. Clique 'Se connecter'.", "err");
+      return;
+    }
+
+    setStatus("Sauvegarde...");
     const content = $("#editor").value;
+
     const res = await fetch(`/api/csv/${name}`, {
       method: "POST",
       headers: {
-        "Content-Type":"application/json",
-        "Authorization": `Bearer ${token}`
+        "Content-Type": "application/json",
+        ...authHeaders(),
       },
-      body: JSON.stringify({ content })
+      credentials: "same-origin",
+      body: JSON.stringify({ content }),
     });
-    if (!res.ok) {
-      const t = await res.text().catch(()=> "");
-      throw new Error(`Sauvegarde refusée (${res.status}) ${t}`);
+
+    const txt = await readTextSafe(res);
+
+    if (res.status === 401) {
+      clearToken();
+      setStatus(`401 Unauthorized → reconnecte-toi. ${txt || ""}`.trim(), "err");
+      return;
     }
-    status("Sauvegardé ✅ (backup .bak fait)", "ok");
+
+    if (!res.ok) {
+      setStatus(`Sauvegarde refusée (${res.status}) ${txt || ""}`.trim(), "err");
+      return;
+    }
+
+    setStatus("Sauvegardé ✅ (backup .bak fait)", "ok");
   }
 
   async function loadActive() {
@@ -116,7 +201,6 @@
     await loadCsv(active);
   }
 
-  // tabs
   document.addEventListener("click", async (e) => {
     const b = e.target.closest("button[data-csv]");
     if (!b) return;
@@ -125,15 +209,22 @@
   });
 
   $("#btnLogin").addEventListener("click", login);
+  $("#btnLogout").addEventListener("click", logout);
   $("#btnReload").addEventListener("click", loadActive);
-  $("#btnSave").addEventListener("click", () => saveCsv(active).catch(err => status(err.message, "err")));
+  $("#btnSave").addEventListener("click", () => saveCsv(active));
 
-  // auto-load si token existe
+  $("#pwd").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") login();
+  });
+
   if (token) {
-    status("Token trouvé (session) ✅", "ok");
-    loadActive().catch(() => status("Token expiré, reconnecte-toi.", "err"));
+    setStatus("Token trouvé (session) ✅", "ok");
+    loadActive().catch(() => {
+      clearToken();
+      setStatus("Token invalide/expiré, reconnecte-toi.", "err");
+    });
   } else {
-    status("Connecte-toi pour éditer.", "muted");
+    setStatus("Connecte-toi pour éditer.", "muted");
   }
 })();
 </script>

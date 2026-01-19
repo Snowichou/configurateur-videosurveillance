@@ -751,6 +751,31 @@ input, select, textarea{
   background: rgba(255,255,255,.04);
 }
 .adminExpertBox.hidden{ display:none; }
+/* ============================================================
+   FIX overflow / fit (Step 4 + blocs internes)
+   À coller AVANT la section "13) Responsive"
+   ============================================================ */
+
+/* Empêche les enfants de grid/flex de forcer un débordement */
+.step, .steps, .card, .recoCard, .resultsBody, .adminSection { 
+  min-width: 0;
+}
+
+/* Les longues chaînes (ex: URLs, CSV, labels) doivent casser la ligne */
+.recoCard, .card, .stepTitle, .help, .muted {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Si tu as des lignes de boutons/inputs qui débordent */
+.row, .cameraPickActions, .adminToolbar, .toolbarBtns, .adminGridActions {
+  flex-wrap: wrap;
+}
+
+/* Les cartes avec des zones scroll (si un bloc devient trop haut) */
+.recoCard {
+  overflow: hidden; /* évite le “dépassement visuel” */
+}
 
 /* ---------- 13) Responsive ---------- */
 @media (max-width: 980px){
