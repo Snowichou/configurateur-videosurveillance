@@ -343,6 +343,7 @@ function computeProjectScoreWeighted(){
 }
 
 
+
 // ==========================================================
 // AXE 1 — Lecture “pastilles” (strict)
 // ==========================================================
@@ -819,54 +820,76 @@ const DOM = {
   // 4) NORMALIZATION
   // ==========================================================
   function normalizeCamera(raw) {
-    const useCases = extractUseCasesFromRow(raw);
-    const emplInt = toBool(raw.Emplacement_Interieur ?? raw.emplacement_interieur ?? raw.interieur);
-    const emplExt = toBool(raw.Emplacement_Exterieur ?? raw.emplacement_exterieur ?? raw.exterieur);
+  const useCases = extractUseCasesFromRow(raw);
 
-    return {
-      id: String(raw.id ?? "").trim(),
-      name: raw.name,
-      brand_range: raw.brand_range || "",
-      family: raw.family || "standard",
-      type: raw.form_factor || raw.type || "",
+  const emplInt = toBool(raw.Emplacement_Interieur ?? raw.emplacement_interieur ?? raw.interieur);
+  const emplExt = toBool(raw.Emplacement_Exterieur ?? raw.emplacement_exterieur ?? raw.exterieur);
 
-      emplacement_interieur: emplInt,
-      emplacement_exterieur: emplExt,
+  // helper: numbers robustes (virgules, "IP66", "IK10", espaces)
+  const num = (v, fallback = null) => {
+    if (v == null) return fallback;
+    if (typeof v === "number") return Number.isFinite(v) ? v : fallback;
+    const s = String(v).trim();
+    if (!s) return fallback;
 
-      resolution_mp: toNum(raw.resolution_mp),
-      sensor_count: toNum(raw.sensor_count),
-      lens_type: raw.lens_type || "",
+    // IP66 / IK10
+    const ipik = s.match(/^(IP|IK)\s*([0-9]{2})$/i);
+    if (ipik) return Number(ipik[2]);
 
-      focal_min_mm: toNum(raw.focal_min_mm),
-      focal_max_mm: toNum(raw.focal_max_mm),
+    // virgule FR -> point
+    const cleaned = s.replace(",", ".").replace(/\s+/g, "");
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : fallback;
+  };
 
-      dori_detection_m: toNum(raw.dori_detection_m) ?? 0,
-      dori_observation_m: toNum(raw.dori_observation_m) ?? 0,
-      dori_recognition_m: toNum(raw.dori_recognition_m) ?? 0,
-      dori_identification_m: toNum(raw.dori_identification_m) ?? 0,
+  return {
+    id: String(raw.id ?? "").trim(),
+    name: raw.name || "",
+    brand_range: raw.brand_range || "",
+    family: raw.family || "standard",
+    type: raw.form_factor || raw.type || "",
 
-      ir_range_m: toNum(raw.ir_range_m) ?? 0,
-      white_led_range_m: toNum(raw.white_led_range_m) ?? 0,
+    emplacement_interieur: !!emplInt,
+    emplacement_exterieur: !!emplExt,
 
-      low_light_raw: raw.low_light_mode || raw.low_light || "",
-      low_light: !!String(raw.low_light_mode ?? raw.low_light ?? "").trim(),
+    resolution_mp: num(raw.resolution_mp, 0),
+    sensor_count: num(raw.sensor_count, 0),
+    lens_type: raw.lens_type || "",
 
-      ip: toNum(raw.ip),
-      ik: toNum(raw.ik),
+    focal_min_mm: num(raw.focal_min_mm, null),
+    focal_max_mm: num(raw.focal_max_mm, null),
 
-      microphone: toBool(raw.Microphone || raw.microphone),
+    dori_detection_m: num(raw.dori_detection_m, 0),
+    dori_observation_m: num(raw.dori_observation_m, 0),
+    dori_recognition_m: num(raw.dori_recognition_m, 0),
+    dori_identification_m: num(raw.dori_identification_m, 0),
 
-      poe_w: toNum(raw.poe_w) ?? 0,
-      bitrate_mbps_typical: toNum(raw.bitrate_mbps_typical),
-      streams_max: toNum(raw.streams_max),
-      analytics_level: raw.analytics_level || "",
+    ir_range_m: num(raw.ir_range_m, 0),
+    white_led_range_m: num(raw.white_led_range_m, 0),
 
-      use_cases: useCases,
+    low_light_raw: raw.low_light_mode || raw.low_light || "",
+    low_light: !!String(raw.low_light_mode ?? raw.low_light ?? "").trim(),
 
-      image_url: raw.image_url || "",
-      datasheet_url: raw.datasheet_url || "",
-    };
-  }
+    ip: num(raw.ip, null),
+    ik: num(raw.ik, null),
+
+    microphone: toBool(raw.Microphone ?? raw.microphone),
+
+    poe_w: num(raw.poe_w, 0),
+
+    // ✅ champ clé pour le débit
+    bitrate_mbps_typical: num(raw.bitrate_mbps_typical, null),
+
+    streams_max: num(raw.streams_max, null),
+    analytics_level: raw.analytics_level || "",
+
+    use_cases: useCases,
+
+    image_url: raw.image_url || "",
+    datasheet_url: raw.datasheet_url || "",
+  };
+}
+
 
   function normalizeNvr(raw) {
   return {
@@ -1563,21 +1586,233 @@ function sanity() {
     const hddRef = CATALOG.HDDS.find((h) => h.capacity_tb === best.sizeTB) || null;
     return { ...best, maxTotalTB, hddRef };
   }
+  function getStorageParams() {
+  // Valeurs par défaut + lecture des champs existants si tu les as déjà
+  const days =
+    MODEL?.storage?.days ??
+    MODEL?.storageDays ??
+    MODEL?.storage_retention_days ??
+    14;
+
+  const ips =
+    MODEL?.storage?.ips ??
+    MODEL?.storage?.fps ??
+    MODEL?.storageIps ??
+    MODEL?.storageFps ??
+    12; // IPS par défaut
+
+  const codec =
+    MODEL?.storage?.codec ??
+    MODEL?.storageCodec ??
+    "H.265";
+
+  const marginPct =
+    MODEL?.storage?.marginPct ??
+    MODEL?.storageMarginPct ??
+    15;
+
+  const hoursPerDay =
+    MODEL?.storage?.hoursPerDay ??
+    MODEL?.storageHoursPerDay ??
+    24;
+
+  const recordingMode =
+    MODEL?.storage?.mode ??
+    MODEL?.storageMode ??
+    "Continu";
+
+  return { days, ips, codec, marginPct, hoursPerDay, recordingMode };
+}
+
+// Tente de récupérer un "Mbps par caméra" depuis l'objet cam (si ton CSV le fournit)
+function pickCamMbpsFromCatalog(cam) {
+  if (!cam) return null;
+
+  const candidates = [
+    cam.mbps,
+    cam.bitrate_mbps,
+    cam.bandwidth_mbps,
+    cam.stream_mbps,
+    cam.bitrate,         // si déjà en Mbps
+    cam.bandwidth,       // idem
+  ];
+
+  for (const v of candidates) {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
+// Estimation fallback (pro mais simple) si pas de Mbps en catalog
+function estimateCamMbpsFallback(cam, ips, codec) {
+  // Récupère une “résolution” si possible (mp / width/height)
+  const mpRaw = cam?.mp ?? cam?.megapixel ?? cam?.resolution_mp ?? cam?.sensor_mp;
+  let mp = Number(mpRaw);
+  if (!Number.isFinite(mp) || mp <= 0) {
+    // si tu as width/height dans le CSV
+    const w = Number(cam?.width);
+    const h = Number(cam?.height);
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+      mp = (w * h) / 1_000_000;
+    } else {
+      mp = 4; // fallback 4MP
+    }
+  }
+
+  // Heuristique : Mbps ~ MP * (ips/12) * facteurCodec * facteurQualité
+  // H.265 ≈ -35% vs H.264 (ordre de grandeur)
+  const codecFactor = String(codec).toUpperCase().includes("265") ? 0.65 : 1.0;
+
+  // Qualité “standard” (si tu veux, on pourra brancher un slider)
+  const qualityFactor = 1.0;
+
+  const baseAt12ips = mp * 1.2; // 4MP @ 12ips ≈ 4.8 Mbps (ordre de grandeur)
+  const mbps = baseAt12ips * (Number(ips) / 12) * codecFactor * qualityFactor;
+
+  // Limites raisonnables pour éviter des aberrations
+  return Math.max(0.6, Math.min(mbps, 16));
+}
+
+// Construit le tableau par caméra + total
+function computePerCameraBitrates() {
+  const { ips, codec } = getStorageParams();
+
+  const rows = [];
+
+  (MODEL.cameraLines || []).forEach((l) => {
+    const cam = (typeof getCameraById === "function") ? getCameraById(l.cameraId) : null;
+    if (!cam) return;
+
+    const qty = Number(l.qty || 0);
+    if (!qty) return;
+
+    // 1) Mbps du catalog si dispo, sinon estimation
+    const mbpsPerCam = pickCamMbpsFromCatalog(cam) ?? estimateCamMbpsFallback(cam, ips, codec);
+
+    // 2) Label bloc (optionnel)
+    const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
+    const label = blk?.label ? `${blk.label}` : "";
+
+    rows.push({
+      blockLabel: label,
+      cameraId: String(cam.id || ""),
+      cameraName: String(cam.name || ""),
+      qty,
+      ips: Number(ips),
+      codec: String(codec),
+      mbpsPerCam: Number(mbpsPerCam),
+      mbpsLine: Number(mbpsPerCam) * qty,
+    });
+  });
+
+  const totalInMbps = rows.reduce((s, r) => s + (r.mbpsLine || 0), 0);
+
+  return { rows, totalInMbps };
+}
 
   function computeProject() {
   const totalCameras = getTotalCameras();
-  const { totalInMbps, totalPoeW } = computeTotals();
 
-  const alerts = []; // ✅ d'abord
+  // PoE : on garde computeTotals() pour totalPoeW (et éventuellement un totalInMbps "historique")
+  const totals = (typeof computeTotals === "function") ? computeTotals() : { totalInMbps: 0, totalPoeW: 0 };
+  const totalPoeW = Number.isFinite(totals.totalPoeW) ? totals.totalPoeW : 0;
 
-  const nvrPick = pickNvr(totalCameras, totalInMbps);
-  const switches = planPoESwitches(totalCameras, MODEL.recording.reservePortsPct);
+  const alerts = [];
+
+  // -----------------------------
+  // Paramètres d'enregistrement (source de vérité)
+  // -----------------------------
+  const rec = MODEL?.recording || {};
+  const hoursPerDay = clampNum(rec.hoursPerDay, 1, 24, 24);
+  const daysRetention = clampNum(rec.daysRetention, 1, 365, 14);
+  const overheadPct = clampNum(rec.overheadPct, 0, 100, 15);
+
+  // rec.fps => on l'affiche en "IPS" dans le PDF (même valeur)
+  const ips = clampNum(rec.fps, 1, 60, 12);
+  const codec = String(rec.codec || "H.265");
+  const mode = String(rec.mode || "Continu");
+
+  // -----------------------------
+  // Débit par caméra (proj.perCamera) via cameras.csv
+  // Priorité : cam.bitrate_mbps_typical
+  // -----------------------------
+  const pickCamMbpsFromCatalog = (cam) => {
+    if (!cam) return null;
+
+    const candidates = [
+      cam.bitrate_mbps_typical,  // ✅ TON champ
+      cam.bitrate_mbps,
+      cam.mbps,
+      cam.bandwidth_mbps,
+      cam.stream_mbps,
+      cam.bitrate,
+      cam.bandwidth,
+    ];
+
+    for (const v of candidates) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  };
+
+  // Fallback si bitrate absent : estimation soft (MP + ips + codec)
+  const estimateCamMbpsFallback = (cam) => {
+    let mp = Number(cam?.resolution_mp);
+    if (!Number.isFinite(mp) || mp <= 0) mp = 4;
+
+    const codecFactor = codec.toUpperCase().includes("265") ? 0.65 : 1.0;
+
+    // base à 12 ips
+    const baseAt12ips = mp * 1.2; // 4MP -> ~4.8 Mbps
+    const mbps = baseAt12ips * (ips / 12) * codecFactor;
+
+    return Math.max(0.6, Math.min(mbps, 16));
+  };
+
+  const perCamera = (MODEL.cameraLines || [])
+    .map((l) => {
+      const cam = (typeof getCameraById === "function") ? getCameraById(l.cameraId) : null;
+      if (!cam) return null;
+
+      const qty = Number(l.qty || 0);
+      if (!qty) return null;
+
+      const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
+      const blockLabel = blk?.label ? String(blk.label) : "";
+
+      const mbpsPerCam = pickCamMbpsFromCatalog(cam) ?? estimateCamMbpsFallback(cam);
+
+      return {
+        fromBlockId: l.fromBlockId || null,
+        blockLabel,
+        cameraId: String(cam.id || ""),
+        cameraName: String(cam.name || ""),
+        qty,
+        codec,
+        ips,
+        // infos utiles pour l’annexe
+        mbpsPerCam: Number(mbpsPerCam),
+        mbpsLine: Number(mbpsPerCam) * qty,
+        // bonus si tu veux tracer le “source”
+        mbpsSource: pickCamMbpsFromCatalog(cam) != null ? "catalog" : "estimate",
+      };
+    })
+    .filter(Boolean);
+
+  const totalInMbps = perCamera.reduce((s, r) => s + (r.mbpsLine || 0), 0);
   const safeIn = Number.isFinite(totalInMbps) ? totalInMbps : 0;
 
+  // -----------------------------
+  // Recos NVR / Switches / Disks
+  // -----------------------------
+  const nvrPick = pickNvr(totalCameras, safeIn);
+  const switches = planPoESwitches(totalCameras, rec.reservePortsPct);
 
   // ✅ check budget PoE switches si dispo
   const swBudget = (switches.plan || []).reduce(
-    (t, p) => t + (Number(p.item.poe_budget_w || 0) * (p.qty || 0)),
+    (t, p) => t + (Number(p?.item?.poe_budget_w || 0) * (p.qty || 0)),
     0
   );
 
@@ -1588,15 +1823,19 @@ function sanity() {
     });
   }
 
+  // Stockage (TA formule actuelle)
   const requiredTB = mbpsToTB(
-    totalInMbps,
-    MODEL.recording.hoursPerDay,
-    MODEL.recording.daysRetention,
-    MODEL.recording.overheadPct
+    safeIn,
+    hoursPerDay,
+    daysRetention,
+    overheadPct
   );
 
   const disks = nvrPick.nvr ? pickDisks(requiredTB, nvrPick.nvr) : null;
 
+  // -----------------------------
+  // Alerts
+  // -----------------------------
   if (totalCameras <= 0) {
     alerts.push({
       level: "danger",
@@ -1608,10 +1847,10 @@ function sanity() {
     alerts.push({ level: "danger", text: "Aucun NVR compatible. Vérifie nvrs.csv (channels / max_in_mbps)." });
   }
 
-  if (nvrPick.nvr && totalInMbps > nvrPick.nvr.max_in_mbps) {
+  if (nvrPick.nvr && safeIn > Number(nvrPick.nvr.max_in_mbps || 0)) {
     alerts.push({
       level: "danger",
-      text: `Débit total ${totalInMbps.toFixed(1)} Mbps > limite NVR (${nvrPick.nvr.max_in_mbps} Mbps).`,
+      text: `Débit total ${safeIn.toFixed(1)} Mbps > limite NVR (${nvrPick.nvr.max_in_mbps} Mbps).`,
     });
   }
 
@@ -1634,8 +1873,38 @@ function sanity() {
     });
   }
 
-  return { totalCameras, totalInMbps, totalPoeW, nvrPick, switches, requiredTB, disks, alerts };
+  return {
+    totalCameras,
+    totalInMbps: safeIn,
+    totalPoeW,
+    nvrPick,
+    switches,
+    requiredTB,
+    disks,
+    alerts,
+
+    // ✅ Ajouts pro pour le PDF
+    perCamera,
+    storageParams: {
+      daysRetention,
+      hoursPerDay,
+      overheadPct,
+      codec,
+      ips,      // affiché "IPS"
+      mode,
+    },
+  };
 }
+
+// petite util locale safe (si tu n’en as pas déjà)
+function clampNum(v, min, max, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+
+
 function recommendScreenForProject(totalCameras) {
   const screens = CATALOG.SCREENS || [];
   if (!screens.length) return null;
@@ -1870,52 +2139,174 @@ function getSelectedOrRecommendedEnclosure(proj) {
   function setFinalContent(proj) {
   DOM.primaryRecoEl.innerHTML = renderFinalSummary(proj);
   renderAlerts(proj.alerts);
+
+}function getThumbSrc(family, ref) {
+  // Images locales servies par ton backend
+  // Exemple : http://127.0.0.1:8000/media/Images/cameras/IT04N2ZA.png
+  if (!ref) return "";
+  return `http://127.0.0.1:8000/media/Images/${family}/${encodeURIComponent(ref)}.png`;
+}
+
+function imgTag(family, ref) {
+  const src = getThumbSrc(family, ref);
+  if (!src) return "—";
+  return `<img class="thumb" src="${src}" alt="${ref}"
+    onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=muted>—</span>');" />`;
 }
 
 function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
 
+  const safe = (v) => (typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? ""));
+
   const projectScore = (typeof computeCriticalProjectScore === "function")
     ? computeCriticalProjectScore()
     : null;
 
-  const risk = (typeof computeRiskCounters === "function")
-    ? computeRiskCounters()
-    : { ok: 0, warn: 0, bad: 0 };
+  // Branding COMELIT
+  const LOGO_SRC = "/assets/logo.png";
+  const COMELIT_GREEN = "#00BC70"; // Pantone 7480 C
+  const COMELIT_BLUE  = "#1C1F2B"; // Pantone 543 C
 
-  const safe = (v) => (typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? ""));
-  const line = (qty, ref, name) => `• ${safe(qty)} × ${safe(ref || "—")} — ${safe(name || "")}<br>`;
+  // ---------------------------
+  // Helpers FR
+  // ---------------------------
+  const frCodec = (c) => {
+    const s = String(c || "").toLowerCase().trim();
+    if (s === "h265" || s === "h.265" || s === "hevc") return "H.265";
+    if (s === "h264" || s === "h.264" || s === "avc")  return "H.264";
+    return c ? String(c).toUpperCase() : "—";
+  };
 
+  const frMode = (m) => {
+    const s = String(m || "").toLowerCase().trim();
+    if (["continuous", "continu", "24/7", "24h/24"].includes(s)) return "Continu";
+    if (["motion", "detection", "détection", "sur détection"].includes(s)) return "Sur détection";
+    if (["mixed", "mixte"].includes(s)) return "Mixte";
+    return m ? String(m) : "—";
+  };
+
+  // ---------------------------
+  // IMPORTANT IMAGES
+  // ---------------------------
+  // Les images doivent être SERVIES par le backend, ex:
+  // http://127.0.0.1:8000/media/Images/cameras/IB04N2FA.png
+  // (le chemin Windows local ne marche PAS dans le navigateur)
+  const MEDIA_BASE = "http://127.0.0.1:8000/media/Images";
+
+  const getThumbSrc = (family, ref) => {
+    if (!family || !ref) return "";
+    return `${MEDIA_BASE}/${encodeURIComponent(family)}/${encodeURIComponent(ref)}.png`;
+  };
+
+  const imgTag = (family, ref) => {
+    const src = getThumbSrc(family, ref);
+    if (!src) return `<span class="muted">—</span>`;
+    return `
+      <img class="thumb"
+           src="${src}"
+           alt="${safe(ref)}"
+           crossorigin="anonymous"
+           onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=muted>—</span>');" />
+    `;
+  };
+
+  // ---------------------------
+  // Table produits
+  // ---------------------------
+  const row4 = (qty, ref, name, family) => `
+    <tr>
+      <td class="colQty">${safe(qty)}</td>
+      <td class="colRef">${safe(ref || "—")}</td>
+      <td class="colName">${safe(name || "")}</td>
+      <td class="colImg">${imgTag(family, ref)}</td>
+    </tr>
+  `;
+
+  const table4 = (rowsHtml) => {
+    if (!rowsHtml) return `<div class="muted">—</div>`;
+    return `
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th class="colQty">Qté</th>
+            <th class="colRef">Réf</th>
+            <th class="colName">Désignation</th>
+            <th class="colImg">Image</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    `;
+  };
+
+  // ---------------------------
+  // Header uniforme (ton besoin)
+  // ---------------------------
+  const headerHtml = (subtitle, rightHtml = "") => `
+    <div class="pdfHeader">
+      <div class="headerTop">
+        <div class="headerBrand">
+          <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
+          <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
+        </div>
+
+        <div class="headerRight">
+          ${rightHtml || ""}
+        </div>
+      </div>
+
+      <div class="headerSub">
+        <div class="subTitle">${safe(subtitle || "")}</div>
+        <div class="subMeta">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
+      </div>
+    </div>
+  `;
+
+  // ---------------------------
+  // Extraction produits
+  // ---------------------------
   // Cameras
-  const camsHtml = (MODEL.cameraLines || []).map((l) => {
+  const camsRows = (MODEL.cameraLines || []).map((l) => {
     const cam = (typeof getCameraById === "function") ? getCameraById(l.cameraId) : null;
     if (!cam) return "";
     const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
     const label = blk?.label ? `${blk.label} → ` : "";
-    return `• ${safe(label)}${safe(l.qty || 0)} × ${safe(cam.id)} — ${safe(cam.name)}<br>`;
-  }).join("") || "—<br>";
+    const name = `${label}${cam.name || ""}`;
+    return row4(l.qty || 0, cam.id, name, "cameras");
+  }).filter(Boolean).join("");
 
-  // Accessories
-  const accHtml = (MODEL.accessoryLines || []).map((a) =>
-    line(a.qty || 0, a.accessoryId || "—", a.name || a.accessoryId || "")
-  ).join("") || "—<br>";
+  // Accessories cameras
+  const accRows = (MODEL.accessoryLines || []).map((a) => {
+    const ref = a.accessoryId || "—";
+    const name = a.name || a.accessoryId || "";
+    return row4(a.qty || 0, ref, name, "accessories");
+  }).filter(Boolean).join("");
 
   // NVR
   const nvr = proj?.nvrPick?.nvr || null;
-  const nvrHtml = nvr ? line(1, nvr.id, nvr.name) : "—<br>";
+  const nvrRows = nvr ? row4(1, nvr.id, nvr.name, "nvrs") : "";
 
   // Switches
-  const swHtml = (proj?.switches?.required)
-    ? (proj?.switches?.plan || []).map((p) => line(p.qty || 0, p?.item?.id || "—", p?.item?.name || "")).join("")
-    : "• (non obligatoire)<br>";
+  const swRows = (proj?.switches?.required)
+    ? (proj?.switches?.plan || [])
+        .map((p) => row4(p.qty || 0, p?.item?.id || "—", p?.item?.name || "", "switches"))
+        .filter(Boolean)
+        .join("")
+    : "";
 
-  // Storage
+  // HDD
   const disk = proj?.disks || null;
   const hdd = disk?.hddRef || null;
-  const hddHtml = disk
-    ? line(disk.count || 0, hdd?.id || `${disk.sizeTB}TB`, hdd?.name || `Disques ${disk.sizeTB} TB`)
-    : "—<br>";
+  const hddRows = disk
+    ? row4(
+        disk.count || 0,
+        hdd?.id || `${disk.sizeTB}TB`,
+        hdd?.name || `Disques ${disk.sizeTB} TB`,
+        "hdds"
+      )
+    : "";
 
   // Complements
   const scr = (typeof getSelectedOrRecommendedScreen === "function") ? getSelectedOrRecommendedScreen(proj)?.selected : null;
@@ -1924,91 +2315,145 @@ function buildPdfHtml(proj) {
   const signageEnabled = !!(MODEL?.complements?.signage?.enabled ?? MODEL?.complements?.signage?.enable);
   const sign = (typeof getSelectedOrRecommendedSign === "function") ? (getSelectedOrRecommendedSign()?.sign || null) : null;
 
-  const screenLine = scr ? `${safe(MODEL?.complements?.screen?.qty || 1)} × ${safe(scr.id)} — ${safe(scr.name)}` : "—";
-  const enclosureLine = enc ? `${safe(MODEL?.complements?.enclosure?.qty || 1)} × ${safe(enc.id)} — ${safe(enc.name)}` : "—";
-  const signageLine = (signageEnabled && sign) ? `${safe(MODEL?.complements?.signage?.qty || 1)} × ${safe(sign.id)} — ${safe(sign.name)}` : (signageEnabled ? "—" : "(désactivé)");
+  const compRows = [
+    scr ? row4(MODEL?.complements?.screen?.qty || 1, scr.id, scr.name, "screens") : "",
+    enc ? row4(MODEL?.complements?.enclosure?.qty || 1, enc.id, enc.name, "enclosures") : "",
+    (signageEnabled && sign) ? row4(MODEL?.complements?.signage?.qty || 1, sign.id, sign.name, "signage") : "",
+  ].filter(Boolean).join("");
 
-  const LOGO_SRC = "/assets/logo.png"; // mets le nom exact si besoin
+  // ---------------------------
+  // KPI + stockage params
+  // ---------------------------
+  const totalCameras = proj?.totalCameras ?? 0;
+  const totalMbps    = Number(proj?.totalInMbps ?? 0);
+  const requiredTB   = Number(proj?.requiredTB ?? 0);
 
+  const sp = proj?.storageParams || {};
+  const daysRetention = sp.daysRetention ?? MODEL?.recording?.daysRetention ?? 14;
+  const hoursPerDay   = sp.hoursPerDay   ?? MODEL?.recording?.hoursPerDay   ?? 24;
+  const overheadPct   = sp.overheadPct   ?? MODEL?.recording?.overheadPct   ?? 20;
+  const codec         = frCodec(sp.codec ?? MODEL?.recording?.codec ?? "H.265");
+  const ips           = sp.ips ?? MODEL?.recording?.fps ?? 15;
+  const mode          = frMode(sp.mode ?? MODEL?.recording?.mode ?? "Continu");
+
+  // Annexe débit par caméra
+  const perCamRows = (proj?.perCamera || []).map((r) => `
+    <tr>
+      <td class="colQty">${safe(r.qty)}</td>
+      <td class="colRef">${safe(r.cameraId)}</td>
+      <td class="colName">${safe(r.blockLabel ? (r.blockLabel + " — " + r.cameraName) : r.cameraName)}</td>
+      <td class="colNum">${safe(Number(r.mbpsPerCam || 0).toFixed(2))}</td>
+      <td class="colNum">${safe(Number(r.mbpsLine || 0).toFixed(2))}</td>
+    </tr>
+  `).join("");
+
+  // ---------------------------
+  // HTML
+  // ---------------------------
   return `
-<div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:#0b1f3a; background:#ffffff;">
+<div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:${COMELIT_BLUE}; background:#ffffff;">
   <style>
     * { box-sizing: border-box; }
     html, body { width:100%; background:#ffffff; }
-    img { max-width: 100%; height: auto; display:block; }
 
     :root{
-      --c-green: #22c55e;         /* fallback (tu peux mettre ton 7480C exact) */
-      --c-blue:  #0b1f3a;         /* fallback (tu peux mettre ton 532C exact) */
+      --c-green: ${COMELIT_GREEN};
+      --c-blue:  ${COMELIT_BLUE};
       --c-white: #ffffff;
       --c-muted: #475569;
       --c-line:  #e5e7eb;
       --c-soft:  #f8fafc;
-
-      /* IMPORTANT: pas de color-mix() pour html2canvas */
-      --c-blue-soft: #f1f5f9;
-      --c-green-bd:  #bfeedd;
-      --c-green-bg:  #e9fbf4;
+      --c-blue-soft: #eef2f7;
     }
 
-    .pdfPage{ padding:22px 22px 18px; background:var(--c-white); }
+    /* ✅ NO PAGES BLANCHES: on gère le saut ici */
+    .pdfPage{
+      padding:18mm 14mm 14mm;
+      background:var(--c-white);
+      page-break-after: always;
+      break-after: page;
+    }
+    .pdfPage.last{
+      page-break-after: auto;
+      break-after: auto;
+    }
 
+    /* Header uniforme */
     .pdfHeader{
+      padding-bottom:10px;
       border-bottom:3px solid var(--c-blue);
-      padding-bottom:12px;
-      margin-bottom:14px;
+      margin-bottom:12px;
     }
-
-    .brandRow{ display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
-    .brandLeft{ display:flex; gap:12px; align-items:flex-start; }
-
-    .brandLogo{ width:140px; height:auto; object-fit:contain; }
-
-    .pdfTitle{
-      font-family: "Arial Black", Arial, sans-serif;
-      font-size:20px;
-      margin:0;
-      line-height:1.1;
+    .headerTop{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+    }
+    .headerBrand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width:0;
+    }
+    .brandLogo{ width:120px; height:auto; object-fit:contain; }
+    .mainTitle{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:18px;
+      line-height:1.05;
       color:var(--c-blue);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
-
-    .pdfMeta{ font-size:11px; color:var(--c-muted); margin-top:6px; line-height:1.25; }
-
-    .pill{
-      display:inline-block;
-      padding:4px 10px;
-      border-radius:999px;
+    .headerRight{
+      text-align:right;
       font-size:11px;
-      font-weight:800;
-      border:1px solid var(--c-line);
+      color:var(--c-muted);
+      line-height:1.25;
+      white-space:nowrap;
+    }
+    .headerSub{
+      margin-top:8px;
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      gap:10px;
+    }
+    .subTitle{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:14px;
       color:var(--c-blue);
-      background:#fff;
     }
-    .pillGreen{ border-color: var(--c-green-bd); background: var(--c-green-bg); }
+    .subMeta{
+      font-size:10.5px;
+      color:var(--c-muted);
+      white-space:nowrap;
+    }
 
-    .kpiTable{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:10px;
-      margin-top:10px;
+    .kpiRow{
+      display:flex;
+      gap:10px;
+      margin:10px 0 12px;
     }
-    .kpiCell{
+    .kpi{
+      flex:1;
       border:1px solid var(--c-line);
       border-radius:12px;
       background:var(--c-soft);
       padding:10px;
-      vertical-align:top;
     }
     .kpiLabel{ font-size:11px; color:var(--c-muted); }
     .kpiValue{ margin-top:4px; font-size:14px; font-weight:900; color:var(--c-blue); }
 
     .section{
-      margin-top:12px;
+      margin-top:10px;
       padding:12px;
       border:1px solid var(--c-line);
       border-radius:12px;
-      page-break-inside: avoid;
       background:#fff;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .sectionTitle{
       font-family:"Arial Black", Arial, sans-serif;
@@ -2021,108 +2466,210 @@ function buildPdfHtml(proj) {
       color:var(--c-muted);
       font-size:11px;
       line-height:1.35;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
+      overflow-wrap:anywhere;
+      word-break:break-word;
     }
 
     .footerLine{
-      margin-top:14px;
+      margin-top:12px;
       text-align:center;
       font-size:10px;
       color:var(--c-muted);
     }
+
+    /* Tables */
+    .tbl{
+      width:100%;
+      border-collapse:collapse;
+      font-size:11px;
+      table-layout:fixed;
+      word-break:break-word;
+    }
+    .tbl th, .tbl td{
+      border:1px solid var(--c-line);
+      padding:7px 8px;
+      vertical-align:top;
+    }
+    .tbl th{
+      background: var(--c-blue-soft);
+      text-align:left;
+      font-weight:900;
+      color:var(--c-blue);
+    }
+
+    .colQty{ width:54px; }
+    .colRef{ width:130px; }
+    .colImg{ width:76px; text-align:center; }
+    .colNum{ width:86px; text-align:right; }
+
+    .thumb{
+      width:52px;
+      height:52px;
+      object-fit:contain;
+      border:1px solid var(--c-line);
+      border-radius:10px;
+      background:#fff;
+      display:inline-block;
+    }
+
+    /* Annexe compacte */
+    .annexGrid{
+      display:flex;
+      gap:12px;
+      align-items:stretch;
+    }
+    .annexColL{ flex: 0 0 42%; }
+    .annexColR{ flex: 1 1 auto; }
+    .pdfPage.annex .section{ padding:10px; }
+    .pdfPage.annex .tbl{ font-size:10px; }
+    .pdfPage.annex .tbl th, .pdfPage.annex .tbl td{ padding:6px 7px; }
   </style>
 
+  <!-- PAGE 1 -->
   <div class="pdfPage">
-    <div class="pdfHeader">
-      <div class="brandRow">
-        <div class="brandLeft">
-          <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
-          <div>
-            <h1 class="pdfTitle">Rapport de configuration Vidéosurveillance</h1>
-            <div class="pdfMeta">
-              Généré le ${safe(dateStr)}<br>
-              Configurateur Comelit (MVP)
-              <span class="pill pillGreen" style="margin-left:6px">PDF</span>
-            </div>
-          </div>
-        </div>
+    ${headerHtml(
+      "Caméras & accessoires",
+      `
+        <div><strong>${safe(totalCameras)}</strong> caméras</div>
+        <div>Score : <strong>${projectScore != null ? safe(projectScore) + "/100" : "—"}</strong></div>
+      `
+    )}
 
-        <div style="text-align:right">
-          <div class="pdfMeta">Total caméras</div>
-          <div style="font-family:'Arial Black', Arial, sans-serif;font-size:22px;color:var(--c-blue)">${safe(proj?.totalCameras ?? 0)}</div>
-
-          <div style="margin-top:10px" class="pdfMeta">Score projet</div>
-          <div style="font-family:'Arial Black', Arial, sans-serif;font-size:18px;color:var(--c-blue)">
-            ${projectScore != null ? `${safe(projectScore)}/100` : "—"}
-          </div>
-
-          <div class="muted" style="margin-top:6px">
-            <span class="pill" style="border-color:var(--c-green-bd)">OK ${safe(risk.ok)}</span>
-            <span class="pill" style="margin-left:6px">LIM ${safe(risk.warn)}</span>
-            <span class="pill" style="margin-left:6px">BAD ${safe(risk.bad)}</span>
-          </div>
-        </div>
+    <div class="kpiRow">
+      <div class="kpi">
+        <div class="kpiLabel">Débit total estimé</div>
+        <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
+        <div class="muted">Basé sur “bitrate_mbps_typical” quand disponible.</div>
+      </div>
+      <div class="kpi">
+        <div class="kpiLabel">Stockage requis</div>
+        <div class="kpiValue">~${safe(requiredTB.toFixed(1))} TB</div>
+        <div class="muted">Détail complet en Annexe 1.</div>
+      </div>
+      <div class="kpi">
+        <div class="kpiLabel">Paramètres d’enregistrement</div>
+        <div class="kpiValue">${safe(daysRetention)} jours</div>
+        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • marge ${safe(overheadPct)}%</div>
       </div>
     </div>
 
-    <table class="kpiTable">
-      <tr>
-        <td class="kpiCell">
-          <div class="kpiLabel">Débit total estimé</div>
-          <div class="kpiValue">${safe((proj?.totalInMbps ?? 0).toFixed ? proj.totalInMbps.toFixed(1) : 0)} Mbps</div>
-          <div class="muted">Selon fps / codec / mode / qualité.</div>
-        </td>
-        <td class="kpiCell">
-          <div class="kpiLabel">Stockage requis</div>
-          <div class="kpiValue">~${safe((proj?.requiredTB ?? 0).toFixed ? proj.requiredTB.toFixed(1) : 0)} TB</div>
-          <div class="muted">Inclut la marge de calcul.</div>
-        </td>
-        <td class="kpiCell">
-          <div class="kpiLabel">Rappel</div>
-          <div class="kpiValue">${safe(proj?.totalCameras ?? 0)} caméras</div>
-          <div class="muted">Synthèse du projet.</div>
-        </td>
-      </tr>
-    </table>
-
     <div class="section">
       <div class="sectionTitle">Caméras</div>
-      <div class="muted">${camsHtml}</div>
+      ${table4(camsRows)}
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Supports / accessoires</div>
-      <div class="muted">${accHtml}</div>
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">NVR</div>
-      <div class="muted">${nvrHtml}</div>
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">Switch PoE</div>
-      <div class="muted">${swHtml}</div>
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">Stockage</div>
-      <div class="muted">${hddHtml}</div>
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">Produits complémentaires</div>
-      <div class="muted"><strong>Écran :</strong> ${screenLine}</div>
-      <div class="muted" style="margin-top:6px"><strong>Boîtier :</strong> ${enclosureLine}</div>
-      <div class="muted" style="margin-top:6px"><strong>Panneau :</strong> ${signageLine}</div>
+      <div class="sectionTitle">Accessoires caméras</div>
+      ${table4(accRows)}
     </div>
 
     <div class="footerLine">Comelit — With you always</div>
   </div>
+
+  <!-- PAGE 2 -->
+  <div class="pdfPage">
+    ${headerHtml(
+      "Enregistreur, réseau, stockage & compléments",
+      `<div>Rappel : <strong>${safe(totalCameras)}</strong> caméras</div>`
+    )}
+
+    <div class="section">
+      <div class="sectionTitle">Enregistreur (NVR)</div>
+      ${table4(nvrRows)}
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Commutateurs PoE</div>
+      ${proj?.switches?.required ? table4(swRows) : `<div class="muted">• (non obligatoire)</div>`}
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Stockage (disques)</div>
+      ${table4(hddRows)}
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Produits complémentaires</div>
+      ${table4(compRows)}
+      ${(!signageEnabled) ? `<div class="muted" style="margin-top:6px">Panneau de signalisation : désactivé</div>` : ``}
+    </div>
+
+    <div class="footerLine">Comelit — With you always</div>
+  </div>
+
+  <!-- PAGE 3 : ANNEXE -->
+  <div class="pdfPage annex last">
+    ${headerHtml(
+      "Annexe 1 — Dimensionnement du stockage",
+      `<div>Stockage : <strong>~${safe(requiredTB.toFixed(1))} TB</strong></div>`
+    )}
+
+    <div class="annexGrid">
+      <div class="annexColL">
+        <div class="section">
+          <div class="sectionTitle">Hypothèses</div>
+          <table class="tbl">
+            <thead>
+              <tr><th>Paramètre</th><th>Valeur</th><th>Commentaire</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Jours de conservation</td><td>${safe(daysRetention)}</td><td>Durée d’archivage cible</td></tr>
+              <tr><td>Heures / jour</td><td>${safe(hoursPerDay)}</td><td>24h typique si enregistrement continu</td></tr>
+              <tr><td>Mode</td><td>${safe(mode)}</td><td>Continu / Sur détection / Mixte</td></tr>
+              <tr><td>Codec</td><td>${safe(codec)}</td><td>H.264 / H.265</td></tr>
+              <tr><td>IPS</td><td>${safe(ips)}</td><td>Images par seconde</td></tr>
+              <tr><td>Marge</td><td>${safe(overheadPct)}%</td><td>Sécurité / overhead / arrondi</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="section">
+          <div class="sectionTitle">Formule</div>
+          <div class="muted">
+            TB ≈ (Débit total (Mbps) × 3600 × Heures/jour × Jours) ÷ (8 × 1024 × 1024) × (1 + Marge)
+          </div>
+          <div class="muted" style="margin-top:8px">
+            Débit total : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong><br>
+            Résultat : <strong>~${safe(requiredTB.toFixed(2))} TB</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="annexColR">
+        <div class="section">
+          <div class="sectionTitle">Débit par caméra (détail)</div>
+          ${
+            perCamRows
+              ? `
+                <table class="tbl">
+                  <thead>
+                    <tr>
+                      <th class="colQty">Qté</th>
+                      <th class="colRef">Réf</th>
+                      <th class="colName">Désignation</th>
+                      <th class="colNum">Mbps/cam</th>
+                      <th class="colNum">Mbps total</th>
+                    </tr>
+                  </thead>
+                  <tbody>${perCamRows}</tbody>
+                </table>
+                <div class="muted" style="margin-top:8px">
+                  Total (somme) : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong>
+                </div>
+              `
+              : `<div class="muted">—</div>`
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="footerLine">Comelit — With you always</div>
+  </div>
+
 </div>`;
 }
+
+
 
 
 
@@ -3575,25 +4122,27 @@ if (action === "validateCamera") {
   const filename = `rapport_configurateur_${now.toISOString().slice(0, 10)}.pdf`;
 
   try {
-    await window.html2pdf()
-      .set({
-        margin: 10,
-        filename,
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          allowTaint: false,          // ✅ évite des rendus pourris
-          backgroundColor: "#ffffff",
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["css", "legacy"] },
-      })
-      .from(root)
-      .save();
-  } finally {
-    host.remove();
-  }
+  await window.html2pdf()
+    .set({
+      margin: 0, // ✅ laisse le HTML gérer les marges (padding de .pdfPage)
+      filename,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        logging: false,
+      },
+      pagebreak: { mode: ["css", "legacy"] }, // ✅ une seule fois
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    })
+    .from(root)
+    .save();
+} finally {
+  host.remove();
+}
+
 }
 // ==========================================================
 // EXPORT PACK (PDF + FICHES TECHNIQUES) -> ZIP

@@ -202,12 +202,18 @@ def write_csv(
 # ==========================================================
 # Static mounts
 # ==========================================================
-# CSV, datasheets, etc.
+# CSV, images, fiches techniques locales, etc.
 os.makedirs(DATA_DIR, exist_ok=True)
+
+# URL canonique (déjà utilisé par ton admin panel)
 app.mount('/data', StaticFiles(directory=DATA_DIR), name='data')
+
+# Alias pratique pour le frontend/PDF (si ton buildPdfHtml pointe sur /media/...)
+app.mount('/media', StaticFiles(directory=DATA_DIR), name='media')
 
 # Front static assets (js/css/images)
 app.mount('/app', StaticFiles(directory=FRONTEND_DIR, html=True), name='frontend')
+
 
 
 # ==========================================================

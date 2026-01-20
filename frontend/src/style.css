@@ -801,3 +801,13 @@ input, select, textarea{
   .appHeader{ position: static; box-shadow: none; background: #fff; color: #111; }
   .card, .recoCard{ box-shadow: none; }
 }
+
+.thumb{
+  width:52px;
+  height:52px;
+  object-fit:contain;
+  border:1px solid var(--c-line);
+  border-radius:10px;
+  background:#fff;
+  display:inline-block;
+}
