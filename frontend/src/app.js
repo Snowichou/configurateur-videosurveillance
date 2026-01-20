@@ -2158,63 +2158,50 @@ function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
 
-  const safe = (v) => (typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? ""));
+  const safe = (v) =>
+    typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? "");
 
-  const projectScore = (typeof computeCriticalProjectScore === "function")
-    ? computeCriticalProjectScore()
-    : null;
+  const projectScore =
+    typeof computeCriticalProjectScore === "function"
+      ? computeCriticalProjectScore()
+      : null;
 
   // Branding COMELIT
   const LOGO_SRC = "/assets/logo.png";
   const COMELIT_GREEN = "#00BC70"; // Pantone 7480 C
-  const COMELIT_BLUE  = "#1C1F2B"; // Pantone 543 C
+  const COMELIT_BLUE = "#1C1F2B";  // Pantone 543 C
 
-  // ---------------------------
   // Helpers FR
-  // ---------------------------
   const frCodec = (c) => {
     const s = String(c || "").toLowerCase().trim();
-    if (s === "h265" || s === "h.265" || s === "hevc") return "H.265";
-    if (s === "h264" || s === "h.264" || s === "avc")  return "H.264";
+    if (s === "h265" || s === "h.265") return "H.265";
+    if (s === "h264" || s === "h.264") return "H.264";
     return c ? String(c).toUpperCase() : "—";
   };
 
   const frMode = (m) => {
     const s = String(m || "").toLowerCase().trim();
-    if (["continuous", "continu", "24/7", "24h/24"].includes(s)) return "Continu";
-    if (["motion", "detection", "détection", "sur détection"].includes(s)) return "Sur détection";
-    if (["mixed", "mixte"].includes(s)) return "Mixte";
+    if (s === "continuous" || s === "continu" || s === "24/7") return "Continu";
+    if (s === "motion" || s === "détection" || s === "detection") return "Sur détection";
+    if (s === "mixed" || s === "mixte") return "Mixte";
     return m ? String(m) : "—";
   };
 
-  // ---------------------------
-  // IMPORTANT IMAGES
-  // ---------------------------
-  // Les images doivent être SERVIES par le backend, ex:
-  // http://127.0.0.1:8000/media/Images/cameras/IB04N2FA.png
-  // (le chemin Windows local ne marche PAS dans le navigateur)
-  const MEDIA_BASE = "http://127.0.0.1:8000/media/Images";
-
+  // ✅ IMPORTANT : images locales via /data (ton app.py sert DATA_DIR sur /data)
+  // Exemple attendu : http://127.0.0.1:8000/data/Images/cameras/IB04N2FA.png
   const getThumbSrc = (family, ref) => {
-    if (!family || !ref) return "";
-    return `${MEDIA_BASE}/${encodeURIComponent(family)}/${encodeURIComponent(ref)}.png`;
+    if (!ref) return "";
+    return `http://127.0.0.1:8000/data/Images/${family}/${encodeURIComponent(ref)}.png`;
   };
 
   const imgTag = (family, ref) => {
     const src = getThumbSrc(family, ref);
-    if (!src) return `<span class="muted">—</span>`;
-    return `
-      <img class="thumb"
-           src="${src}"
-           alt="${safe(ref)}"
-           crossorigin="anonymous"
-           onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=muted>—</span>');" />
-    `;
+    if (!src) return "—";
+    return `<img class="thumb" crossorigin="anonymous" src="${src}" alt="${safe(ref)}"
+      onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=muted>—</span>');" />`;
   };
 
-  // ---------------------------
-  // Table produits
-  // ---------------------------
+  // Tableau produits (Qté / Réf / Désignation / Image)
   const row4 = (qty, ref, name, family) => `
     <tr>
       <td class="colQty">${safe(qty)}</td>
@@ -2231,7 +2218,7 @@ function buildPdfHtml(proj) {
         <thead>
           <tr>
             <th class="colQty">Qté</th>
-            <th class="colRef">Réf</th>
+            <th class="colRef">Référence</th>
             <th class="colName">Désignation</th>
             <th class="colImg">Image</th>
           </tr>
@@ -2241,115 +2228,118 @@ function buildPdfHtml(proj) {
     `;
   };
 
-  // ---------------------------
-  // Header uniforme (ton besoin)
-  // ---------------------------
-  const headerHtml = (subtitle, rightHtml = "") => `
+  // ✅ Header commun (GRID) : logo | titres | score (aligné)
+  // ✅ Titre CENTRÉ (dans sa colonne), sans crop
+  const headerHtml = (subtitle) => `
     <div class="pdfHeader">
-      <div class="headerTop">
-        <div class="headerBrand">
-          <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
+      <div class="headerGrid">
+        <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
+
+        <div class="headerTitles">
           <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
+          <div class="metaLine">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
         </div>
 
-        <div class="headerRight">
-          ${rightHtml || ""}
+        <div class="scorePill">
+          <span class="scoreLabel">Score</span>
+          <span class="scoreValue">${projectScore != null ? `${safe(projectScore)}/100` : "—"}</span>
         </div>
       </div>
 
-      <div class="headerSub">
-        <div class="subTitle">${safe(subtitle || "")}</div>
-        <div class="subMeta">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
-      </div>
+      <div class="headerSub">${safe(subtitle)}</div>
     </div>
   `;
 
-  // ---------------------------
   // Extraction produits
-  // ---------------------------
-  // Cameras
-  const camsRows = (MODEL.cameraLines || []).map((l) => {
-    const cam = (typeof getCameraById === "function") ? getCameraById(l.cameraId) : null;
-    if (!cam) return "";
-    const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
-    const label = blk?.label ? `${blk.label} → ` : "";
-    const name = `${label}${cam.name || ""}`;
-    return row4(l.qty || 0, cam.id, name, "cameras");
-  }).filter(Boolean).join("");
+  const camsRows = (MODEL.cameraLines || [])
+    .map((l) => {
+      const cam = typeof getCameraById === "function" ? getCameraById(l.cameraId) : null;
+      if (!cam) return "";
+      const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
+      const label = blk?.label ? `${blk.label} — ` : "";
+      return row4(l.qty || 0, cam.id, `${label}${cam.name || ""}`, "cameras");
+    })
+    .filter(Boolean)
+    .join("");
 
-  // Accessories cameras
-  const accRows = (MODEL.accessoryLines || []).map((a) => {
-    const ref = a.accessoryId || "—";
-    const name = a.name || a.accessoryId || "";
-    return row4(a.qty || 0, ref, name, "accessories");
-  }).filter(Boolean).join("");
+  const accRows = (MODEL.accessoryLines || [])
+    .map((a) => row4(a.qty || 0, a.accessoryId || "—", a.name || a.accessoryId || "", "accessories"))
+    .filter(Boolean)
+    .join("");
 
-  // NVR
   const nvr = proj?.nvrPick?.nvr || null;
   const nvrRows = nvr ? row4(1, nvr.id, nvr.name, "nvrs") : "";
 
-  // Switches
-  const swRows = (proj?.switches?.required)
+  const swRows = proj?.switches?.required
     ? (proj?.switches?.plan || [])
         .map((p) => row4(p.qty || 0, p?.item?.id || "—", p?.item?.name || "", "switches"))
         .filter(Boolean)
         .join("")
     : "";
 
-  // HDD
   const disk = proj?.disks || null;
   const hdd = disk?.hddRef || null;
   const hddRows = disk
-    ? row4(
-        disk.count || 0,
-        hdd?.id || `${disk.sizeTB}TB`,
-        hdd?.name || `Disques ${disk.sizeTB} TB`,
-        "hdds"
-      )
+    ? row4(disk.count || 0, hdd?.id || `${disk.sizeTB}TB`, hdd?.name || `Disques ${disk.sizeTB} TB`, "hdds")
     : "";
 
-  // Complements
-  const scr = (typeof getSelectedOrRecommendedScreen === "function") ? getSelectedOrRecommendedScreen(proj)?.selected : null;
-  const enc = (typeof getSelectedOrRecommendedEnclosure === "function") ? getSelectedOrRecommendedEnclosure(proj)?.selected : null;
+  const scr =
+    typeof getSelectedOrRecommendedScreen === "function"
+      ? getSelectedOrRecommendedScreen(proj)?.selected
+      : null;
+
+  const enc =
+    typeof getSelectedOrRecommendedEnclosure === "function"
+      ? getSelectedOrRecommendedEnclosure(proj)?.selected
+      : null;
 
   const signageEnabled = !!(MODEL?.complements?.signage?.enabled ?? MODEL?.complements?.signage?.enable);
-  const sign = (typeof getSelectedOrRecommendedSign === "function") ? (getSelectedOrRecommendedSign()?.sign || null) : null;
+  const sign =
+    typeof getSelectedOrRecommendedSign === "function"
+      ? (getSelectedOrRecommendedSign()?.sign || null)
+      : null;
 
   const compRows = [
     scr ? row4(MODEL?.complements?.screen?.qty || 1, scr.id, scr.name, "screens") : "",
     enc ? row4(MODEL?.complements?.enclosure?.qty || 1, enc.id, enc.name, "enclosures") : "",
-    (signageEnabled && sign) ? row4(MODEL?.complements?.signage?.qty || 1, sign.id, sign.name, "signage") : "",
-  ].filter(Boolean).join("");
+    signageEnabled && sign
+      ? row4(MODEL?.complements?.signage?.qty || 1, sign.id, sign.name, "signage")
+      : "",
+  ]
+    .filter(Boolean)
+    .join("");
 
-  // ---------------------------
-  // KPI + stockage params
-  // ---------------------------
-  const totalCameras = proj?.totalCameras ?? 0;
-  const totalMbps    = Number(proj?.totalInMbps ?? 0);
-  const requiredTB   = Number(proj?.requiredTB ?? 0);
+  // KPI
+  const totalMbps = Number(proj?.totalInMbps ?? 0);
+  const requiredTB = Number(proj?.requiredTB ?? 0);
 
+  // Paramètres enregistrement (MODEL.recording)
   const sp = proj?.storageParams || {};
   const daysRetention = sp.daysRetention ?? MODEL?.recording?.daysRetention ?? 14;
-  const hoursPerDay   = sp.hoursPerDay   ?? MODEL?.recording?.hoursPerDay   ?? 24;
-  const overheadPct   = sp.overheadPct   ?? MODEL?.recording?.overheadPct   ?? 20;
-  const codec         = frCodec(sp.codec ?? MODEL?.recording?.codec ?? "H.265");
-  const ips           = sp.ips ?? MODEL?.recording?.fps ?? 15;
-  const mode          = frMode(sp.mode ?? MODEL?.recording?.mode ?? "Continu");
+  const hoursPerDay = sp.hoursPerDay ?? MODEL?.recording?.hoursPerDay ?? 24;
+  const overheadPct = sp.overheadPct ?? MODEL?.recording?.overheadPct ?? 15;
+  const codec = frCodec(sp.codec ?? MODEL?.recording?.codec ?? "H.265");
+  const ips = sp.ips ?? MODEL?.recording?.fps ?? 12;
+  const mode = frMode(sp.mode ?? MODEL?.recording?.mode ?? "Continu");
 
-  // Annexe débit par caméra
-  const perCamRows = (proj?.perCamera || []).map((r) => `
-    <tr>
-      <td class="colQty">${safe(r.qty)}</td>
-      <td class="colRef">${safe(r.cameraId)}</td>
-      <td class="colName">${safe(r.blockLabel ? (r.blockLabel + " — " + r.cameraName) : r.cameraName)}</td>
-      <td class="colNum">${safe(Number(r.mbpsPerCam || 0).toFixed(2))}</td>
-      <td class="colNum">${safe(Number(r.mbpsLine || 0).toFixed(2))}</td>
-    </tr>
-  `).join("");
+  // Annexe : débit par caméra (cap pour tenir sur 1 page)
+  const MAX_ANNEX_ROWS = 22;
+  const perCam = Array.isArray(proj?.perCamera) ? proj.perCamera : [];
+  const perCamShown = perCam.slice(0, MAX_ANNEX_ROWS);
+  const perCamHiddenCount = Math.max(0, perCam.length - perCamShown.length);
 
-  // ---------------------------
-  // HTML
-  // ---------------------------
+  const perCamRows = perCamShown
+    .map((r) => `
+      <tr>
+        <td class="aQty">${safe(r.qty)}</td>
+        <td class="aRef">${safe(r.cameraId)}</td>
+        <td class="aName">${safe(r.blockLabel ? (r.blockLabel + " — " + r.cameraName) : r.cameraName)}</td>
+        <td class="aNum">${safe(Number(r.mbpsPerCam || 0).toFixed(2))}</td>
+        <td class="aNum">${safe(Number(r.mbpsLine || 0).toFixed(2))}</td>
+      </tr>
+    `)
+    .join("");
+
   return `
 <div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:${COMELIT_BLUE}; background:#ffffff;">
   <style>
@@ -2366,78 +2356,100 @@ function buildPdfHtml(proj) {
       --c-blue-soft: #eef2f7;
     }
 
-    /* ✅ NO PAGES BLANCHES: on gère le saut ici */
+    /* ✅ page-break directement sur les pages => pas de page blanche parasite */
     .pdfPage{
-      padding:18mm 14mm 14mm;
+      padding:18px 18px 14px;
       background:var(--c-white);
       page-break-after: always;
       break-after: page;
     }
-    .pdfPage.last{
+    .pdfPage:last-child{
       page-break-after: auto;
       break-after: auto;
     }
 
-    /* Header uniforme */
+    /* Header */
     .pdfHeader{
-      padding-bottom:10px;
       border-bottom:3px solid var(--c-blue);
+      padding-bottom:10px;
       margin-bottom:12px;
     }
-    .headerTop{
-      display:flex;
-      justify-content:space-between;
+
+    /* ✅ Grid stable + titre centré */
+    .headerGrid{
+      display:grid;
+      grid-template-columns: 120px 1fr auto; /* logo | titres | score */
+      column-gap: 12px;
       align-items:center;
-      gap:12px;
     }
-    .headerBrand{
-      display:flex;
-      align-items:center;
-      gap:12px;
+    .brandLogo{
+      width:120px;
+      height:auto;
+      object-fit:contain;
+    }
+
+    .headerTitles{
       min-width:0;
+      text-align:center; /* ✅ CENTRAGE */
+      padding: 0 8px;    /* petit air pour éviter de coller le score */
     }
-    .brandLogo{ width:120px; height:auto; object-fit:contain; }
+
     .mainTitle{
       font-family:"Arial Black", Arial, sans-serif;
       font-size:18px;
-      line-height:1.05;
+      line-height:1.15;
       color:var(--c-blue);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .headerRight{
-      text-align:right;
-      font-size:11px;
-      color:var(--c-muted);
-      line-height:1.25;
-      white-space:nowrap;
-    }
-    .headerSub{
-      margin-top:8px;
-      display:flex;
-      justify-content:space-between;
-      align-items:baseline;
-      gap:10px;
-    }
-    .subTitle{
-      font-family:"Arial Black", Arial, sans-serif;
-      font-size:14px;
-      color:var(--c-blue);
-    }
-    .subMeta{
-      font-size:10.5px;
-      color:var(--c-muted);
-      white-space:nowrap;
+      margin:0;
+
+      /* ✅ pas de crop */
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
     }
 
-    .kpiRow{
-      display:flex;
-      gap:10px;
-      margin:10px 0 12px;
+    .metaLine{
+      margin-top:4px;
+      font-size:10.5px;
+      color:var(--c-muted);
+      line-height:1.25;
     }
-    .kpi{
-      flex:1;
+
+    .scorePill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border:1px solid var(--c-line);
+      border-left:6px solid var(--c-green);
+      border-radius:999px;
+      background:var(--c-soft);
+      padding:6px 10px;
+      white-space: nowrap;
+      justify-self:end;
+    }
+    .scoreLabel{
+      font-size:10px;
+      color:var(--c-muted);
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+    }
+    .scoreValue{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:12px;
+      color:var(--c-blue);
+    }
+
+    .headerSub{
+      margin-top:8px;
+      font-size:12.5px;
+      font-weight:900;
+      color:var(--c-blue);
+    }
+
+    /* KPI page 1 */
+    .kpiRow{ display:flex; gap:10px; margin-top:6px; }
+    .kpiBox{
+      flex:1 1 0;
       border:1px solid var(--c-line);
       border-radius:12px;
       background:var(--c-soft);
@@ -2445,10 +2457,12 @@ function buildPdfHtml(proj) {
     }
     .kpiLabel{ font-size:11px; color:var(--c-muted); }
     .kpiValue{ margin-top:4px; font-size:14px; font-weight:900; color:var(--c-blue); }
+    .muted{ color:var(--c-muted); font-size:11px; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
 
+    /* Sections */
     .section{
       margin-top:10px;
-      padding:12px;
+      padding:10px;
       border:1px solid var(--c-line);
       border-radius:12px;
       background:#fff;
@@ -2457,33 +2471,18 @@ function buildPdfHtml(proj) {
     }
     .sectionTitle{
       font-family:"Arial Black", Arial, sans-serif;
-      font-size:13px;
+      font-size:12.5px;
       margin:0 0 8px 0;
       color:var(--c-blue);
     }
 
-    .muted{
-      color:var(--c-muted);
-      font-size:11px;
-      line-height:1.35;
-      overflow-wrap:anywhere;
-      word-break:break-word;
-    }
-
-    .footerLine{
-      margin-top:12px;
-      text-align:center;
-      font-size:10px;
-      color:var(--c-muted);
-    }
-
-    /* Tables */
+    /* Tables produits */
     .tbl{
       width:100%;
       border-collapse:collapse;
       font-size:11px;
       table-layout:fixed;
-      word-break:break-word;
+      overflow-wrap:anywhere;
     }
     .tbl th, .tbl td{
       border:1px solid var(--c-line);
@@ -2491,17 +2490,14 @@ function buildPdfHtml(proj) {
       vertical-align:top;
     }
     .tbl th{
-      background: var(--c-blue-soft);
+      background:var(--c-blue-soft);
       text-align:left;
       font-weight:900;
       color:var(--c-blue);
     }
-
     .colQty{ width:54px; }
     .colRef{ width:130px; }
     .colImg{ width:76px; text-align:center; }
-    .colNum{ width:86px; text-align:right; }
-
     .thumb{
       width:52px;
       height:52px;
@@ -2512,44 +2508,59 @@ function buildPdfHtml(proj) {
       display:inline-block;
     }
 
-    /* Annexe compacte */
-    .annexGrid{
-      display:flex;
-      gap:12px;
-      align-items:stretch;
+    /* Annexe (toujours 1 page) */
+    .annexGrid{ display:flex; gap:10px; align-items:stretch; }
+    .annexColL{ flex:0 0 40%; }
+    .annexColR{ flex:1 1 auto; }
+
+    .tblAnnex{
+      width:100%;
+      border-collapse:collapse;
+      font-size:9.5px;
+      overflow-wrap:anywhere;
     }
-    .annexColL{ flex: 0 0 42%; }
-    .annexColR{ flex: 1 1 auto; }
-    .pdfPage.annex .section{ padding:10px; }
-    .pdfPage.annex .tbl{ font-size:10px; }
-    .pdfPage.annex .tbl th, .pdfPage.annex .tbl td{ padding:6px 7px; }
+    .tblAnnex th, .tblAnnex td{
+      border:1px solid var(--c-line);
+      padding:5px 6px;
+      vertical-align:top;
+    }
+    .tblAnnex th{
+      background:var(--c-blue-soft);
+      text-align:left;
+      font-weight:900;
+      color:var(--c-blue);
+    }
+    .aQty{ width:36px; }
+    .aRef{ width:92px; }
+    .aNum{ width:70px; text-align:right; }
+
+    .footerLine{
+      margin-top:10px;
+      text-align:center;
+      font-size:10px;
+      color:var(--c-muted);
+    }
   </style>
 
   <!-- PAGE 1 -->
   <div class="pdfPage">
-    ${headerHtml(
-      "Caméras & accessoires",
-      `
-        <div><strong>${safe(totalCameras)}</strong> caméras</div>
-        <div>Score : <strong>${projectScore != null ? safe(projectScore) + "/100" : "—"}</strong></div>
-      `
-    )}
+    ${headerHtml("Caméras & accessoires caméras")}
 
     <div class="kpiRow">
-      <div class="kpi">
+      <div class="kpiBox">
         <div class="kpiLabel">Débit total estimé</div>
         <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
-        <div class="muted">Basé sur “bitrate_mbps_typical” quand disponible.</div>
+        <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
       </div>
-      <div class="kpi">
+      <div class="kpiBox">
         <div class="kpiLabel">Stockage requis</div>
-        <div class="kpiValue">~${safe(requiredTB.toFixed(1))} TB</div>
-        <div class="muted">Détail complet en Annexe 1.</div>
+        <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
+        <div class="muted">Détail dans l’Annexe 1.</div>
       </div>
-      <div class="kpi">
+      <div class="kpiBox">
         <div class="kpiLabel">Paramètres d’enregistrement</div>
         <div class="kpiValue">${safe(daysRetention)} jours</div>
-        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • marge ${safe(overheadPct)}%</div>
+        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
       </div>
     </div>
 
@@ -2568,10 +2579,7 @@ function buildPdfHtml(proj) {
 
   <!-- PAGE 2 -->
   <div class="pdfPage">
-    ${headerHtml(
-      "Enregistreur, réseau, stockage & compléments",
-      `<div>Rappel : <strong>${safe(totalCameras)}</strong> caméras</div>`
-    )}
+    ${headerHtml("Équipements & options (NVR / réseau / stockage / compléments)")}
 
     <div class="section">
       <div class="sectionTitle">Enregistreur (NVR)</div>
@@ -2580,57 +2588,52 @@ function buildPdfHtml(proj) {
 
     <div class="section">
       <div class="sectionTitle">Commutateurs PoE</div>
-      ${proj?.switches?.required ? table4(swRows) : `<div class="muted">• (non obligatoire)</div>`}
+      ${proj?.switches?.required ? table4(swRows) : `<div class="muted">(non obligatoire)</div>`}
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Stockage (disques)</div>
+      <div class="sectionTitle">Stockage</div>
       ${table4(hddRows)}
     </div>
 
     <div class="section">
       <div class="sectionTitle">Produits complémentaires</div>
       ${table4(compRows)}
-      ${(!signageEnabled) ? `<div class="muted" style="margin-top:6px">Panneau de signalisation : désactivé</div>` : ``}
+      ${!signageEnabled ? `<div class="muted" style="margin-top:6px">Panneau de signalisation : (désactivé)</div>` : ``}
     </div>
 
     <div class="footerLine">Comelit — With you always</div>
   </div>
 
-  <!-- PAGE 3 : ANNEXE -->
-  <div class="pdfPage annex last">
-    ${headerHtml(
-      "Annexe 1 — Dimensionnement du stockage",
-      `<div>Stockage : <strong>~${safe(requiredTB.toFixed(1))} TB</strong></div>`
-    )}
+  <!-- PAGE 3 -->
+  <div class="pdfPage">
+    ${headerHtml("Annexe 1 — Dimensionnement du stockage")}
 
     <div class="annexGrid">
       <div class="annexColL">
         <div class="section">
           <div class="sectionTitle">Hypothèses</div>
-          <table class="tbl">
-            <thead>
-              <tr><th>Paramètre</th><th>Valeur</th><th>Commentaire</th></tr>
-            </thead>
+          <table class="tblAnnex">
+            <thead><tr><th>Paramètre</th><th>Valeur</th></tr></thead>
             <tbody>
-              <tr><td>Jours de conservation</td><td>${safe(daysRetention)}</td><td>Durée d’archivage cible</td></tr>
-              <tr><td>Heures / jour</td><td>${safe(hoursPerDay)}</td><td>24h typique si enregistrement continu</td></tr>
-              <tr><td>Mode</td><td>${safe(mode)}</td><td>Continu / Sur détection / Mixte</td></tr>
-              <tr><td>Codec</td><td>${safe(codec)}</td><td>H.264 / H.265</td></tr>
-              <tr><td>IPS</td><td>${safe(ips)}</td><td>Images par seconde</td></tr>
-              <tr><td>Marge</td><td>${safe(overheadPct)}%</td><td>Sécurité / overhead / arrondi</td></tr>
+              <tr><td>Jours de conservation</td><td>${safe(daysRetention)}</td></tr>
+              <tr><td>Heures / jour</td><td>${safe(hoursPerDay)}</td></tr>
+              <tr><td>Mode d’enregistrement</td><td>${safe(mode)}</td></tr>
+              <tr><td>Codec</td><td>${safe(codec)}</td></tr>
+              <tr><td>IPS</td><td>${safe(ips)}</td></tr>
+              <tr><td>Marge</td><td>${safe(overheadPct)}%</td></tr>
             </tbody>
           </table>
         </div>
 
         <div class="section">
-          <div class="sectionTitle">Formule</div>
+          <div class="sectionTitle">Formule (présentation)</div>
           <div class="muted">
-            TB ≈ (Débit total (Mbps) × 3600 × Heures/jour × Jours) ÷ (8 × 1024 × 1024) × (1 + Marge)
+            To ≈ (Débit total (Mbps) × 3600 × Heures/jour × Jours) ÷ (8 × 1024 × 1024) × (1 + Marge)
           </div>
           <div class="muted" style="margin-top:8px">
-            Débit total : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong><br>
-            Résultat : <strong>~${safe(requiredTB.toFixed(2))} TB</strong>
+            Débit total estimé : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong><br>
+            Stockage requis : <strong>~${safe(requiredTB.toFixed(2))} To</strong>
           </div>
         </div>
       </div>
@@ -2638,27 +2641,37 @@ function buildPdfHtml(proj) {
       <div class="annexColR">
         <div class="section">
           <div class="sectionTitle">Débit par caméra (détail)</div>
+
           ${
             perCamRows
               ? `
-                <table class="tbl">
+                <table class="tblAnnex">
                   <thead>
                     <tr>
-                      <th class="colQty">Qté</th>
-                      <th class="colRef">Réf</th>
-                      <th class="colName">Désignation</th>
-                      <th class="colNum">Mbps/cam</th>
-                      <th class="colNum">Mbps total</th>
+                      <th class="aQty">Qté</th>
+                      <th class="aRef">Référence</th>
+                      <th class="aName">Désignation</th>
+                      <th class="aNum">Mbps/cam</th>
+                      <th class="aNum">Mbps total</th>
                     </tr>
                   </thead>
                   <tbody>${perCamRows}</tbody>
                 </table>
-                <div class="muted" style="margin-top:8px">
-                  Total (somme) : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong>
+                ${
+                  perCamHiddenCount > 0
+                    ? `<div class="muted" style="margin-top:6px">… + ${safe(perCamHiddenCount)} ligne(s) supplémentaires non affichées (pour tenir sur 1 page)</div>`
+                    : ``
+                }
+                <div class="muted" style="margin-top:6px">
+                  Total débit : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong>
                 </div>
               `
               : `<div class="muted">—</div>`
           }
+
+          <div class="muted" style="margin-top:6px">
+            Source : catalogue caméras → <em>bitrate_mbps_typical</em> (si vide : estimation).
+          </div>
         </div>
       </div>
     </div>
@@ -2668,11 +2681,6 @@ function buildPdfHtml(proj) {
 
 </div>`;
 }
-
-
-
-
-
 
   function syncResultsUI() {
   const isLastStep = MODEL.stepIndex >= (STEPS.length - 1);
@@ -4123,22 +4131,22 @@ if (action === "validateCamera") {
 
   try {
   await window.html2pdf()
-    .set({
-      margin: 0, // ✅ laisse le HTML gérer les marges (padding de .pdfPage)
-      filename,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#ffffff",
-        logging: false,
-      },
-      pagebreak: { mode: ["css", "legacy"] }, // ✅ une seule fois
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    })
-    .from(root)
-    .save();
+  .set({
+    margin: 10,
+    filename,
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#ffffff",
+    },
+    pagebreak: { mode: ["css"] },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+  })
+  .from(root)
+  .save();
+
 } finally {
   host.remove();
 }
