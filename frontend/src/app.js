@@ -725,72 +725,74 @@ function computeMainReason(block, cam, sc){
   // 2) MODEL (state)
   // ==========================================================
   const MODEL = {
-    cameraBlocks: [],
-    cameraLines: [],
-    accessoryLines: [],
+  cameraBlocks: [],
+  cameraLines: [],
+  accessoryLines: [],
 
-    recording: {
-      daysRetention: 14,
-      hoursPerDay: 24,
-      fps: 15,
-      codec: "h265",
-      mode: "continuous",
-      overheadPct: 20,
-      reservePortsPct: 10,
-    },
+  recording: {
+    daysRetention: 14,
+    hoursPerDay: 24,
+    fps: 15,
+    codec: "h265",
+    mode: "continuous",
+    overheadPct: 20,
+    reservePortsPct: 10,
+  },
 
   complements: {
-  screen: {
-    enabled: false,
-    sizeInch: 18,   // default
-    qty: 1,
+    screen: { enabled: false, sizeInch: 18, qty: 1 },
+    enclosure: { enabled: false, qty: 1 },
+    signage: { enabled: false, scope: "Public", qty: 1 },
   },
-  enclosure: {
-    enabled: false,
-    qty: 1,
+
+  ui: {
+    activeBlockId: null,
+    resultsShown: false,
   },
-  signage: {
-    enabled: false,
-    scope: "Public", // "Public" | "Privé"
-    qty: 1,
-  },
-},
+
+  // ✅ NOUVEAU
+  projectName: "",
+
+  stepIndex: 0,
+};
 
 
-    ui: {
-      activeBlockId: null,
-      resultsShown: false,
-    },
-
-    stepIndex: 0,
-  };
 
   const STEPS = [
-    {
-      id: "cameras",
-      title: "1) Choix des caméras",
-      badge: "1/4",
-      help: "Complète les choix à gauche. À droite tu choisis la caméra (reco + alternatives) et tu valides en 1 clic.",
-    },
-    {
-      id: "mounts",
-      title: "2) Supports & accessoires caméras",
-      badge: "2/4",
-      help: "Suggestions automatiques par bloc (pose + emplacement). Tu peux ajuster.",
-    },
-    {
-      id: "nvr_network",
-      title: "3) Enregistreur + réseau PoE",
-      badge: "3/4",
-      help: "NVR choisi automatiquement + switches PoE dimensionnés.",
-    },
-    {
-      id: "storage",
-      title: "4) Stockage (HDD)",
-      badge: "4/4",
-      help: "Calcul stockage selon jours/heures/fps/codec/mode. Proposition de disques.",
-    },
-  ];
+  {
+    id: "project",
+    title: "1) Nom du projet",
+    badge: "1/5",
+    help: "Ce nom sera repris en première page du PDF pour personnaliser le rapport.",
+  },
+  {
+    id: "cameras",
+    title: "2) Choix des caméras",
+    badge: "2/5",
+    help: "Complète les choix à gauche. À droite tu choisis la caméra (reco + alternatives) et tu valides en 1 clic.",
+  },
+  {
+    id: "mounts",
+    title: "3) Supports & accessoires caméras",
+    badge: "3/5",
+    help: "Suggestions automatiques par bloc (pose + emplacement). Tu peux ajuster.",
+  },
+  {
+    id: "nvr_network",
+    title: "4) Enregistreur + réseau PoE",
+    badge: "4/5",
+    help: "NVR choisi automatiquement + switches PoE dimensionnés.",
+  },
+  {
+    id: "storage",
+    title: "5) Stockage (HDD)",
+    badge: "5/5",
+    help: "Calcul stockage selon jours/heures/fps/codec/mode. Proposition de disques.",
+  },
+];
+
+
+
 
 // ==========================================================
 // 3) DOM CACHE (robuste)
@@ -1711,11 +1713,13 @@ function computePerCameraBitrates() {
   return { rows, totalInMbps };
 }
 
-  function computeProject() {
+ function computeProject() {
   const totalCameras = getTotalCameras();
 
-  // PoE : on garde computeTotals() pour totalPoeW (et éventuellement un totalInMbps "historique")
-  const totals = (typeof computeTotals === "function") ? computeTotals() : { totalInMbps: 0, totalPoeW: 0 };
+  const totals = (typeof computeTotals === "function")
+    ? computeTotals()
+    : { totalInMbps: 0, totalPoeW: 0 };
+
   const totalPoeW = Number.isFinite(totals.totalPoeW) ? totals.totalPoeW : 0;
 
   const alerts = [];
@@ -1728,20 +1732,18 @@ function computePerCameraBitrates() {
   const daysRetention = clampNum(rec.daysRetention, 1, 365, 14);
   const overheadPct = clampNum(rec.overheadPct, 0, 100, 15);
 
-  // rec.fps => on l'affiche en "IPS" dans le PDF (même valeur)
   const ips = clampNum(rec.fps, 1, 60, 12);
   const codec = String(rec.codec || "H.265");
   const mode = String(rec.mode || "Continu");
 
   // -----------------------------
-  // Débit par caméra (proj.perCamera) via cameras.csv
-  // Priorité : cam.bitrate_mbps_typical
+  // Débit par caméra : priorité bitrate_mbps_typical
   // -----------------------------
   const pickCamMbpsFromCatalog = (cam) => {
     if (!cam) return null;
 
     const candidates = [
-      cam.bitrate_mbps_typical,  // ✅ TON champ
+      cam.bitrate_mbps_typical,
       cam.bitrate_mbps,
       cam.mbps,
       cam.bandwidth_mbps,
@@ -1757,14 +1759,11 @@ function computePerCameraBitrates() {
     return null;
   };
 
-  // Fallback si bitrate absent : estimation soft (MP + ips + codec)
   const estimateCamMbpsFallback = (cam) => {
     let mp = Number(cam?.resolution_mp);
     if (!Number.isFinite(mp) || mp <= 0) mp = 4;
 
     const codecFactor = codec.toUpperCase().includes("265") ? 0.65 : 1.0;
-
-    // base à 12 ips
     const baseAt12ips = mp * 1.2; // 4MP -> ~4.8 Mbps
     const mbps = baseAt12ips * (ips / 12) * codecFactor;
 
@@ -1782,7 +1781,8 @@ function computePerCameraBitrates() {
       const blk = (MODEL.cameraBlocks || []).find((b) => b.id === l.fromBlockId) || null;
       const blockLabel = blk?.label ? String(blk.label) : "";
 
-      const mbpsPerCam = pickCamMbpsFromCatalog(cam) ?? estimateCamMbpsFallback(cam);
+      const catMbps = pickCamMbpsFromCatalog(cam);
+      const mbpsPerCam = catMbps ?? estimateCamMbpsFallback(cam);
 
       return {
         fromBlockId: l.fromBlockId || null,
@@ -1792,11 +1792,9 @@ function computePerCameraBitrates() {
         qty,
         codec,
         ips,
-        // infos utiles pour l’annexe
         mbpsPerCam: Number(mbpsPerCam),
         mbpsLine: Number(mbpsPerCam) * qty,
-        // bonus si tu veux tracer le “source”
-        mbpsSource: pickCamMbpsFromCatalog(cam) != null ? "catalog" : "estimate",
+        mbpsSource: catMbps != null ? "catalog" : "estimate",
       };
     })
     .filter(Boolean);
@@ -1810,7 +1808,6 @@ function computePerCameraBitrates() {
   const nvrPick = pickNvr(totalCameras, safeIn);
   const switches = planPoESwitches(totalCameras, rec.reservePortsPct);
 
-  // ✅ check budget PoE switches si dispo
   const swBudget = (switches.plan || []).reduce(
     (t, p) => t + (Number(p?.item?.poe_budget_w || 0) * (p.qty || 0)),
     0
@@ -1823,14 +1820,7 @@ function computePerCameraBitrates() {
     });
   }
 
-  // Stockage (TA formule actuelle)
-  const requiredTB = mbpsToTB(
-    safeIn,
-    hoursPerDay,
-    daysRetention,
-    overheadPct
-  );
-
+  const requiredTB = mbpsToTB(safeIn, hoursPerDay, daysRetention, overheadPct);
   const disks = nvrPick.nvr ? pickDisks(requiredTB, nvrPick.nvr) : null;
 
   // -----------------------------
@@ -1874,6 +1864,9 @@ function computePerCameraBitrates() {
   }
 
   return {
+    // ✅ ajout projet
+    projectName: String(MODEL?.projectName || "").trim(),
+
     totalCameras,
     totalInMbps: safeIn,
     totalPoeW,
@@ -1883,18 +1876,18 @@ function computePerCameraBitrates() {
     disks,
     alerts,
 
-    // ✅ Ajouts pro pour le PDF
     perCamera,
     storageParams: {
       daysRetention,
       hoursPerDay,
       overheadPct,
       codec,
-      ips,      // affiché "IPS"
+      ips,
       mode,
     },
   };
 }
+
 
 // petite util locale safe (si tu n’en as pas déjà)
 function clampNum(v, min, max, fallback) {
@@ -2171,6 +2164,10 @@ function buildPdfHtml(proj) {
   const COMELIT_GREEN = "#00BC70"; // Pantone 7480 C
   const COMELIT_BLUE = "#1C1F2B";  // Pantone 543 C
 
+  // ✅ Nom du projet (priorité proj -> MODEL)
+  const projectName = String(proj?.projectName ?? MODEL?.projectName ?? "").trim();
+  const projectNameDisplay = projectName ? projectName : "—";
+
   // Helpers FR
   const frCodec = (c) => {
     const s = String(c || "").toLowerCase().trim();
@@ -2187,8 +2184,7 @@ function buildPdfHtml(proj) {
     return m ? String(m) : "—";
   };
 
-  // ✅ IMPORTANT : images locales via /data (ton app.py sert DATA_DIR sur /data)
-  // Exemple attendu : http://127.0.0.1:8000/data/Images/cameras/IB04N2FA.png
+  // ✅ Images locales via /data
   const getThumbSrc = (family, ref) => {
     if (!ref) return "";
     return `http://127.0.0.1:8000/data/Images/${family}/${encodeURIComponent(ref)}.png`;
@@ -2228,8 +2224,8 @@ function buildPdfHtml(proj) {
     `;
   };
 
-  // ✅ Header commun (GRID) : logo | titres | score (aligné)
-  // ✅ Titre CENTRÉ (dans sa colonne), sans crop
+  // ✅ Header commun (GRID) : logo | titres | score
+  // ✅ Titre centré + pas de crop
   const headerHtml = (subtitle) => `
     <div class="pdfHeader">
       <div class="headerGrid">
@@ -2302,9 +2298,7 @@ function buildPdfHtml(proj) {
   const compRows = [
     scr ? row4(MODEL?.complements?.screen?.qty || 1, scr.id, scr.name, "screens") : "",
     enc ? row4(MODEL?.complements?.enclosure?.qty || 1, enc.id, enc.name, "enclosures") : "",
-    signageEnabled && sign
-      ? row4(MODEL?.complements?.signage?.qty || 1, sign.id, sign.name, "signage")
-      : "",
+    signageEnabled && sign ? row4(MODEL?.complements?.signage?.qty || 1, sign.id, sign.name, "signage") : "",
   ]
     .filter(Boolean)
     .join("");
@@ -2313,7 +2307,7 @@ function buildPdfHtml(proj) {
   const totalMbps = Number(proj?.totalInMbps ?? 0);
   const requiredTB = Number(proj?.requiredTB ?? 0);
 
-  // Paramètres enregistrement (MODEL.recording)
+  // Paramètres enregistrement
   const sp = proj?.storageParams || {};
   const daysRetention = sp.daysRetention ?? MODEL?.recording?.daysRetention ?? 14;
   const hoursPerDay = sp.hoursPerDay ?? MODEL?.recording?.hoursPerDay ?? 24;
@@ -2322,7 +2316,7 @@ function buildPdfHtml(proj) {
   const ips = sp.ips ?? MODEL?.recording?.fps ?? 12;
   const mode = frMode(sp.mode ?? MODEL?.recording?.mode ?? "Continu");
 
-  // Annexe : débit par caméra (cap pour tenir sur 1 page)
+  // Annexe : débit par caméra
   const MAX_ANNEX_ROWS = 22;
   const perCam = Array.isArray(proj?.perCamera) ? proj.perCamera : [];
   const perCamShown = perCam.slice(0, MAX_ANNEX_ROWS);
@@ -2378,7 +2372,7 @@ function buildPdfHtml(proj) {
     /* ✅ Grid stable + titre centré */
     .headerGrid{
       display:grid;
-      grid-template-columns: 120px 1fr auto; /* logo | titres | score */
+      grid-template-columns: 120px 1fr auto;
       column-gap: 12px;
       align-items:center;
     }
@@ -2390,8 +2384,8 @@ function buildPdfHtml(proj) {
 
     .headerTitles{
       min-width:0;
-      text-align:center; /* ✅ CENTRAGE */
-      padding: 0 8px;    /* petit air pour éviter de coller le score */
+      text-align:center;
+      padding:0 8px;
     }
 
     .mainTitle{
@@ -2400,11 +2394,9 @@ function buildPdfHtml(proj) {
       line-height:1.15;
       color:var(--c-blue);
       margin:0;
-
-      /* ✅ pas de crop */
-      white-space: normal;
-      overflow: visible;
-      text-overflow: clip;
+      white-space:normal;
+      overflow:visible;
+      text-overflow:clip;
     }
 
     .metaLine{
@@ -2423,7 +2415,7 @@ function buildPdfHtml(proj) {
       border-radius:999px;
       background:var(--c-soft);
       padding:6px 10px;
-      white-space: nowrap;
+      white-space:nowrap;
       justify-self:end;
     }
     .scoreLabel{
@@ -2444,6 +2436,37 @@ function buildPdfHtml(proj) {
       font-size:12.5px;
       font-weight:900;
       color:var(--c-blue);
+    }
+
+    /* ✅ Carte "Nom du projet" (page 0) */
+    .projectCard{
+      margin-top:14px;
+      border:1px solid var(--c-line);
+      border-left:10px solid var(--c-green);
+      border-radius:16px;
+      padding:18px;
+      background:var(--c-soft);
+    }
+    .projectLabel{
+      font-size:11px;
+      color:var(--c-muted);
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+    }
+    .projectValue{
+      margin-top:10px;
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:26px;
+      line-height:1.15;
+      color:var(--c-blue);
+      overflow-wrap:anywhere;
+    }
+    .projectHint{
+      margin-top:10px;
+      font-size:11px;
+      color:var(--c-muted);
+      line-height:1.35;
     }
 
     /* KPI page 1 */
@@ -2541,6 +2564,21 @@ function buildPdfHtml(proj) {
       color:var(--c-muted);
     }
   </style>
+
+  <!-- ✅ PAGE 0 : NOM DU PROJET -->
+  <div class="pdfPage">
+    ${headerHtml("Nom du projet")}
+
+    <div class="projectCard">
+      <div class="projectLabel">Quel est le nom de votre projet ?</div>
+      <div class="projectValue">${safe(projectNameDisplay)}</div>
+      <div class="projectHint">
+        Conseil : court et clair (site + zone). Exemple : “École Jules Ferry — Entrée”.
+      </div>
+    </div>
+
+    <div class="footerLine">Comelit — With you always</div>
+  </div>
 
   <!-- PAGE 1 -->
   <div class="pdfPage">
@@ -2681,6 +2719,7 @@ function buildPdfHtml(proj) {
 
 </div>`;
 }
+
 
   function syncResultsUI() {
   const isLastStep = MODEL.stepIndex >= (STEPS.length - 1);
@@ -3081,6 +3120,56 @@ function buildPdfHtml(proj) {
     `;
   }
 
+  function renderStepProject() {
+  const val = MODEL.projectName || "";
+
+  return `
+    <div class="stepSplit">
+      <div class="blocksCol">
+        <div class="recoCard" style="padding:14px">
+          <div class="recoHeader">
+            <div>
+              <div class="recoName">Nom du projet</div>
+              <div class="muted">Ce nom sera affiché sur la première page du PDF.</div>
+            </div>
+            <div class="score">📝</div>
+          </div>
+
+          <div style="margin-top:12px">
+            <strong>Quel est le nom de votre projet ?</strong>
+            <input
+              data-action="projName"
+              type="text"
+              maxlength="80"
+              value="${safeHtml(val)}"
+              placeholder="Ex : Copro Victor Hugo — Parking"
+              style="width:100%;margin-top:8px;padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text)"
+            />
+            <div class="muted" style="margin-top:8px">
+              Conseil : site + zone (court et clair). Exemple : “École Jules Ferry — Entrée”.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proposalsCol">
+        <div class="recoCard" style="padding:14px">
+          <div class="recoName">Aperçu</div>
+          <div class="muted" style="margin-top:6px">
+            Le PDF commencera par une page “Informations projet” avec :<br>
+            • Nom du projet<br>
+            • Date de génération<br>
+            • Score projet (si dispo)
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+
+
+
   function renderStepAccessories() {
     const validatedBlocks = (MODEL.cameraBlocks || []).filter((b) => b.validated);
 
@@ -3462,33 +3551,43 @@ function buildPdfHtml(proj) {
   // ==========================================================
   // MAIN RENDER (manquait → causait "render is not defined")
   // ==========================================================
-  function render() {
-    if (!DOM.stepsEl) return;
+function render() {
+  // Sécurité
+  if (!Array.isArray(STEPS) || !STEPS.length) return;
 
-    // Assure la structure complements (robuste si import d'anciens projets)
-    MODEL.complements = MODEL.complements || {};
-    MODEL.complements.screen = MODEL.complements.screen || { enabled: false, sizeInch: 18, qty: 1, selectedId: null };
-    MODEL.complements.enclosure = MODEL.complements.enclosure || { enabled: false, qty: 1, selectedId: null };
-    MODEL.complements.signage = MODEL.complements.signage || { enabled: false, scope: "Public", qty: 1, selectedId: null };
+  // Clamp stepIndex
+  if (!Number.isFinite(MODEL.stepIndex)) MODEL.stepIndex = 0;
+  MODEL.stepIndex = Math.max(0, Math.min(MODEL.stepIndex, STEPS.length - 1));
 
-    // Clamp step
-    const maxIdx = Math.max(0, (STEPS?.length || 1) - 1);
-    MODEL.stepIndex = clampInt(MODEL.stepIndex ?? 0, 0, maxIdx);
+  // Header / progress (si tu as déjà un renderHeader/renderProgress garde les tiens)
+  // Ici on suppose que ton app a déjà un header fixe, donc on ne touche pas.
 
-    // Render step
-    let html = "";
-    if (MODEL.stepIndex === 0) html = renderStepCameras();
-    // Étape 2 = Supports / Accessoires (dans ton code historique : renderStepAccessories)
-    else if (MODEL.stepIndex === 1) html = renderStepAccessories();
-    else if (MODEL.stepIndex === 2) html = renderStepNvrNetwork();
-    else html = renderStepStorage();
+  const stepId = STEPS[MODEL.stepIndex]?.id;
 
-    DOM.stepsEl.innerHTML = html;
+  let html = "";
 
-    // UI (progress + results)
-    updateProgress();
-    syncResultsUI();
+  if (stepId === "project") {
+    html = renderStepProject();
+  } else if (stepId === "cameras") {
+    html = renderStepCameras();
+  } else if (stepId === "mounts") {
+    html = renderStepMounts();
+  } else if (stepId === "nvr_network") {
+    html = renderStepNvrNetwork();
+  } else if (stepId === "storage") {
+    html = renderStepStorage();
+  } else {
+    html = `<div class="recoCard" style="padding:12px"><div class="muted">Étape inconnue : ${safeHtml(stepId || "—")}</div></div>`;
   }
+
+  DOM.stepsEl.innerHTML = html;
+
+  // Re-bind des listeners si tu utilises délégation : normalement rien à faire.
+  // Si tu as une fonction qui sync les boutons/état, garde-la :
+  syncResultsUI?.();
+}
+
+
 
 function renderComplementsCard(proj) {
   // Sécurise la structure (évite les crash si projet importé ancien)
@@ -4062,6 +4161,15 @@ if (action === "validateCamera") {
     MODEL.complements.enclosure.qty = String(el.value ?? "").replace(/[^\d]/g, "");
     return;
   }
+
+  if (action === "projName") {
+  // ⚠️ On stocke au fil de l'eau, mais on NE re-render pas l'écran
+  // sinon l'input est recréé => perte de focus.
+  MODEL.projectName = String(el.value || "").slice(0, 80);
+  return;
+}
+
+
 }
 
 
@@ -4445,9 +4553,19 @@ function bind(el, evt, fn) {
 }
 
 bind(DOM.btnCompute, "click", () => {
-  const step = STEPS[MODEL.stepIndex].id;
+  const stepId = STEPS[MODEL.stepIndex]?.id;
 
-  if (step === "cameras") {
+  // 1) Page projet => suivant direct (nom optionnel)
+  if (stepId === "project") {
+    MODEL.stepIndex++;
+    MODEL.ui.resultsShown = false;
+    syncResultsUI();
+    render();
+    return;
+  }
+
+  // 2) Caméras => exige au moins 1 caméra validée
+  if (stepId === "cameras") {
     if (!canGoNext()) {
       alert("Valide au moins 1 caméra (bouton 'Je valide cette caméra').");
       return;
@@ -4460,7 +4578,8 @@ bind(DOM.btnCompute, "click", () => {
     return;
   }
 
-  if (step === "mounts") {
+  // 3) Supports
+  if (stepId === "mounts") {
     MODEL.stepIndex++;
     MODEL.ui.resultsShown = false;
     syncResultsUI();
@@ -4468,7 +4587,8 @@ bind(DOM.btnCompute, "click", () => {
     return;
   }
 
-  if (step === "nvr_network") {
+  // 4) NVR + Réseau
+  if (stepId === "nvr_network") {
     MODEL.stepIndex++;
     MODEL.ui.resultsShown = false;
     syncResultsUI();
@@ -4476,7 +4596,7 @@ bind(DOM.btnCompute, "click", () => {
     return;
   }
 
-  // Finaliser
+  // 5) Finaliser (storage)
   const proj = computeProject();
   LAST_PROJECT = proj;
 
@@ -4485,6 +4605,9 @@ bind(DOM.btnCompute, "click", () => {
   MODEL.ui.resultsShown = true;
   syncResultsUI();
 });
+
+
+
 
 bind(DOM.btnReset, "click", () => {
   MODEL.cameraBlocks = [createEmptyCameraBlock()];
