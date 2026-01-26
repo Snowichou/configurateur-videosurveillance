@@ -623,6 +623,46 @@ function computeMainReason(block, cam, sc){
 
     return [...new Set(out)].filter(Boolean);
   }
+  function waitForImages(root, timeoutMs = 3500) {
+  const imgs = Array.from(root.querySelectorAll("img"));
+  const pending = imgs.filter((img) => !img.complete);
+
+  if (!pending.length) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    let done = false;
+    const t = setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(false);
+    }, timeoutMs);
+
+    const onDone = () => {
+      if (done) return;
+      const still = pending.filter((img) => !img.complete);
+      if (still.length) return;
+      done = true;
+      clearTimeout(t);
+      resolve(true);
+    };
+
+    pending.forEach((img) => {
+      img.addEventListener("load", onDone, { once: true });
+      img.addEventListener("error", onDone, { once: true });
+    });
+  });
+}
+
+function buildPdfRootForExport(proj) {
+  const wrap = document.createElement("div");
+  wrap.style.position = "fixed";
+  wrap.style.left = "-99999px";
+  wrap.style.top = "0";
+  wrap.style.width = "794px"; // largeur A4 portrait ~ 210mm @ 96dpi (approx)
+  wrap.innerHTML = buildPdfHtml(proj);
+  document.body.appendChild(wrap);
+  return wrap;
+}
 
   // ==========================================================
   // 0B) CSV PARSER (no deps)
@@ -758,7 +798,7 @@ function computeMainReason(block, cam, sc){
 
 
 
-  const STEPS = [
+    const STEPS = [
   {
     id: "project",
     title: "1) Nom du projet",
@@ -2133,12 +2173,80 @@ function getSelectedOrRecommendedEnclosure(proj) {
   DOM.primaryRecoEl.innerHTML = renderFinalSummary(proj);
   renderAlerts(proj.alerts);
 
-}function getThumbSrc(family, ref) {
-  // Images locales servies par ton backend
-  // Exemple : http://127.0.0.1:8000/media/Images/cameras/IT04N2ZA.png
-  if (!ref) return "";
-  return `http://127.0.0.1:8000/media/Images/${family}/${encodeURIComponent(ref)}.png`;
 }
+
+// ==========================================================
+// THUMBS / IMAGES (LOCAL DATA ONLY)
+// ==========================================================
+const LOCAL_IMG_ROOT = "/data/Images";
+const IMG_EXTS = ["png", "jpg", "jpeg", "webp"];
+const __thumbCache = new Map();
+
+function getThumbSrc(family, id) {
+  try {
+    const fam = String(family || "").trim();
+    const ref = String(id || "").trim();
+    if (!fam || !ref) return "";
+
+    const key = `${fam}::${ref}`;
+    if (__thumbCache.has(key)) return __thumbCache.get(key);
+
+    // 👉 Convention projet : 1 image = <ID>.png dans /data/Images/<family>/
+    const url = `${LOCAL_IMG_ROOT}/${fam}/${encodeURIComponent(ref)}.png`;
+
+    __thumbCache.set(key, url);
+    return url;
+  } catch {
+    return "";
+  }
+}
+
+const LOCAL_PDF_ROOT = "/data/Datasheets";
+
+// ✅ Datasheets 100% locaux (même logique que getThumbSrc)
+function getDatasheetSrc(family, ref) {
+  const id = String(ref || "").trim();
+  if (!id) return "";
+  const fam = String(family || "").toLowerCase().trim();
+
+  let folder = fam;
+  if (fam === "cameras") folder = "cameras";
+  else if (fam === "nvrs") folder = "nvrs";
+  else if (fam === "hdds") folder = "hdds";
+  else if (fam === "switches") folder = "switches";
+  else if (fam === "accessories") folder = "accessories";
+  else if (fam === "screens") folder = "screens";
+  else if (fam === "enclosures") folder = "enclosures";
+  else if (fam === "signage") folder = "signage";
+
+  // on suppose: /data/Datasheets/<folder>/<ID>.pdf
+  return `${LOCAL_PDF_ROOT}/${folder}/${encodeURIComponent(id)}.pdf`;
+}
+
+// ✅ Force le catalogue à utiliser les médias locaux (images + fiches)
+function applyLocalMediaToCatalog() {
+  const apply = (familyKey, list) => {
+    if (!Array.isArray(list)) return;
+    const fam = String(familyKey || "").toLowerCase();
+    for (const it of list) {
+      const id = String(it?.id || "").trim();
+      if (!id) continue;
+      it.image_url = getThumbSrc(fam, id);
+      it.datasheet_url = getDatasheetSrc(fam, id);
+    }
+  };
+
+  apply("cameras", CATALOG?.CAMERAS);
+  apply("nvrs", CATALOG?.NVRS);
+  apply("hdds", CATALOG?.HDDS);
+  apply("switches", CATALOG?.SWITCHES);
+  apply("accessories", CATALOG?.ACCESSORIES);
+  apply("screens", CATALOG?.SCREENS);
+  apply("enclosures", CATALOG?.ENCLOSURES);
+  apply("signage", CATALOG?.SIGNAGE);
+}
+
+
 
 function imgTag(family, ref) {
   const src = getThumbSrc(family, ref);
@@ -2147,7 +2255,7 @@ function imgTag(family, ref) {
     onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=muted>—</span>');" />`;
 }
 
-function buildPdfHtml(proj) {
+  function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
 
@@ -2162,7 +2270,7 @@ function buildPdfHtml(proj) {
   // Branding COMELIT
   const LOGO_SRC = "/assets/logo.png";
   const COMELIT_GREEN = "#00BC70"; // Pantone 7480 C
-  const COMELIT_BLUE = "#1C1F2B";  // Pantone 543 C
+  const COMELIT_BLUE = "#1C1F2B"; // Pantone 543 C
 
   // ✅ Nom du projet (priorité proj -> MODEL)
   const projectName = String(proj?.projectName ?? MODEL?.projectName ?? "").trim();
@@ -2182,12 +2290,6 @@ function buildPdfHtml(proj) {
     if (s === "motion" || s === "détection" || s === "detection") return "Sur détection";
     if (s === "mixed" || s === "mixte") return "Mixte";
     return m ? String(m) : "—";
-  };
-
-  // ✅ Images locales via /data
-  const getThumbSrc = (family, ref) => {
-    if (!ref) return "";
-    return `http://127.0.0.1:8000/data/Images/${family}/${encodeURIComponent(ref)}.png`;
   };
 
   const imgTag = (family, ref) => {
@@ -2224,27 +2326,32 @@ function buildPdfHtml(proj) {
     `;
   };
 
-  // ✅ Header commun (GRID) : logo | titres | score
-  // ✅ Titre centré + pas de crop
-  const headerHtml = (subtitle) => `
-    <div class="pdfHeader">
-      <div class="headerGrid">
-        <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
+  // ✅ Header commun (V3) : logo | titres | score
+const headerHtml = (subtitle) => `
+  <div class="pdfHeader">
+    <div class="headerGrid">
+      <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
 
-        <div class="headerTitles">
-          <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
-          <div class="metaLine">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
-        </div>
-
-        <div class="scorePill">
-          <span class="scoreLabel">Score</span>
-          <span class="scoreValue">${projectScore != null ? `${safe(projectScore)}/100` : "—"}</span>
-        </div>
+      <div class="headerTitles">
+        <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
+        <div class="metaLine">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
       </div>
 
-      <div class="headerSub">${safe(subtitle)}</div>
+      <div class="scorePill">
+        <span class="scoreLabel">Score</span>
+        <span class="scoreValue">${projectScore != null ? `${safe(projectScore)}/100` : "—"}</span>
+      </div>
     </div>
-  `;
+
+    <div class="headerSubWrap">
+      <div class="headerSubLine">
+        <span class="headerSubDot"></span>
+        <span class="headerSubText">${safe(subtitle)}</span>
+      </div>
+    </div>
+  </div>
+`;
+
 
   // Extraction produits
   const camsRows = (MODEL.cameraLines || [])
@@ -2292,7 +2399,7 @@ function buildPdfHtml(proj) {
   const signageEnabled = !!(MODEL?.complements?.signage?.enabled ?? MODEL?.complements?.signage?.enable);
   const sign =
     typeof getSelectedOrRecommendedSign === "function"
-      ? (getSelectedOrRecommendedSign()?.sign || null)
+      ? getSelectedOrRecommendedSign()?.sign || null
       : null;
 
   const compRows = [
@@ -2323,18 +2430,752 @@ function buildPdfHtml(proj) {
   const perCamHiddenCount = Math.max(0, perCam.length - perCamShown.length);
 
   const perCamRows = perCamShown
-    .map((r) => `
+    .map(
+      (r) => `
       <tr>
         <td class="aQty">${safe(r.qty)}</td>
         <td class="aRef">${safe(r.cameraId)}</td>
-        <td class="aName">${safe(r.blockLabel ? (r.blockLabel + " — " + r.cameraName) : r.cameraName)}</td>
+        <td class="aName">${safe(r.blockLabel ? r.blockLabel + " — " + r.cameraName : r.cameraName)}</td>
         <td class="aNum">${safe(Number(r.mbpsPerCam || 0).toFixed(2))}</td>
         <td class="aNum">${safe(Number(r.mbpsLine || 0).toFixed(2))}</td>
       </tr>
-    `)
+    `
+    )
     .join("");
 
+  // =====================================================================
+  // ✅ ANNEXE 2 — SYNOPTIQUE (FIT AUTO + MARGES + IMAGES DATA)
+  // Objectif : "tout tient sur 1 page", moins collé, et plus il y a de cam,
+  // plus ça rétrécit automatiquement.
+  // =====================================================================
+
+  const buildSynopticHtml = () => {
+  const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+
+  const safe = (v) =>
+    typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? "");
+
+  const sumCams = () => {
+    const lines = Array.isArray(MODEL?.cameraLines) ? MODEL.cameraLines : [];
+    return lines.reduce((acc, l) => acc + Number(l?.qty || 0), 0);
+  };
+
+  // ==========================================================
+  // 0) HELPERS robustes (ID + catalog + local media only)
+  // ==========================================================
+  const firstTruthy = (...vals) =>
+    vals.find((v) => v != null && String(v).trim() !== "") ?? "";
+
+  const toId = (obj) =>
+    firstTruthy(
+      obj?.id,
+      obj?.ref,
+      obj?.sku,
+      obj?.code,
+      obj?.product_id,
+      obj?.productId,
+      obj?.article,
+      obj?.article_id
+    );
+
+  const isObj = (v) => v && typeof v === "object";
+
+  const deepScan = (root, maxNodes = 2500) => {
+    const out = [];
+    const seen = new Set();
+    const queue = [root];
+
+    while (queue.length && out.length < maxNodes) {
+      const cur = queue.shift();
+      if (!isObj(cur)) continue;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      out.push(cur);
+
+      if (Array.isArray(cur)) {
+        for (const it of cur) queue.push(it);
+      } else {
+        for (const k of Object.keys(cur)) queue.push(cur[k]);
+      }
+    }
+    return out;
+  };
+
+  const findInCatalogById = (catalogList, wantedId) => {
+    if (!wantedId) return null;
+    if (!Array.isArray(catalogList)) return null;
+    const norm = String(wantedId).trim().toLowerCase();
+    return (
+      catalogList.find((x) => String(toId(x) || "").trim().toLowerCase() === norm) ||
+      null
+    );
+  };
+
+  // ✅ ICI : on force le synoptique à n'utiliser QUE du local (/data)
+  const normalizeLocalUrl = (u) => {
+    const s = String(u || "").trim();
+    if (!s) return "";
+
+    // interdit internet (ancienne méthode)
+    if (/^https?:\/\//i.test(s)) return "";
+
+    // ok data-uri
+    if (/^data:image\//i.test(s)) return s;
+
+    // si l’URL est déjà du local correct
+    if (s.startsWith("/data/")) return s;
+
+    // si c’est "data/..." on ajoute le slash
+    if (s.startsWith("data/")) return "/" + s;
+
+    // si c’est relatif (Images/...) on ne tente pas d’inventer -> vide
+    return s;
+  };
+
+  // ✅ pick image : d’abord image_url du catalogue (local), sinon getThumbSrc local
+  const pickLocalImg = (obj, family, id) => {
+    const a = normalizeLocalUrl(obj?.image_url || obj?.image || "");
+    if (a) return a;
+
+    // fallback = convention /data/Images/<family>/<id>.png
+    try {
+      if (typeof getThumbSrc === "function") {
+        const b = normalizeLocalUrl(getThumbSrc(family, id));
+        if (b) return b;
+      }
+    } catch {}
+    return "";
+  };
+
+  // ==========================================================
+  // 1) Groupes caméras
+  // ==========================================================
+  const buildCameraBlocks = () => {
+    const blocks = Array.isArray(MODEL?.cameraBlocks) ? MODEL.cameraBlocks : [];
+    const lines = Array.isArray(MODEL?.cameraLines) ? MODEL.cameraLines : [];
+
+    const map = new Map();
+    for (const l of lines) {
+      const qty = Number(l?.qty || 0);
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+
+      const cam = typeof getCameraById === "function" ? getCameraById(l.cameraId) : null;
+      if (!cam) continue;
+
+      const blk = blocks.find((b) => b.id === l.fromBlockId) || null;
+      const blockLabel =
+        String(blk?.label || "").trim() ||
+        `Bloc ${String(l.fromBlockId || "").slice(0, 6)}`;
+
+      if (!map.has(l.fromBlockId)) {
+        map.set(l.fromBlockId, {
+          blockId: l.fromBlockId,
+          label: blockLabel,
+          qty: 0,
+          refs: [],
+          primaryRef: String(cam.id || ""),
+        });
+      }
+
+      const b = map.get(l.fromBlockId);
+      b.qty += qty;
+
+      const ref = String(cam.id || "");
+      if (ref && !b.refs.includes(ref)) b.refs.push(ref);
+      if (!b.primaryRef && ref) b.primaryRef = ref;
+    }
+
+    const ordered = [];
+    for (const blk of blocks) if (map.has(blk.id)) ordered.push(map.get(blk.id));
+    for (const [, v] of map.entries()) if (!ordered.includes(v)) ordered.push(v);
+
+    if (ordered.length === 0) {
+      const total = sumCams();
+      if (total > 0) {
+        ordered.push({
+          blockId: "ALL",
+          label: "Caméras",
+          qty: total,
+          refs: [],
+          primaryRef: "",
+        });
+      }
+    }
+    return ordered;
+  };
+
+  // ==========================================================
+  // 2) Switches
+  // ==========================================================
+  const expandSwitches = () => {
+    const list = [];
+    const plan = Array.isArray(proj?.switches?.plan) ? proj.switches.plan : [];
+    let sIdx = 1;
+
+    for (const p of plan) {
+      const qty = Number(p?.qty || 0);
+      const item = p?.item || {};
+      const id = String(item?.id || "SWITCH");
+      const name = String(item?.name || id);
+
+      const portsCandidates = [
+        item?.ports,
+        item?.ports_count,
+        item?.poe_ports,
+        item?.poe_ports_count,
+      ];
+      let portsCap = 0;
+      for (const v of portsCandidates) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n > 0) {
+          portsCap = n;
+          break;
+        }
+      }
+      if (!portsCap) portsCap = 8;
+
+      const count = Math.max(1, qty || 0);
+      for (let k = 0; k < count; k++) list.push({ idx: sIdx++, id, name, portsCap });
+    }
+
+    if ((proj?.switches?.required || false) && list.length === 0) {
+      list.push({ idx: 1, id: "SWITCH", name: "Switch PoE", portsCap: 8 });
+    }
+
+    if (!(proj?.switches?.required || false)) return [];
+    return list;
+  };
+
+  // ==========================================================
+  // 3) Allocation blocs -> switches
+  // ==========================================================
+  const allocateBlocksToSwitches = (camBlocks, switches) => {
+    if (!switches.length) return [];
+    const buckets = switches.map((sw) => ({ sw, blocks: [], used: 0 }));
+    let si = 0;
+
+    for (const b of camBlocks) {
+      if (si >= buckets.length) si = Math.max(0, buckets.length - 1);
+
+      while (
+        si < buckets.length - 1 &&
+        buckets[si].used + b.qty > buckets[si].sw.portsCap &&
+        buckets[si].used > 0
+      ) {
+        si++;
+      }
+
+      buckets[si].blocks.push(b);
+      buckets[si].used += b.qty;
+    }
+    return buckets;
+  };
+
+  // ==========================================================
+  // 4) Résolution NVR / HDD / SCREEN
+  // ==========================================================
+  const camBlocks = buildCameraBlocks();
+  const switches = expandSwitches();
+  const alloc = allocateBlocksToSwitches(camBlocks, switches);
+
+  const camCount = Math.max(1, camBlocks.length);
+  const swCount = Math.max(0, switches.length);
+
+  // ---- NVR ----
+  const nvr = proj?.nvrPick?.nvr || proj?.nvrPick?.item || proj?.nvr || null;
+  const nvrId = String(toId(nvr) || "—");
+  const nvrName = String(nvr?.name || "");
+
+  // ---- HDD (strict : doit matcher CATALOG.HDDS) ----
+  const resolveHdd = () => {
+    const diskPlan =
+      proj?.storage?.diskPlan ||
+      proj?.storage?.disk ||
+      proj?.storage?.plan ||
+      proj?.storage?.hddPlan ||
+      proj?.diskPlan ||
+      proj?.disk ||
+      null;
+
+    const candidates = [];
+
+    const directObj =
+      proj?.hddPick?.hdd ||
+      proj?.hddPick?.item ||
+      proj?.storage?.hddPick?.hdd ||
+      proj?.storage?.hddPick?.item ||
+      proj?.storage?.hdd ||
+      proj?.hdd ||
+      null;
+
+    if (directObj) candidates.push(directObj);
+
+    if (Array.isArray(diskPlan?.items)) {
+      for (const it of diskPlan.items) {
+        if (!it) continue;
+        if (it.item) candidates.push(it.item);
+        candidates.push(it);
+      }
+    } else if (Array.isArray(diskPlan)) {
+      for (const it of diskPlan) {
+        if (!it) continue;
+        if (it.item) candidates.push(it.item);
+        candidates.push(it);
+      }
+    } else if (diskPlan && typeof diskPlan === "object") {
+      candidates.push(diskPlan);
+      if (diskPlan.item) candidates.push(diskPlan.item);
+    }
+
+    const nodes = deepScan(proj);
+    for (const n of nodes) candidates.push(n);
+
+    const pick = (obj) => {
+      const id = String(toId(obj) || "").trim();
+      if (!id) return null;
+      const inCat = findInCatalogById(CATALOG?.HDDS, id);
+      if (inCat) return inCat;
+      return null;
+    };
+
+    let found = null;
+    for (const c of candidates) {
+      found = pick(c);
+      if (found) break;
+    }
+
+    const qty =
+      Number(
+        firstTruthy(
+          diskPlan?.count,
+          diskPlan?.qty,
+          diskPlan?.quantity,
+          diskPlan?.items?.[0]?.qty,
+          diskPlan?.items?.[0]?.count,
+          diskPlan?.items?.[0]?.quantity,
+          0
+        )
+      ) || 0;
+
+    const id = found ? String(toId(found) || "") : "";
+    return { id, obj: found, qty };
+  };
+
+  // ---- SCREEN ----
+  const resolveScreen = () => {
+    const enabled =
+      !!(proj?.complements?.screen?.enabled || MODEL?.complements?.screen?.enabled);
+
+    const direct =
+      proj?.complements?.screen?.pick ||
+      proj?.complements?.screen?.selected ||
+      proj?.complements?.screen?.item ||
+      proj?.complements?.screenPick?.screen ||
+      proj?.screenPick?.screen ||
+      proj?.screenPick ||
+      proj?.screen ||
+      MODEL?.complements?.screen?.pick ||
+      MODEL?.complements?.screen?.selected ||
+      null;
+
+    const directId = String(toId(direct) || "").trim();
+    const directInCat = directId ? findInCatalogById(CATALOG?.SCREENS, directId) : null;
+    if (directInCat) return { enabled: true, id: String(toId(directInCat) || ""), obj: directInCat };
+
+    const sizeInch =
+      Number(
+        firstTruthy(
+          proj?.complements?.screen?.sizeInch,
+          proj?.complements?.screen?.size_inch,
+          proj?.complements?.screen?.size,
+          MODEL?.complements?.screen?.sizeInch,
+          MODEL?.complements?.screen?.size_inch,
+          MODEL?.complements?.screen?.size
+        )
+      ) || 0;
+
+    if (enabled && sizeInch > 0 && Array.isArray(CATALOG?.SCREENS)) {
+      let best = null;
+      let bestD = Infinity;
+      for (const s of CATALOG.SCREENS) {
+        const si = Number(s?.size_inch ?? s?.sizeInch ?? 0);
+        if (!Number.isFinite(si) || si <= 0) continue;
+        const d = Math.abs(si - sizeInch);
+        if (d < bestD) {
+          bestD = d;
+          best = s;
+        }
+      }
+      if (best) return { enabled: true, id: String(toId(best) || ""), obj: best };
+    }
+
+    return { enabled: !!enabled, id: "", obj: null };
+  };
+
+  const hddRes = resolveHdd();
+  const hddId = String(hddRes.id || "");
+  const hddObj = hddRes.obj;
+  const hddQty = Number(hddRes.qty || 0) || 0;
+
+  const screenRes = resolveScreen();
+  const scrEnabled = !!screenRes.enabled;
+  const screenId = String(screenRes.id || "");
+  const scr = screenRes.obj;
+
+  // ==========================================================
+  // 5) Layout & SVG
+  // ==========================================================
+  const W = 1120;
+  const H = 720;
+
+  let synScale = 1;
+  if (camCount > 4) synScale -= (camCount - 4) * 0.05;
+  if (swCount > 2) synScale -= (swCount - 2) * 0.06;
+  synScale = clamp(synScale, 0.70, 1);
+
+  const camIcon = clamp(56 - Math.max(0, camCount - 3) * 5, 34, 56);
+  const swIcon = clamp(56 - Math.max(0, swCount - 2) * 7, 34, 56);
+  const nvrIcon = 78;
+  const scrIcon = 56;
+
+  const camCardW = clamp(240 - Math.max(0, camCount - 4) * 10, 190, 240);
+  const swCardW = clamp(210 - Math.max(0, swCount - 2) * 10, 170, 210);
+  const camCardH = camIcon + 34;
+  const swCardH = swIcon + 34;
+
+  const fontLabel = clamp(11.5 - Math.max(0, camCount - 6) * 0.5, 9.5, 11.5);
+  const fontSmall = clamp(10.0 - Math.max(0, camCount - 6) * 0.5, 8.5, 10.0);
+
+  const camX = 70;
+  const swX = 400;
+  const coreX = 880;
+
+  const topY = 150;
+  const bottomY = H - 140;
+
+  const distributeY = (count) => {
+    if (count <= 1) return [Math.round((topY + bottomY) / 2)];
+    const gap = (bottomY - topY) / (count - 1);
+    return Array.from({ length: count }, (_, i) => Math.round(topY + i * gap));
+  };
+
+  const camYs = distributeY(camCount);
+  const swYs = distributeY(Math.max(1, swCount || 1));
+
+  const screenX = coreX - 170;
+  const screenY = 135;
+
+  const nvrY = 320;
+
+  const wanW = 360;
+  const wanH = 92;
+  const wanX0 = clamp(Math.round(coreX - wanW / 2), 30, W - 30 - wanW);
+  const wanY = 555;
+
+  // ✅ SVG image: si href vide -> placeholder
+  const svgImg = (x, y, w, h, href, rounded = 14) => {
+    const finalHref = normalizeLocalUrl(href);
+    if (!finalHref) {
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rounded}" ry="${rounded}" fill="#fff" stroke="#e5e7eb"/>`;
+    }
+    return `
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rounded}" ry="${rounded}" fill="#fff" stroke="#e5e7eb"/>
+      <image x="${x + 5}" y="${y + 5}" width="${w - 10}" height="${h - 10}" preserveAspectRatio="xMidYMid meet"
+        href="${finalHref}" xlink:href="${finalHref}" />
+    `;
+  };
+
+  const label = (x, y, t, size = fontLabel, weight = 900, color = COMELIT_BLUE) => `
+    <text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${color}" font-family="Arial">${safe(t)}</text>
+  `;
+
+  const small = (x, y, t, size = fontSmall, color = "#475569") => `
+    <text x="${x}" y="${y}" font-size="${size}" font-weight="700" fill="${color}" font-family="Arial">${safe(t)}</text>
+  `;
+
+  const cableOrtho = (x1, y1, x2, y2, stroke, dash = "", w = 3.4) => {
+    const midX = Math.round((x1 + x2) / 2);
+    return `
+      <path d="M ${x1} ${y1}
+               L ${midX} ${y1}
+               L ${midX} ${y2}
+               L ${x2} ${y2}"
+        fill="none"
+        stroke="${stroke}"
+        stroke-width="${w}"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ${dash ? `stroke-dasharray="${dash}"` : ""} />
+    `;
+  };
+
+  const blockToSwitch = new Map();
+  alloc.forEach((b) =>
+    (b.blocks || []).forEach((blk) => blockToSwitch.set(blk.blockId, b.sw.idx))
+  );
+
+  // ✅ IMPORTANT : on prend l’objet catalogue réel pour récupérer image_url
+  const camNodes = camBlocks.map((b, i) => {
+    const y = camYs[i] || camYs[camYs.length - 1];
+    const camObj = typeof getCameraById === "function" ? getCameraById(b.primaryRef) : null;
+    const img = pickLocalImg(camObj || { id: b.primaryRef }, "cameras", b.primaryRef);
+    return { ...b, x: camX, y, img };
+  });
+
+  const swNodes = switches.length
+    ? switches.map((sw, i) => {
+        const y = swYs[i] || swYs[swYs.length - 1];
+        // cherche dans CATALOG.SWITCHES pour récupérer image_url local
+        const swObj = findInCatalogById(CATALOG?.SWITCHES, sw.id) || null;
+        const img = pickLocalImg(swObj || { id: sw.id }, "switches", sw.id);
+        return { ...sw, x: swX, y, img };
+      })
+    : [];
+
+  // ---------- CABLES ----------
+  const poeLines = camNodes
+    .map((c) => {
+      const x1 = c.x + camCardW - 18;
+      const y1 = c.y + camIcon / 2;
+
+      const nvrEntryX = Math.round(coreX - 190);
+      const nvrEntryY = nvrY + 60;
+
+      if (!swNodes.length) {
+        return cableOrtho(x1, y1, nvrEntryX, nvrEntryY, "#dc2626", "", 3.8);
+      }
+
+      const swIdx = blockToSwitch.get(c.blockId) || swNodes[0]?.idx || 1;
+      const sw = swNodes.find((s) => s.idx === swIdx) || swNodes[0];
+
+      const x2 = sw.x - 18;
+      const y2 = sw.y + swIcon / 2;
+
+      return cableOrtho(x1, y1, x2, y2, "#dc2626", "", 3.8);
+    })
+    .join("");
+
+  const uplinkLines = swNodes
+    .map((sw) => {
+      const x1 = sw.x + swCardW - 18;
+      const y1 = sw.y + swIcon / 2;
+
+      const nvrEntryX = Math.round(coreX - 190);
+      const nvrEntryY = nvrY + 60;
+
+      return cableOrtho(x1, y1, nvrEntryX, nvrEntryY, "#6b7280", "6 6", 3.4);
+    })
+    .join("");
+
+  const hdmiLine =
+    scrEnabled && screenId
+      ? (() => {
+          const x1 = coreX + 10;
+          const y1 = nvrY + 45;
+          const x2 = screenX + 40;
+          const y2 = screenY + 75;
+          return cableOrtho(x1, y1, x2, y2, "#2563eb", "", 3.2);
+        })()
+      : "";
+
+  const nvrToWan = (() => {
+    const x1 = coreX + 10;
+    const y1 = nvrY + 150;
+    const x2 = wanX0 + 20;
+    const y2 = wanY + 46;
+    return cableOrtho(x1, y1, x2, y2, "#6b7280", "6 6", 3.2);
+  })();
+
+  // ---------- LEGEND & HEADER ----------
+  // ✅ tu m’as dit : la légende est cachée → on la remonte (y=78 au lieu de 95)
+  const legendSvg = `
+    <g>
+      <rect x="${W - 430}" y="78" width="390" height="54" rx="14" ry="14" fill="#fff" stroke="#e5e7eb"/>
+      <circle cx="${W - 405}" cy="105" r="5" fill="#dc2626"/>
+      <text x="${W - 392}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">PoE</text>
+
+      <circle cx="${W - 342}" cy="105" r="5" fill="#6b7280"/>
+      <text x="${W - 329}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">Uplink</text>
+
+      <circle cx="${W - 270}" cy="105" r="5" fill="#2563eb"/>
+      <text x="${W - 257}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">HDMI</text>
+
+      <text x="${W - 190}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">PoE max 90m / 250m</text>
+    </g>
+  `;
+
+  const projectNameDisplay = String(MODEL?.project?.name || proj?.projectName || "—");
+
+  const headerSvg = `
+    <g>
+      ${label(40, 50, "Synoptique — Installation & câblage", 16, 900, COMELIT_BLUE)}
+      ${small(40, 72, `Projet : ${projectNameDisplay}`, 10.5, "#475569")}
+      ${small(
+        40,
+        92,
+        `Débit ~${Number(proj?.totalInMbps ?? 0).toFixed(1)} Mbps • Stockage ~${Number(proj?.requiredTB ?? 0).toFixed(1)} To`,
+        10,
+        "#475569"
+      )}
+    </g>
+  `;
+
+  // ---------- NODES ----------
+  const camsSvg = camNodes
+    .map((c) => {
+      const cardX = c.x - 24;
+      const cardY = c.y - 18;
+
+      const refLine =
+        c.refs && c.refs.length > 1 ? `${c.refs[0]} + …` : c.refs?.[0] || c.primaryRef || "—";
+
+      return `
+        <g>
+          <rect x="${cardX}" y="${cardY}" width="${camCardW}" height="${camCardH}" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
+          <rect x="${cardX}" y="${cardY}" width="8" height="${camCardH}" rx="16" ry="16" fill="${COMELIT_GREEN}"/>
+          ${svgImg(c.x, c.y, camIcon, camIcon, c.img, 14)}
+          ${label(c.x + camIcon + 12, c.y + 18, `${c.label}`, fontLabel, 900, COMELIT_BLUE)}
+          ${small(c.x + camIcon + 12, c.y + 36, `${refLine} • ${c.qty} cam`, fontSmall, "#475569")}
+        </g>
+      `;
+    })
+    .join("");
+
+  const swSvg = swNodes
+    .map((sw) => {
+      const cardX = sw.x - 24;
+      const cardY = sw.y - 18;
+
+      const bucket = alloc.find((a) => a.sw.idx === sw.idx);
+      const used = bucket ? Number(bucket.used || 0) : 0;
+
+      return `
+        <g>
+          <rect x="${cardX}" y="${cardY}" width="${swCardW}" height="${swCardH}" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
+          ${svgImg(sw.x, sw.y, swIcon, swIcon, sw.img, 14)}
+          ${label(sw.x + swIcon + 10, sw.y + 18, `Switch ${sw.idx}`, fontLabel, 900, COMELIT_BLUE)}
+          ${small(sw.x + swIcon + 10, sw.y + 36, `${sw.id} • ${used}/${sw.portsCap} ports`, fontSmall, "#475569")}
+          ${small(sw.x + swIcon + 10, sw.y + 52, `⚡ 230V`, fontSmall, "#b45309")}
+        </g>
+      `;
+    })
+    .join("");
+
+  // NVR (image_url local en priorité)
+  const nvrImg = pickLocalImg(nvr, "nvrs", nvrId);
+
+  const nvrCardW = 360;
+  const nvrCardH = 200;
+
+  const nvrCardX = clamp(Math.round(coreX - nvrCardW / 2), 30, W - 30 - nvrCardW);
+  const nvrCardY = Math.round(nvrY);
+
+  const nvrIconX = nvrCardX + 18;
+  const nvrIconY = nvrCardY + 22;
+
+  const nvrTextX = nvrIconX + nvrIcon + 14;
+
+  const hddImg = pickLocalImg(hddObj, "hdds", hddId);
+
+  const hddMiniX = nvrTextX;
+  const hddMiniY = nvrCardY + 118;
+  const hddMiniW = nvrCardX + nvrCardW - hddMiniX - 18;
+  const hddMiniH = 52;
+
+  const hddLabel = hddId ? `${Math.max(1, hddQty || 1)}× ${hddId}` : "HDD : —";
+
+  const nvrSvg = `
+    <g>
+      <rect x="${nvrCardX}" y="${nvrCardY}" width="${nvrCardW}" height="${nvrCardH}" rx="18" ry="18" fill="#f8fafc" stroke="#e5e7eb"/>
+      <rect x="${nvrCardX}" y="${nvrCardY}" width="10" height="${nvrCardH}" rx="18" ry="18" fill="${COMELIT_BLUE}"/>
+
+      ${svgImg(nvrIconX, nvrIconY, nvrIcon, nvrIcon, nvrImg, 16)}
+      ${label(nvrTextX, nvrIconY + 18, "NVR", 13, 900, COMELIT_BLUE)}
+      ${small(nvrTextX, nvrIconY + 36, `${nvrId}`, 9.5, "#475569")}
+      ${small(nvrTextX, nvrIconY + 52, `${nvrName}`, 9.5, "#475569")}
+      ${small(nvrTextX, nvrIconY + 70, `⚡ 230V`, 9.5, "#b45309")}
+
+      <g>
+        <rect x="${hddMiniX}" y="${hddMiniY}" width="${hddMiniW}" height="${hddMiniH}" rx="14" ry="14" fill="#fff" stroke="#e5e7eb"/>
+        ${svgImg(hddMiniX + 10, hddMiniY + 10, 32, 32, hddImg, 10)}
+        ${small(hddMiniX + 50, hddMiniY + 32, hddLabel, 9.5, "#475569")}
+      </g>
+    </g>
+  `;
+
+  // Screen (image_url local en priorité)
+  const scrImg = pickLocalImg(scr, "screens", screenId);
+
+  const screenSvg =
+    scrEnabled && screenId
+      ? `
+      <g>
+        <rect x="${screenX}" y="${screenY}" width="320" height="110" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
+        ${svgImg(screenX + 18, screenY + 22, scrIcon, scrIcon, scrImg, 14)}
+        ${label(screenX + 18 + scrIcon + 12, screenY + 46, "Écran", fontLabel, 900, COMELIT_BLUE)}
+        ${small(screenX + 18 + scrIcon + 12, screenY + 66, `${screenId}`, fontSmall, "#475569")}
+        ${small(screenX + 18 + scrIcon + 12, screenY + 84, `⚡ 230V`, fontSmall, "#b45309")}
+      </g>
+    `
+      : "";
+
+  // WAN
+  const wanSvg = `
+    <g>
+      <rect x="${wanX0}" y="${wanY}" width="${wanW}" height="${wanH}" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
+      ${label(wanX0 + 18, wanY + 38, "Accès distant / WAN", fontLabel, 900, COMELIT_BLUE)}
+      ${small(wanX0 + 18, wanY + 60, "Box Internet / Internet / VPN / App", fontSmall, "#475569")}
+      ${small(wanX0 + wanW - 48, wanY + 52, "WAN", 9.5, "#64748b")}
+    </g>
+  `;
+
+  const svg = `
+  <svg xmlns="http://www.w3.org/2000/svg"
+       xmlns:xlink="http://www.w3.org/1999/xlink"
+       width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.08"/>
+      </filter>
+    </defs>
+
+    <rect x="18" y="18" width="${W - 36}" height="${H - 36}" rx="22" ry="22" fill="#ffffff" stroke="#e5e7eb"/>
+
+    ${headerSvg}
+    ${legendSvg}
+
+    <g transform="translate(${W / 2} ${H / 2}) scale(${synScale}) translate(${-W / 2} ${-H / 2})">
+      <g>
+        ${poeLines}
+        ${uplinkLines}
+        ${hdmiLine}
+        ${nvrToWan}
+      </g>
+
+      <g filter="url(#shadow)">
+        ${camsSvg}
+        ${swSvg}
+        ${screenSvg}
+        ${nvrSvg}
+        ${wanSvg}
+      </g>
+    </g>
+  </svg>
+  `;
+
   return `
+    <div class="synWrap">
+      <div class="synCanvas">
+        ${svg}
+      </div>
+    </div>
+  `;
+};
+
+
+
+
+    return `
 <div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:${COMELIT_BLUE}; background:#ffffff;">
   <style>
     * { box-sizing: border-box; }
@@ -2350,26 +3191,58 @@ function buildPdfHtml(proj) {
       --c-blue-soft: #eef2f7;
     }
 
-    /* ✅ page-break directement sur les pages => pas de page blanche parasite */
     .pdfPage{
-      padding:18px 18px 14px;
-      background:var(--c-white);
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0;
+
+      /* ✅ V2: page plus “pleine” */
+      padding: 6mm;                 /* au lieu de 18/18/14 */
+      background: var(--c-white);
+
       page-break-after: always;
       break-after: page;
     }
+
     .pdfPage:last-child{
       page-break-after: auto;
       break-after: auto;
     }
+    /* ✅ Page paysage réelle (A4 landscape) */
+    .pdfPageLandscape{
+    width: 297mm;
+    min-height: 210mm;
+    display:flex;
+    flex-direction:column;
+  }
 
-    /* Header */
+  /* Le contenu entre header et footer doit pouvoir "prendre la place" */
+  .pdfPageLandscape .landscapeBody{
+    flex: 1 1 auto;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ✅ Synoptique = prend toute la zone dispo (pas de hauteur fixe en mm ici) */
+  .pdfPageLandscape .synWrap{
+    flex: 1 1 auto;
+    height: auto;
+    padding: 6mm;          /* plus léger */
+    border-radius: 14px;
+  }
+
+  /* Optionnel : footer plus proche en paysage */
+  .pdfPageLandscape .footerLine{
+    margin-top: 6px;
+  }
+
+
     .pdfHeader{
       border-bottom:3px solid var(--c-blue);
-      padding-bottom:10px;
-      margin-bottom:12px;
+      padding-bottom:8px;
+      margin-bottom:10px;
     }
 
-    /* ✅ Grid stable + titre centré */
     .headerGrid{
       display:grid;
       grid-template-columns: 120px 1fr auto;
@@ -2377,10 +3250,11 @@ function buildPdfHtml(proj) {
       align-items:center;
     }
     .brandLogo{
-      width:120px;
+      width:132px;             /* ✅ avant 120 */
       height:auto;
       object-fit:contain;
     }
+
 
     .headerTitles{
       min-width:0;
@@ -2390,7 +3264,7 @@ function buildPdfHtml(proj) {
 
     .mainTitle{
       font-family:"Arial Black", Arial, sans-serif;
-      font-size:18px;
+      font-size:22px;            /* ✅ + lisible */
       line-height:1.15;
       color:var(--c-blue);
       margin:0;
@@ -2401,7 +3275,7 @@ function buildPdfHtml(proj) {
 
     .metaLine{
       margin-top:4px;
-      font-size:10.5px;
+      font-size:11.5px;          /* ✅ avant 10.5 */
       color:var(--c-muted);
       line-height:1.25;
     }
@@ -2432,21 +3306,47 @@ function buildPdfHtml(proj) {
     }
 
     .headerSub{
-      margin-top:8px;
-      font-size:12.5px;
+      margin-top:6px;           /* ✅ plus respirant */
+      font-size:14px;            /* ✅ avant 12.5 */
       font-weight:900;
       color:var(--c-blue);
     }
+    .headerSubWrap{
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid var(--c-line);
+    }
 
-    /* ✅ Carte "Nom du projet" (page 0) */
+    .headerSubLine{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .headerSubDot{
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--c-green);
+      flex:0 0 auto;
+    }
+
+    .headerSubText{
+      font-size:14px;          /* ✅ plus gros */
+      font-weight:900;
+      color:var(--c-blue);
+      line-height:1.2;
+    }
+
     .projectCard{
-      margin-top:14px;
+      margin-top:10px;
       border:1px solid var(--c-line);
       border-left:10px solid var(--c-green);
       border-radius:16px;
-      padding:18px;
+      padding:12px;           /* ✅ moins “gros” */
       background:var(--c-soft);
     }
+
     .projectLabel{
       font-size:11px;
       color:var(--c-muted);
@@ -2469,69 +3369,95 @@ function buildPdfHtml(proj) {
       line-height:1.35;
     }
 
-    /* KPI page 1 */
-    .kpiRow{ display:flex; gap:10px; margin-top:6px; }
+    .kpiRow{
+      display:flex;
+      gap:12px;
+      margin-top:10px;
+    }
+
     .kpiBox{
       flex:1 1 0;
       border:1px solid var(--c-line);
-      border-radius:12px;
+      border-radius:14px;
       background:var(--c-soft);
-      padding:10px;
+      padding:12px;             /* ✅ + de présence */
     }
-    .kpiLabel{ font-size:11px; color:var(--c-muted); }
-    .kpiValue{ margin-top:4px; font-size:14px; font-weight:900; color:var(--c-blue); }
-    .muted{ color:var(--c-muted); font-size:11px; line-height:1.35; overflow-wrap:anywhere; word-break:break-word; }
 
-    /* Sections */
+    .kpiLabel{
+      font-size:12px;           /* ✅ avant 11 */
+      color:var(--c-muted);
+      font-weight:800;
+    }
+
+    .kpiValue{
+      margin-top:4px;
+      font-size:16px;           /* ✅ avant 14 */
+      font-weight:900;
+      color:var(--c-blue);
+    }
+
+    /* ✅ muted un peu plus grand, sinon ça “fait vide” */
+    .muted{
+      color:var(--c-muted);
+      font-size:12px;           /* ✅ avant 11 */
+      line-height:1.35;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+
     .section{
-      margin-top:10px;
-      padding:10px;
+      margin-top:10px;          /* ✅ avant 7 */
+      padding:12px;             /* ✅ avant 8 */
       border:1px solid var(--c-line);
-      border-radius:12px;
+      border-radius:14px;
       background:#fff;
       page-break-inside: avoid;
       break-inside: avoid;
     }
+
     .sectionTitle{
       font-family:"Arial Black", Arial, sans-serif;
-      font-size:12.5px;
+      font-size:13.5px;       /* ✅ + grand */
       margin:0 0 8px 0;
       color:var(--c-blue);
     }
 
-    /* Tables produits */
     .tbl{
       width:100%;
       border-collapse:collapse;
-      font-size:11px;
+      font-size:12px;         /* ✅ + lisible */
       table-layout:fixed;
       overflow-wrap:anywhere;
     }
+
     .tbl th, .tbl td{
       border:1px solid var(--c-line);
-      padding:7px 8px;
+      padding:9px 10px;         /* ✅ avant 7/8 */
       vertical-align:top;
     }
+
     .tbl th{
       background:var(--c-blue-soft);
       text-align:left;
       font-weight:900;
       color:var(--c-blue);
     }
-    .colQty{ width:54px; }
-    .colRef{ width:130px; }
-    .colImg{ width:76px; text-align:center; }
-    .thumb{
-      width:52px;
-      height:52px;
-      object-fit:contain;
-      border:1px solid var(--c-line);
-      border-radius:10px;
-      background:#fff;
-      display:inline-block;
-    }
 
-    /* Annexe (toujours 1 page) */
+    .colQty{ width:62px; }      /* ✅ avant 54 */
+    .colRef{ width:150px; }     /* ✅ avant 130 */
+    .colImg{ width:96px; text-align:center; } /* ✅ avant 76 */
+
+      .thumb{
+        width:58px;             /* ✅ + grand */
+        height:58px;
+        object-fit:contain;
+        border:1px solid var(--c-line);
+        border-radius:10px;
+        background:#fff;
+        display:inline-block;
+      }
+
+
     .annexGrid{ display:flex; gap:10px; align-items:stretch; }
     .annexColL{ flex:0 0 40%; }
     .annexColR{ flex:1 1 auto; }
@@ -2563,6 +3489,40 @@ function buildPdfHtml(proj) {
       font-size:10px;
       color:var(--c-muted);
     }
+
+    /* =========================================================
+       ✅ ANNEXE 2 — SYNOPTIQUE (LANDSCAPE NATIF)
+       ========================================================= */
+
+  .synWrap{
+  width: 100%;
+  height: 180mm;   /* tu étais à 178mm c'est ok */
+  border: 1px solid var(--c-line);
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+  padding: 10mm;   /* ✅ un poil moins, ça agrandit le schéma utile */
+}
+.synCanvas{
+  width: 100%;
+  height: 100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.synCanvas svg{
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+
+
+.synCanvas svg{
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+
   </style>
 
   <!-- ✅ PAGE 0 : NOM DU PROJET -->
@@ -2580,7 +3540,7 @@ function buildPdfHtml(proj) {
     <div class="footerLine">Comelit — With you always</div>
   </div>
 
-  <!-- PAGE 1 -->
+  <!-- ✅ PAGE 1 -->
   <div class="pdfPage">
     ${headerHtml("Caméras & accessoires caméras")}
 
@@ -2590,11 +3550,13 @@ function buildPdfHtml(proj) {
         <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
         <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
       </div>
+
       <div class="kpiBox">
         <div class="kpiLabel">Stockage requis</div>
         <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
         <div class="muted">Détail dans l’Annexe 1.</div>
       </div>
+
       <div class="kpiBox">
         <div class="kpiLabel">Paramètres d’enregistrement</div>
         <div class="kpiValue">${safe(daysRetention)} jours</div>
@@ -2615,7 +3577,7 @@ function buildPdfHtml(proj) {
     <div class="footerLine">Comelit — With you always</div>
   </div>
 
-  <!-- PAGE 2 -->
+  <!-- ✅ PAGE 2 -->
   <div class="pdfPage">
     ${headerHtml("Équipements & options (NVR / réseau / stockage / compléments)")}
 
@@ -2643,7 +3605,7 @@ function buildPdfHtml(proj) {
     <div class="footerLine">Comelit — With you always</div>
   </div>
 
-  <!-- PAGE 3 -->
+  <!-- ✅ PAGE 3 -->
   <div class="pdfPage">
     ${headerHtml("Annexe 1 — Dimensionnement du stockage")}
 
@@ -2714,6 +3676,15 @@ function buildPdfHtml(proj) {
       </div>
     </div>
 
+    <div class="footerLine">Comelit — With you always</div>
+  </div>
+
+  <!-- ✅ PAGE 4 : SYNOPTIQUE -->
+  <div class="pdfPage pdfPageLandscape">
+    ${headerHtml("Annexe 2 — Synoptique de l’installation")}
+    <div class="landscapeBody">
+      ${buildSynopticHtml()}
+    </div>
     <div class="footerLine">Comelit — With you always</div>
   </div>
 
@@ -3547,6 +4518,10 @@ function buildPdfHtml(proj) {
         ${renderComplementsCard(proj)}
   `;
   }
+  // ✅ Compat: ancien nom utilisé par render()
+if (typeof renderStepMounts !== "function" && typeof renderStepAccessories === "function") {
+  window.renderStepMounts = renderStepAccessories;
+}
 
   // ==========================================================
   // MAIN RENDER (manquait → causait "render is not defined")
@@ -4193,73 +5168,283 @@ if (action === "validateCamera") {
 
     return rows.join("\n");
   }
+
   async function exportProjectPdfPro() {
   const proj = LAST_PROJECT || computeProject();
   LAST_PROJECT = proj;
 
-  // container offscreen (pas display:none)
+  // container offscreen (paint OK)
   const host = document.createElement("div");
   host.id = "pdfHost";
   host.style.position = "fixed";
-  host.style.left = "-10000px";
+  host.style.left = "0";
   host.style.top = "0";
   host.style.width = "210mm";
   host.style.background = "#fff";
+  host.style.color = "#000";
+  host.style.zIndex = "-1";
+  host.style.opacity = "0.01";
+  host.style.pointerEvents = "none";
+  host.style.transform = "translateZ(0)";
+
   host.innerHTML = buildPdfHtml(proj);
   document.body.appendChild(host);
 
-  // ✅ cible le vrai root (plus fiable)
   const root = host.querySelector("#pdfReportRoot") || host;
 
-  // attendre fonts/images
+  // --- helpers ---
+  const blobToDataURL = (blob) =>
+    new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ""));
+      r.onerror = () => resolve("");
+      r.readAsDataURL(blob);
+    });
+
+  const inlineUrlToData = async (url) => {
+    const u = String(url || "").trim();
+    if (!u) return null;
+    if (/^data:/i.test(u)) return u;
+    // ✅ Pas d\'internet / pas de cross-origin : on ne tente d\'inline que les URLs locales (ex: /data/...)
+    if (/^https?:\/\//i.test(u)) return null;
+    try {
+      const res = await fetch(url, { mode: "cors", cache: "no-store" });
+      if (!res.ok) return "";
+      const blob = await res.blob();
+      return await blobToDataURL(blob);
+    } catch {
+      return "";
+    }
+  };
+
+  const inlineImgs = async () => {
+    const imgs = Array.from(root.querySelectorAll("img"));
+    for (const img of imgs) {
+      const src = img.getAttribute("src") || "";
+      if (!/^https?:\/\//i.test(src)) continue;
+      const dataUrl = await inlineUrlToData(src);
+      if (dataUrl) img.setAttribute("src", dataUrl);
+    }
+  };
+
+// ✅ Inline <svg><image href="..."> (LOCAL + http/https) -> dataURL
+const inlineSvgImages = async () => {
+  const svgImgs = Array.from(root.querySelectorAll("svg image"));
+  for (const node of svgImgs) {
+    const href =
+      node.getAttribute("href") ||
+      node.getAttribute("xlink:href") ||
+      "";
+
+    if (!href) continue;
+
+    // déjà inline
+    if (/^data:/i.test(href)) continue;
+
+    // ✅ IMPORTANT : rendre absolu (sinon certains cas foirent dans html2canvas)
+    const absUrl = new URL(href, window.location.href).href;
+
+    // ✅ On inline aussi /data/... (local) => pas d'internet, mais ça fiabilise html2canvas
+    const dataUrl = await inlineUrlToData(absUrl);
+    if (dataUrl) {
+      node.setAttribute("href", dataUrl);
+      node.setAttribute("xlink:href", dataUrl);
+    }
+  }
+};
+
+  const waitImages = async () => {
+    const imgs = Array.from(root.querySelectorAll("img"));
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          new Promise((resolve) => {
+            if (img.complete) return resolve();
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      )
+    );
+  };
+  // ✅ helper : attend le chargement des <svg><image href="...">
+function waitSvgImagesLoaded(root) {
+  const nodes = Array.from(root.querySelectorAll("svg image"));
+
+  return Promise.all(
+    nodes.map((node) => {
+      const href =
+        node.getAttribute("href") ||
+        node.getAttribute("xlink:href") ||
+        "";
+
+      return new Promise((resolve) => {
+        if (!href) return resolve();
+        if (/^data:/i.test(href)) return resolve(); // déjà inline
+
+        const img = new Image();
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+
+        // ✅ absolu
+        img.src = new URL(href, window.location.href).href;
+      });
+    })
+  );
+}
+
+  const renderElementToCanvas = async (el, forcedWidthPx = null) => {
+  if (typeof window.html2canvas !== "function") {
+    throw new Error("html2canvas est absent. Charge html2pdf.bundle.min.js.");
+  }
+
+  const prevWidth = el.style.width;
+  if (forcedWidthPx) el.style.width = forcedWidthPx + "px";
+
+  const rect = el.getBoundingClientRect();
+  const w = Math.max(el.scrollWidth || 0, Math.round(rect.width));
+  const h = Math.max(el.scrollHeight || 0, Math.round(rect.height));
+
+  el.scrollIntoView?.({ block: "start" });
+
+  const canvas = await window.html2canvas(el, {
+    scale: 3, // ✅ au lieu de 2 (portrait plus “plein” et plus net)
+    useCORS: true,
+    allowTaint: false,
+    backgroundColor: "#ffffff",
+    logging: false,
+    windowWidth: w,
+    windowHeight: h,
+    width: w,
+    height: h,
+  });
+
+  if (forcedWidthPx) el.style.width = prevWidth;
+  return canvas;
+};
+
+
+  const addCanvasToPdfPage = (pdf, canvas, opts = {}) => {
+    const { marginMm = 2.5, mode = "fitWidth", alignY = "top" } = opts;
+
+    const imgData = canvas.toDataURL("image/jpeg", 0.98);
+
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+
+    const maxW = pageW - marginMm * 2;
+    const maxH = pageH - marginMm * 2;
+
+    const imgWpx = canvas.width;
+    const imgHpx = canvas.height;
+
+    const ratio =
+      mode === "fitWidth" ? (maxW / imgWpx) : Math.min(maxW / imgWpx, maxH / imgHpx);
+
+    const drawW = imgWpx * ratio;
+    const drawH = imgHpx * ratio;
+
+    const x = marginMm;
+    const y = alignY === "center" ? (pageH - drawH) / 2 : marginMm;
+
+    pdf.addImage(imgData, "JPEG", x, y, drawW, drawH, undefined, "FAST");
+  };
+
+  // --- checks libs ---
   try {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
   } catch {}
 
-  const imgs = Array.from(root.querySelectorAll("img"));
-  await Promise.all(
-    imgs.map(
-      (img) =>
-        new Promise((resolve) => {
-          if (img.complete) return resolve();
-          img.onload = () => resolve();
-          img.onerror = () => resolve();
-        })
-    )
-  );
-
-  if (typeof window.html2pdf !== "function") {
+  const JsPDF = window?.jspdf?.jsPDF || window?.jsPDF;
+  if (typeof JsPDF !== "function") {
     host.remove();
-    alert("html2pdf n'est pas chargé. Vérifie le script CDN dans ton HTML.");
+    alert("jsPDF est absent. Utilise html2pdf.bundle.min.js (bundle).");
+    return;
+  }
+  if (typeof window.html2canvas !== "function") {
+    host.remove();
+    alert("html2canvas est absent. Utilise html2pdf.bundle.min.js (bundle).");
     return;
   }
 
-  const now = new Date();
-  const filename = `rapport_configurateur_${now.toISOString().slice(0, 10)}.pdf`;
-
   try {
-  await window.html2pdf()
-  .set({
-    margin: 10,
-    filename,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      backgroundColor: "#ffffff",
-    },
-    pagebreak: { mode: ["css"] },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-  })
-  .from(root)
-  .save();
+    await inlineImgs();
+    await waitImages();              // ✅ TA fonction existante
 
-} finally {
-  host.remove();
+    await inlineSvgImages();
+    await waitSvgImagesLoaded(root); // ✅ celle qu’on a ajoutée
+
+    // petit tick pour que le layout soit stable avant html2canvas
+    await new Promise((r) => setTimeout(r, 60));
+
+
+    const pages = Array.from(root.querySelectorAll(".pdfPage"));
+    if (!pages.length) {
+      alert("Aucune page .pdfPage trouvée dans le HTML PDF.");
+      return;
+    }
+
+    const lastIndex = pages.length - 1;
+    const portraitPages = pages.slice(0, lastIndex);
+    const synopticPage = pages[lastIndex];
+
+    const now = new Date();
+    const filename = `rapport_configurateur_${now.toISOString().slice(0, 10)}.pdf`;
+
+    const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+
+// ✅ pages portrait : IMPORTANT => forcedWidth plus PETIT = texte plus GROS dans le PDF (fitWidth)
+// 1400/1100 => ça “réduit” ton contenu car jsPDF fit au width A4.
+// Ici on met 860px (valeur magique stable) + scale 2 dans html2canvas => rendu net et plus “plein”.
+for (let i = 0; i < portraitPages.length; i++) {
+  const el = portraitPages[i];
+
+  // ✅ Force une largeur raisonnable (sinon ton contenu devient minuscule une fois fitWidth)
+  const canvas = await renderElementToCanvas(el, 860);
+
+  if (i > 0) pdf.addPage("a4", "portrait");
+
+  addCanvasToPdfPage(pdf, canvas, {
+    marginMm: 3,
+    mode: "fitWidth",
+    alignY: "top",
+  });
 }
 
+
+    // ✅ Synoptique paysage
+    const prevW = host.style.width;
+    host.style.width = "297mm";
+    synopticPage.style.width = "297mm";
+    await new Promise((r) => setTimeout(r, 80));
+
+    pdf.addPage("a4", "landscape");
+
+    const synCanvas = await renderElementToCanvas(synopticPage, 1900);
+
+    addCanvasToPdfPage(pdf, synCanvas, {
+      marginMm: 2.5,
+      mode: "fit",
+      alignY: "center",
+    });
+
+    host.style.width = prevW;
+    synopticPage.style.width = "";
+
+    pdf.save(filename);
+  } catch (e) {
+    console.error("Erreur export PDF:", e);
+    alert("Erreur export PDF : " + (e?.message || e));
+  } finally {
+    host.remove();
+  }
 }
+
+
+
+
+
+
+
 // ==========================================================
 // EXPORT PACK (PDF + FICHES TECHNIQUES) -> ZIP
 // ==========================================================
@@ -4414,6 +5599,23 @@ async function buildPdfBlobFromProject(proj) {
     host.remove();
     throw new Error("html2pdf n'est pas chargé.");
   }
+
+  // ---------- jsPDF detection robuste ----------
+let JsPDF = null;
+if (window.jspdf && typeof window.jspdf.jsPDF === "function") {
+  JsPDF = window.jspdf.jsPDF;           // bundle récent
+} else if (typeof window.jsPDF === "function") {
+  JsPDF = window.jsPDF;                 // vieux global
+}
+
+if (!JsPDF) {
+  host.remove();
+  alert(
+    "jsPDF est absent.\n" +
+    "➡️ Vérifie que tu charges UNIQUEMENT html2pdf.bundle.min.js (pas html2canvas séparé)."
+  );
+  return;
+}
 
   const worker = window.html2pdf()
     .set({
@@ -4785,6 +5987,9 @@ bind(DOM.stepsEl, "input", onStepsInput);
 
       // ✅ panneaux de signalisation
       CATALOG.SIGNAGE = (signageRaw || []).map(normalizeSignageRow).filter(Boolean);
+
+  // ✅ Médias locaux uniquement (images + fiches)
+  applyLocalMediaToCatalog();
 
 
       // ✅ accessories.csv = MAPPING (camera_id => junction/wall/ceiling)

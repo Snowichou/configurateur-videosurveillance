@@ -3,12 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
 
     <title>Configurateur Vidéosurveillance (MVP)</title>
-    <!-- JSZip (export ZIP) : requis car ton app.js appelle window.JSZip() -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <!-- html2pdf (export PDF) : requis car ton app.js appelle window.html2pdf() -->
+
+    <!-- JSZip (si tu l'utilises en global window.JSZip) -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+
+    <!-- ✅ UN SEUL script : html2pdf.bundle inclut html2canvas + jsPDF -->
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
       crossorigin="anonymous"
