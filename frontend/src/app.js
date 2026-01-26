@@ -1347,6 +1347,34 @@ function sanity() {
     rebuildAccessoryLinesFromBlocks();
   }
 
+  // ✅ Invalidation légère : si un bloc déjà "validé" est modifié,
+// on le repasse en non-validé + on reset le cache projet pour forcer recompute.
+function invalidateIfNeeded(block, reason = "Modification") {
+  try {
+    // Toujours invalider le cache de rendu/calcul projet
+    // (sinon computeProject() peut rester sur un résultat ancien)
+    if (typeof _renderProjectCache !== "undefined") _renderProjectCache = null;
+
+    if (!block) return;
+
+    // Si le bloc était validé, on le "dévalide" proprement
+    if (block.validated) {
+      if (typeof unvalidateBlock === "function") {
+        unvalidateBlock(block, reason);
+      } else {
+        // fallback ultra-safe
+        block.validated = false;
+        block.selectedCameraId = "";
+      }
+    }
+  } catch (e) {
+    console.warn("[invalidateIfNeeded] fallback", e);
+    try {
+      if (typeof _renderProjectCache !== "undefined") _renderProjectCache = null;
+    } catch {}
+  }
+}
+
   function suggestAccessoriesForBlock(block) {
     const line = MODEL.cameraLines.find((l) => l.fromBlockId === block.id);
     if (!line) {
@@ -2449,20 +2477,14 @@ const headerHtml = (subtitle) => `
   // plus ça rétrécit automatiquement.
   // =====================================================================
 
-  const buildSynopticHtml = () => {
+const buildSynopticHtml = () => {
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-
   const safe = (v) =>
     typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? "");
 
-  const sumCams = () => {
-    const lines = Array.isArray(MODEL?.cameraLines) ? MODEL.cameraLines : [];
-    return lines.reduce((acc, l) => acc + Number(l?.qty || 0), 0);
-  };
-
-  // ==========================================================
-  // 0) HELPERS robustes (ID + catalog + local media only)
-  // ==========================================================
+  // -----------------------------
+  // Helpers robustes (ID + scan)
+  // -----------------------------
   const firstTruthy = (...vals) =>
     vals.find((v) => v != null && String(v).trim() !== "") ?? "";
 
@@ -2479,77 +2501,37 @@ const headerHtml = (subtitle) => `
     );
 
   const isObj = (v) => v && typeof v === "object";
-
   const deepScan = (root, maxNodes = 2500) => {
     const out = [];
     const seen = new Set();
-    const queue = [root];
-
-    while (queue.length && out.length < maxNodes) {
-      const cur = queue.shift();
-      if (!isObj(cur)) continue;
-      if (seen.has(cur)) continue;
+    const q = [root];
+    while (q.length && out.length < maxNodes) {
+      const cur = q.shift();
+      if (!isObj(cur) || seen.has(cur)) continue;
       seen.add(cur);
       out.push(cur);
-
-      if (Array.isArray(cur)) {
-        for (const it of cur) queue.push(it);
-      } else {
-        for (const k of Object.keys(cur)) queue.push(cur[k]);
-      }
+      if (Array.isArray(cur)) for (const it of cur) q.push(it);
+      else for (const k of Object.keys(cur)) q.push(cur[k]);
     }
     return out;
   };
 
   const findInCatalogById = (catalogList, wantedId) => {
-    if (!wantedId) return null;
-    if (!Array.isArray(catalogList)) return null;
+    if (!wantedId || !Array.isArray(catalogList)) return null;
     const norm = String(wantedId).trim().toLowerCase();
     return (
-      catalogList.find((x) => String(toId(x) || "").trim().toLowerCase() === norm) ||
-      null
+      catalogList.find((x) => String(toId(x) || "").trim().toLowerCase() === norm) || null
     );
   };
 
-  // ✅ ICI : on force le synoptique à n'utiliser QUE du local (/data)
-  const normalizeLocalUrl = (u) => {
-    const s = String(u || "").trim();
-    if (!s) return "";
-
-    // interdit internet (ancienne méthode)
-    if (/^https?:\/\//i.test(s)) return "";
-
-    // ok data-uri
-    if (/^data:image\//i.test(s)) return s;
-
-    // si l’URL est déjà du local correct
-    if (s.startsWith("/data/")) return s;
-
-    // si c’est "data/..." on ajoute le slash
-    if (s.startsWith("data/")) return "/" + s;
-
-    // si c’est relatif (Images/...) on ne tente pas d’inventer -> vide
-    return s;
+  // -----------------------------
+  // 1) Camera blocks
+  // -----------------------------
+  const sumCams = () => {
+    const lines = Array.isArray(MODEL?.cameraLines) ? MODEL.cameraLines : [];
+    return lines.reduce((acc, l) => acc + Number(l?.qty || 0), 0);
   };
 
-  // ✅ pick image : d’abord image_url du catalogue (local), sinon getThumbSrc local
-  const pickLocalImg = (obj, family, id) => {
-    const a = normalizeLocalUrl(obj?.image_url || obj?.image || "");
-    if (a) return a;
-
-    // fallback = convention /data/Images/<family>/<id>.png
-    try {
-      if (typeof getThumbSrc === "function") {
-        const b = normalizeLocalUrl(getThumbSrc(family, id));
-        if (b) return b;
-      }
-    } catch {}
-    return "";
-  };
-
-  // ==========================================================
-  // 1) Groupes caméras
-  // ==========================================================
   const buildCameraBlocks = () => {
     const blocks = Array.isArray(MODEL?.cameraBlocks) ? MODEL.cameraBlocks : [];
     const lines = Array.isArray(MODEL?.cameraLines) ? MODEL.cameraLines : [];
@@ -2604,9 +2586,9 @@ const headerHtml = (subtitle) => `
     return ordered;
   };
 
-  // ==========================================================
+  // -----------------------------
   // 2) Switches
-  // ==========================================================
+  // -----------------------------
   const expandSwitches = () => {
     const list = [];
     const plan = Array.isArray(proj?.switches?.plan) ? proj.switches.plan : [];
@@ -2627,10 +2609,7 @@ const headerHtml = (subtitle) => `
       let portsCap = 0;
       for (const v of portsCandidates) {
         const n = Number(v);
-        if (Number.isFinite(n) && n > 0) {
-          portsCap = n;
-          break;
-        }
+        if (Number.isFinite(n) && n > 0) { portsCap = n; break; }
       }
       if (!portsCap) portsCap = 8;
 
@@ -2646,9 +2625,9 @@ const headerHtml = (subtitle) => `
     return list;
   };
 
-  // ==========================================================
+  // -----------------------------
   // 3) Allocation blocs -> switches
-  // ==========================================================
+  // -----------------------------
   const allocateBlocksToSwitches = (camBlocks, switches) => {
     if (!switches.length) return [];
     const buckets = switches.map((sw) => ({ sw, blocks: [], used: 0 }));
@@ -2661,9 +2640,7 @@ const headerHtml = (subtitle) => `
         si < buckets.length - 1 &&
         buckets[si].used + b.qty > buckets[si].sw.portsCap &&
         buckets[si].used > 0
-      ) {
-        si++;
-      }
+      ) si++;
 
       buckets[si].blocks.push(b);
       buckets[si].used += b.qty;
@@ -2671,9 +2648,9 @@ const headerHtml = (subtitle) => `
     return buckets;
   };
 
-  // ==========================================================
+  // -----------------------------
   // 4) Résolution NVR / HDD / SCREEN
-  // ==========================================================
+  // -----------------------------
   const camBlocks = buildCameraBlocks();
   const switches = expandSwitches();
   const alloc = allocateBlocksToSwitches(camBlocks, switches);
@@ -2681,12 +2658,12 @@ const headerHtml = (subtitle) => `
   const camCount = Math.max(1, camBlocks.length);
   const swCount = Math.max(0, switches.length);
 
-  // ---- NVR ----
+  // NVR
   const nvr = proj?.nvrPick?.nvr || proj?.nvrPick?.item || proj?.nvr || null;
   const nvrId = String(toId(nvr) || "—");
   const nvrName = String(nvr?.name || "");
 
-  // ---- HDD (strict : doit matcher CATALOG.HDDS) ----
+  // HDD
   const resolveHdd = () => {
     const diskPlan =
       proj?.storage?.diskPlan ||
@@ -2698,7 +2675,6 @@ const headerHtml = (subtitle) => `
       null;
 
     const candidates = [];
-
     const directObj =
       proj?.hddPick?.hdd ||
       proj?.hddPick?.item ||
@@ -2727,22 +2703,21 @@ const headerHtml = (subtitle) => `
       if (diskPlan.item) candidates.push(diskPlan.item);
     }
 
-    const nodes = deepScan(proj);
-    for (const n of nodes) candidates.push(n);
+    // deep scan : on accepte seulement si ID est dans CATALOG.HDDS
+    for (const n of deepScan(proj)) candidates.push(n);
 
     const pick = (obj) => {
       const id = String(toId(obj) || "").trim();
       if (!id) return null;
       const inCat = findInCatalogById(CATALOG?.HDDS, id);
       if (inCat) return inCat;
+      const cap = obj?.capacity_tb ?? obj?.capacityTB ?? obj?.capacity;
+      if (Number.isFinite(Number(cap))) return obj;
       return null;
     };
 
     let found = null;
-    for (const c of candidates) {
-      found = pick(c);
-      if (found) break;
-    }
+    for (const c of candidates) { found = pick(c); if (found) break; }
 
     const qty =
       Number(
@@ -2761,7 +2736,7 @@ const headerHtml = (subtitle) => `
     return { id, obj: found, qty };
   };
 
-  // ---- SCREEN ----
+  // Screen
   const resolveScreen = () => {
     const enabled =
       !!(proj?.complements?.screen?.enabled || MODEL?.complements?.screen?.enabled);
@@ -2781,6 +2756,9 @@ const headerHtml = (subtitle) => `
     const directId = String(toId(direct) || "").trim();
     const directInCat = directId ? findInCatalogById(CATALOG?.SCREENS, directId) : null;
     if (directInCat) return { enabled: true, id: String(toId(directInCat) || ""), obj: directInCat };
+    if (direct && directId && /^([MH]MON)/i.test(directId)) {
+      return { enabled: true, id: directId, obj: direct };
+    }
 
     const sizeInch =
       Number(
@@ -2795,18 +2773,22 @@ const headerHtml = (subtitle) => `
       ) || 0;
 
     if (enabled && sizeInch > 0 && Array.isArray(CATALOG?.SCREENS)) {
-      let best = null;
-      let bestD = Infinity;
+      let best = null, bestD = Infinity;
       for (const s of CATALOG.SCREENS) {
         const si = Number(s?.size_inch ?? s?.sizeInch ?? 0);
         if (!Number.isFinite(si) || si <= 0) continue;
         const d = Math.abs(si - sizeInch);
-        if (d < bestD) {
-          bestD = d;
-          best = s;
-        }
+        if (d < bestD) { bestD = d; best = s; }
       }
       if (best) return { enabled: true, id: String(toId(best) || ""), obj: best };
+    }
+
+    // deep scan : STRICT catalog
+    for (const n of deepScan(proj)) {
+      const id = String(toId(n) || "").trim();
+      if (!id) continue;
+      const inCat = findInCatalogById(CATALOG?.SCREENS, id);
+      if (inCat) return { enabled: true, id: String(toId(inCat) || ""), obj: inCat };
     }
 
     return { enabled: !!enabled, id: "", obj: null };
@@ -2822,9 +2804,9 @@ const headerHtml = (subtitle) => `
   const screenId = String(screenRes.id || "");
   const scr = screenRes.obj;
 
-  // ==========================================================
-  // 5) Layout & SVG
-  // ==========================================================
+  // -----------------------------
+  // 5) Layout
+  // -----------------------------
   const W = 1120;
   const H = 720;
 
@@ -2833,18 +2815,8 @@ const headerHtml = (subtitle) => `
   if (swCount > 2) synScale -= (swCount - 2) * 0.06;
   synScale = clamp(synScale, 0.70, 1);
 
-  const camIcon = clamp(56 - Math.max(0, camCount - 3) * 5, 34, 56);
-  const swIcon = clamp(56 - Math.max(0, swCount - 2) * 7, 34, 56);
-  const nvrIcon = 78;
-  const scrIcon = 56;
-
   const camCardW = clamp(240 - Math.max(0, camCount - 4) * 10, 190, 240);
   const swCardW = clamp(210 - Math.max(0, swCount - 2) * 10, 170, 210);
-  const camCardH = camIcon + 34;
-  const swCardH = swIcon + 34;
-
-  const fontLabel = clamp(11.5 - Math.max(0, camCount - 6) * 0.5, 9.5, 11.5);
-  const fontSmall = clamp(10.0 - Math.max(0, camCount - 6) * 0.5, 8.5, 10.0);
 
   const camX = 70;
   const swX = 400;
@@ -2852,7 +2824,6 @@ const headerHtml = (subtitle) => `
 
   const topY = 150;
   const bottomY = H - 140;
-
   const distributeY = (count) => {
     if (count <= 1) return [Math.round((topY + bottomY) / 2)];
     const gap = (bottomY - topY) / (count - 1);
@@ -2865,6 +2836,7 @@ const headerHtml = (subtitle) => `
   const screenX = coreX - 170;
   const screenY = 135;
 
+  // ✅ NVR légèrement descendu pour respirer vs switch
   const nvrY = 320;
 
   const wanW = 360;
@@ -2872,84 +2844,66 @@ const headerHtml = (subtitle) => `
   const wanX0 = clamp(Math.round(coreX - wanW / 2), 30, W - 30 - wanW);
   const wanY = 555;
 
-  // ✅ SVG image: si href vide -> placeholder
-  const svgImg = (x, y, w, h, href, rounded = 14) => {
-    const finalHref = normalizeLocalUrl(href);
-    if (!finalHref) {
-      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rounded}" ry="${rounded}" fill="#fff" stroke="#e5e7eb"/>`;
-    }
-    return `
-      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rounded}" ry="${rounded}" fill="#fff" stroke="#e5e7eb"/>
-      <image x="${x + 5}" y="${y + 5}" width="${w - 10}" height="${h - 10}" preserveAspectRatio="xMidYMid meet"
-        href="${finalHref}" xlink:href="${finalHref}" />
-    `;
-  };
-
-  const label = (x, y, t, size = fontLabel, weight = 900, color = COMELIT_BLUE) => `
-    <text x="${x}" y="${y}" font-size="${size}" font-weight="${weight}" fill="${color}" font-family="Arial">${safe(t)}</text>
-  `;
-
-  const small = (x, y, t, size = fontSmall, color = "#475569") => `
-    <text x="${x}" y="${y}" font-size="${size}" font-weight="700" fill="${color}" font-family="Arial">${safe(t)}</text>
-  `;
-
-  const cableOrtho = (x1, y1, x2, y2, stroke, dash = "", w = 3.4) => {
-    const midX = Math.round((x1 + x2) / 2);
-    return `
-      <path d="M ${x1} ${y1}
-               L ${midX} ${y1}
-               L ${midX} ${y2}
-               L ${x2} ${y2}"
-        fill="none"
-        stroke="${stroke}"
-        stroke-width="${w}"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ${dash ? `stroke-dasharray="${dash}"` : ""} />
-    `;
-  };
-
+  // -----------------------------
+  // 6) Nodes (positions + images LOCAL)
+  // -----------------------------
   const blockToSwitch = new Map();
-  alloc.forEach((b) =>
-    (b.blocks || []).forEach((blk) => blockToSwitch.set(blk.blockId, b.sw.idx))
-  );
+  alloc.forEach((b) => (b.blocks || []).forEach((blk) => blockToSwitch.set(blk.blockId, b.sw.idx)));
 
-  // ✅ IMPORTANT : on prend l’objet catalogue réel pour récupérer image_url
   const camNodes = camBlocks.map((b, i) => {
     const y = camYs[i] || camYs[camYs.length - 1];
-    const camObj = typeof getCameraById === "function" ? getCameraById(b.primaryRef) : null;
-    const img = pickLocalImg(camObj || { id: b.primaryRef }, "cameras", b.primaryRef);
-    return { ...b, x: camX, y, img };
+    return {
+      ...b,
+      x: camX,
+      y,
+      img: typeof getThumbSrc === "function" ? getThumbSrc("cameras", b.primaryRef) : "",
+    };
   });
 
   const swNodes = switches.length
     ? switches.map((sw, i) => {
         const y = swYs[i] || swYs[swYs.length - 1];
-        // cherche dans CATALOG.SWITCHES pour récupérer image_url local
-        const swObj = findInCatalogById(CATALOG?.SWITCHES, sw.id) || null;
-        const img = pickLocalImg(swObj || { id: sw.id }, "switches", sw.id);
-        return { ...sw, x: swX, y, img };
+        return {
+          ...sw,
+          x: swX,
+          y,
+          img: typeof getThumbSrc === "function" ? getThumbSrc("switches", sw.id) : "",
+        };
       })
     : [];
 
-  // ---------- CABLES ----------
+  const nvrImg = typeof getThumbSrc === "function" ? getThumbSrc("nvrs", nvrId) : "";
+  const hddImg = hddId && typeof getThumbSrc === "function" ? getThumbSrc("hdds", hddId) : "";
+  const scrImg = screenId && typeof getThumbSrc === "function" ? getThumbSrc("screens", screenId) : "";
+
+  // -----------------------------
+  // 7) Cables SVG (angles droits)
+  // -----------------------------
+  const cableOrtho = (x1, y1, x2, y2, stroke, dash = "", w = 3.4) => {
+    const midX = Math.round((x1 + x2) / 2);
+    return `
+      <path d="M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}"
+        fill="none" stroke="${stroke}" stroke-width="${w}"
+        stroke-linecap="round" stroke-linejoin="round"
+        ${dash ? `stroke-dasharray="${dash}"` : ""} />
+    `;
+  };
+
   const poeLines = camNodes
     .map((c) => {
       const x1 = c.x + camCardW - 18;
-      const y1 = c.y + camIcon / 2;
+      const y1 = c.y + 28;
 
       const nvrEntryX = Math.round(coreX - 190);
       const nvrEntryY = nvrY + 60;
 
-      if (!swNodes.length) {
-        return cableOrtho(x1, y1, nvrEntryX, nvrEntryY, "#dc2626", "", 3.8);
-      }
+      if (!swNodes.length) return cableOrtho(x1, y1, nvrEntryX, nvrEntryY, "#dc2626", "", 3.8);
 
       const swIdx = blockToSwitch.get(c.blockId) || swNodes[0]?.idx || 1;
       const sw = swNodes.find((s) => s.idx === swIdx) || swNodes[0];
 
       const x2 = sw.x - 18;
-      const y2 = sw.y + swIcon / 2;
+      const y2 = sw.y + 28;
 
       return cableOrtho(x1, y1, x2, y2, "#dc2626", "", 3.8);
     })
@@ -2958,12 +2912,10 @@ const headerHtml = (subtitle) => `
   const uplinkLines = swNodes
     .map((sw) => {
       const x1 = sw.x + swCardW - 18;
-      const y1 = sw.y + swIcon / 2;
-
-      const nvrEntryX = Math.round(coreX - 190);
-      const nvrEntryY = nvrY + 60;
-
-      return cableOrtho(x1, y1, nvrEntryX, nvrEntryY, "#6b7280", "6 6", 3.4);
+      const y1 = sw.y + 28;
+      const x2 = Math.round(coreX - 190);
+      const y2 = nvrY + 60;
+      return cableOrtho(x1, y1, x2, y2, "#6b7280", "6 6", 3.4);
     })
     .join("");
 
@@ -2973,7 +2925,7 @@ const headerHtml = (subtitle) => `
           const x1 = coreX + 10;
           const y1 = nvrY + 45;
           const x2 = screenX + 40;
-          const y2 = screenY + 75;
+          const y2 = screenY + 55;
           return cableOrtho(x1, y1, x2, y2, "#2563eb", "", 3.2);
         })()
       : "";
@@ -2986,194 +2938,256 @@ const headerHtml = (subtitle) => `
     return cableOrtho(x1, y1, x2, y2, "#6b7280", "6 6", 3.2);
   })();
 
-  // ---------- LEGEND & HEADER ----------
-  // ✅ tu m’as dit : la légende est cachée → on la remonte (y=78 au lieu de 95)
-  const legendSvg = `
-    <g>
-      <rect x="${W - 430}" y="78" width="390" height="54" rx="14" ry="14" fill="#fff" stroke="#e5e7eb"/>
-      <circle cx="${W - 405}" cy="105" r="5" fill="#dc2626"/>
-      <text x="${W - 392}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">PoE</text>
+  // -----------------------------
+  // 8) HTML Cards (IMAGES EN <img>)
+  // -----------------------------
+  const card = ({ x, y, w, h, barColor, title, line1, line2, imgSrc }) => {
+    const left = Math.round(x - 24);
+    const top = Math.round(y - 18);
+    const hasImg = !!String(imgSrc || "").trim();
 
-      <circle cx="${W - 342}" cy="105" r="5" fill="#6b7280"/>
-      <text x="${W - 329}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">Uplink</text>
+    return `
+      <div class="synCard" style="left:${left}px; top:${top}px; width:${w}px; height:${h}px;">
+        ${barColor ? `<div class="synBar" style="background:${barColor}"></div>` : ``}
+        <div class="synInner">
+          <div class="synIcon">
+            ${
+              hasImg
+                ? `<img class="synImg" src="${imgSrc}" alt="">`
+                : `<div class="synImgPh"></div>`
+            }
+          </div>
+          <div class="synTxt">
+            <div class="synT">${safe(title)}</div>
+            ${line1 ? `<div class="synL1">${safe(line1)}</div>` : ``}
+            ${line2 ? `<div class="synL2">${safe(line2)}</div>` : ``}
+          </div>
+        </div>
+      </div>
+    `;
+  };
 
-      <circle cx="${W - 270}" cy="105" r="5" fill="#2563eb"/>
-      <text x="${W - 257}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">HDMI</text>
-
-      <text x="${W - 190}" y="109" font-size="10" font-weight="800" fill="#475569" font-family="Arial">PoE max 90m / 250m</text>
-    </g>
-  `;
-
-  const projectNameDisplay = String(MODEL?.project?.name || proj?.projectName || "—");
-
-  const headerSvg = `
-    <g>
-      ${label(40, 50, "Synoptique — Installation & câblage", 16, 900, COMELIT_BLUE)}
-      ${small(40, 72, `Projet : ${projectNameDisplay}`, 10.5, "#475569")}
-      ${small(
-        40,
-        92,
-        `Débit ~${Number(proj?.totalInMbps ?? 0).toFixed(1)} Mbps • Stockage ~${Number(proj?.requiredTB ?? 0).toFixed(1)} To`,
-        10,
-        "#475569"
-      )}
-    </g>
-  `;
-
-  // ---------- NODES ----------
-  const camsSvg = camNodes
+  const camCards = camNodes
     .map((c) => {
-      const cardX = c.x - 24;
-      const cardY = c.y - 18;
-
       const refLine =
         c.refs && c.refs.length > 1 ? `${c.refs[0]} + …` : c.refs?.[0] || c.primaryRef || "—";
-
-      return `
-        <g>
-          <rect x="${cardX}" y="${cardY}" width="${camCardW}" height="${camCardH}" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
-          <rect x="${cardX}" y="${cardY}" width="8" height="${camCardH}" rx="16" ry="16" fill="${COMELIT_GREEN}"/>
-          ${svgImg(c.x, c.y, camIcon, camIcon, c.img, 14)}
-          ${label(c.x + camIcon + 12, c.y + 18, `${c.label}`, fontLabel, 900, COMELIT_BLUE)}
-          ${small(c.x + camIcon + 12, c.y + 36, `${refLine} • ${c.qty} cam`, fontSmall, "#475569")}
-        </g>
-      `;
+      return card({
+        x: c.x,
+        y: c.y,
+        w: camCardW,
+        h: 96,
+        barColor: COMELIT_GREEN,
+        title: c.label,
+        line1: `${refLine} • ${c.qty} cam`,
+        line2: "",
+        imgSrc: c.img,
+      });
     })
     .join("");
 
-  const swSvg = swNodes
+  const swCards = swNodes
     .map((sw) => {
-      const cardX = sw.x - 24;
-      const cardY = sw.y - 18;
-
       const bucket = alloc.find((a) => a.sw.idx === sw.idx);
       const used = bucket ? Number(bucket.used || 0) : 0;
-
-      return `
-        <g>
-          <rect x="${cardX}" y="${cardY}" width="${swCardW}" height="${swCardH}" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
-          ${svgImg(sw.x, sw.y, swIcon, swIcon, sw.img, 14)}
-          ${label(sw.x + swIcon + 10, sw.y + 18, `Switch ${sw.idx}`, fontLabel, 900, COMELIT_BLUE)}
-          ${small(sw.x + swIcon + 10, sw.y + 36, `${sw.id} • ${used}/${sw.portsCap} ports`, fontSmall, "#475569")}
-          ${small(sw.x + swIcon + 10, sw.y + 52, `⚡ 230V`, fontSmall, "#b45309")}
-        </g>
-      `;
+      return card({
+        x: sw.x,
+        y: sw.y,
+        w: swCardW,
+        h: 96,
+        barColor: "",
+        title: `Switch ${sw.idx}`,
+        line1: `${sw.id} • ${used}/${sw.portsCap} ports`,
+        line2: "⚡ 230V",
+        imgSrc: sw.img,
+      });
     })
     .join("");
 
-  // NVR (image_url local en priorité)
-  const nvrImg = pickLocalImg(nvr, "nvrs", nvrId);
-
+  // NVR + HDD mini intégré (texte basé sur hddId)
   const nvrCardW = 360;
   const nvrCardH = 200;
-
   const nvrCardX = clamp(Math.round(coreX - nvrCardW / 2), 30, W - 30 - nvrCardW);
   const nvrCardY = Math.round(nvrY);
-
-  const nvrIconX = nvrCardX + 18;
-  const nvrIconY = nvrCardY + 22;
-
-  const nvrTextX = nvrIconX + nvrIcon + 14;
-
-  const hddImg = pickLocalImg(hddObj, "hdds", hddId);
-
-  const hddMiniX = nvrTextX;
-  const hddMiniY = nvrCardY + 118;
-  const hddMiniW = nvrCardX + nvrCardW - hddMiniX - 18;
-  const hddMiniH = 52;
-
   const hddLabel = hddId ? `${Math.max(1, hddQty || 1)}× ${hddId}` : "HDD : —";
 
-  const nvrSvg = `
-    <g>
-      <rect x="${nvrCardX}" y="${nvrCardY}" width="${nvrCardW}" height="${nvrCardH}" rx="18" ry="18" fill="#f8fafc" stroke="#e5e7eb"/>
-      <rect x="${nvrCardX}" y="${nvrCardY}" width="10" height="${nvrCardH}" rx="18" ry="18" fill="${COMELIT_BLUE}"/>
+  const nvrCardHtml = `
+    <div class="synCard synNvr" style="left:${nvrCardX}px; top:${nvrCardY}px; width:${nvrCardW}px; height:${nvrCardH}px;">
+      <div class="synBar" style="background:${COMELIT_BLUE}"></div>
+      <div class="synInner synInnerNvr">
+        <div class="synIcon synIconBig">
+          ${nvrImg ? `<img class="synImg" src="${nvrImg}" alt="">` : `<div class="synImgPh"></div>`}
+        </div>
+        <div class="synTxt">
+          <div class="synT">NVR</div>
+          <div class="synL1">${safe(nvrId)}</div>
+          <div class="synL2">${safe(nvrName)}</div>
+          <div class="synL2">⚡ 230V</div>
 
-      ${svgImg(nvrIconX, nvrIconY, nvrIcon, nvrIcon, nvrImg, 16)}
-      ${label(nvrTextX, nvrIconY + 18, "NVR", 13, 900, COMELIT_BLUE)}
-      ${small(nvrTextX, nvrIconY + 36, `${nvrId}`, 9.5, "#475569")}
-      ${small(nvrTextX, nvrIconY + 52, `${nvrName}`, 9.5, "#475569")}
-      ${small(nvrTextX, nvrIconY + 70, `⚡ 230V`, 9.5, "#b45309")}
-
-      <g>
-        <rect x="${hddMiniX}" y="${hddMiniY}" width="${hddMiniW}" height="${hddMiniH}" rx="14" ry="14" fill="#fff" stroke="#e5e7eb"/>
-        ${svgImg(hddMiniX + 10, hddMiniY + 10, 32, 32, hddImg, 10)}
-        ${small(hddMiniX + 50, hddMiniY + 32, hddLabel, 9.5, "#475569")}
-      </g>
-    </g>
-  `;
-
-  // Screen (image_url local en priorité)
-  const scrImg = pickLocalImg(scr, "screens", screenId);
-
-  const screenSvg =
-    scrEnabled && screenId
-      ? `
-      <g>
-        <rect x="${screenX}" y="${screenY}" width="320" height="110" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
-        ${svgImg(screenX + 18, screenY + 22, scrIcon, scrIcon, scrImg, 14)}
-        ${label(screenX + 18 + scrIcon + 12, screenY + 46, "Écran", fontLabel, 900, COMELIT_BLUE)}
-        ${small(screenX + 18 + scrIcon + 12, screenY + 66, `${screenId}`, fontSmall, "#475569")}
-        ${small(screenX + 18 + scrIcon + 12, screenY + 84, `⚡ 230V`, fontSmall, "#b45309")}
-      </g>
-    `
-      : "";
-
-  // WAN
-  const wanSvg = `
-    <g>
-      <rect x="${wanX0}" y="${wanY}" width="${wanW}" height="${wanH}" rx="16" ry="16" fill="#fff" stroke="#e5e7eb"/>
-      ${label(wanX0 + 18, wanY + 38, "Accès distant / WAN", fontLabel, 900, COMELIT_BLUE)}
-      ${small(wanX0 + 18, wanY + 60, "Box Internet / Internet / VPN / App", fontSmall, "#475569")}
-      ${small(wanX0 + wanW - 48, wanY + 52, "WAN", 9.5, "#64748b")}
-    </g>
-  `;
-
-  const svg = `
-  <svg xmlns="http://www.w3.org/2000/svg"
-       xmlns:xlink="http://www.w3.org/1999/xlink"
-       width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    <defs>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.08"/>
-      </filter>
-    </defs>
-
-    <rect x="18" y="18" width="${W - 36}" height="${H - 36}" rx="22" ry="22" fill="#ffffff" stroke="#e5e7eb"/>
-
-    ${headerSvg}
-    ${legendSvg}
-
-    <g transform="translate(${W / 2} ${H / 2}) scale(${synScale}) translate(${-W / 2} ${-H / 2})">
-      <g>
-        ${poeLines}
-        ${uplinkLines}
-        ${hdmiLine}
-        ${nvrToWan}
-      </g>
-
-      <g filter="url(#shadow)">
-        ${camsSvg}
-        ${swSvg}
-        ${screenSvg}
-        ${nvrSvg}
-        ${wanSvg}
-      </g>
-    </g>
-  </svg>
-  `;
-
-  return `
-    <div class="synWrap">
-      <div class="synCanvas">
-        ${svg}
+          <div class="synHddMini">
+            <div class="synHddIcon">
+              ${hddImg ? `<img class="synImgMini" src="${hddImg}" alt="">` : `<div class="synImgPhMini"></div>`}
+            </div>
+            <div class="synHddTxt">${safe(hddLabel)}</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
+
+  const screenHtml =
+    scrEnabled && screenId
+      ? `
+        <div class="synCard" style="left:${screenX}px; top:${screenY}px; width:320px; height:110px;">
+          <div class="synInner">
+            <div class="synIcon">
+              ${scrImg ? `<img class="synImg" src="${scrImg}" alt="">` : `<div class="synImgPh"></div>`}
+            </div>
+            <div class="synTxt">
+              <div class="synT">Écran</div>
+              <div class="synL1">${safe(screenId)}</div>
+              <div class="synL2">⚡ 230V</div>
+            </div>
+          </div>
+        </div>
+      `
+      : "";
+
+  const wanHtml = `
+    <div class="synCard" style="left:${wanX0}px; top:${wanY}px; width:${wanW}px; height:${wanH}px;">
+      <div class="synInner">
+        <div class="synTxt" style="padding-left:8px">
+          <div class="synT">Accès distant / WAN</div>
+          <div class="synL1">Box Internet / Internet / VPN / App</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ✅ Légende remontée (tu demandais “un peu plus haut”)
+  const legendHtml = `
+    <div class="synLegend" style="right:30px; top:70px;">
+      <span class="dot" style="background:#dc2626"></span><span>PoE</span>
+      <span class="dot" style="background:#6b7280"></span><span>Uplink</span>
+      <span class="dot" style="background:#2563eb"></span><span>HDMI</span>
+      <span class="sep"></span>
+      <span class="hint">PoE max 90m / 250m</span>
+    </div>
+  `;
+
+  const projectNameDisplay = String(MODEL?.project?.name || proj?.projectName || "—");
+  const headerHtml = `
+    <div class="synHeader">
+      <div class="synH1">Synoptique — Installation & câblage</div>
+      <div class="synMeta">Projet : ${safe(projectNameDisplay)}</div>
+      <div class="synMeta">Débit ~${Number(proj?.totalInMbps ?? 0).toFixed(1)} Mbps • Stockage ~${Number(
+        proj?.requiredTB ?? 0
+      ).toFixed(1)} To</div>
+    </div>
+  `;
+
+  const cablesSvg = `
+    <svg class="synSvg" xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      ${poeLines}
+      ${uplinkLines}
+      ${hdmiLine}
+      ${nvrToWan}
+    </svg>
+  `;
+
+  // -----------------------------
+  // 9) Final HTML + mini CSS local
+  // -----------------------------
+  const scaledW = Math.round(W * synScale);
+  const scaledH = Math.round(H * synScale);
+
+  return `
+    <div class="synWrap">
+      <div class="synViewport" style="width:${scaledW}px; height:${scaledH}px;">
+        <div class="synStage" style="width:${W}px; height:${H}px; transform:scale(${synScale});">
+          ${headerHtml}
+          ${legendHtml}
+          ${cablesSvg}
+          ${camCards}
+          ${swCards}
+          ${screenHtml}
+          ${nvrCardHtml}
+          ${wanHtml}
+        </div>
+      </div>
+
+      <style>
+        /* ✅ Centrage du synoptique dans la page PDF */
+        .synWrap{
+          width:100%;
+          display:flex;
+          justify-content:center;
+          align-items:flex-start;
+          overflow:hidden;
+        }
+
+        /* ✅ Boîte “réelle” (dimension finale après scale) */
+        .synViewport{
+          position:relative;
+          margin:0 auto;
+        }
+
+        /* ✅ On scale à l’intérieur, en gardant le centre */
+        .synStage{
+          position:absolute;
+          left:0;
+          top:0;
+          transform-origin: top left;
+          background:#fff;
+        }
+
+        /* le reste de ton CSS (synSvg, synCard etc.) inchangé */
+        .synSvg{ position:absolute; left:0; top:0; z-index:1; pointer-events:none; }
+        .synHeader{ position:absolute; left:40px; top:28px; z-index:3; }
+        .synH1{ font-family:Arial Black, Arial, sans-serif; font-size:16px; color:${COMELIT_BLUE}; }
+        .synMeta{ margin-top:4px; font-size:10px; font-weight:700; color:#475569; }
+
+        .synLegend{
+          position:absolute; z-index:3;
+          display:flex; align-items:center; gap:8px;
+          background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+          padding:10px 12px; font-size:10px; font-weight:800; color:#475569;
+        }
+        .synLegend .dot{ width:10px; height:10px; border-radius:999px; display:inline-block; }
+        .synLegend .sep{ width:1px; height:16px; background:#e5e7eb; display:inline-block; margin:0 4px; }
+        .synLegend .hint{ font-weight:800; }
+
+        .synCard{
+          position:absolute; z-index:2;
+          background:#fff; border:1px solid #e5e7eb; border-radius:16px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+          overflow:hidden;
+        }
+        .synBar{ position:absolute; left:0; top:0; bottom:0; width:8px; }
+        .synInner{ display:flex; gap:12px; padding:14px; }
+        .synInnerNvr{ padding-left:18px; }
+        .synIcon{ width:56px; height:56px; border:1px solid #e5e7eb; border-radius:14px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+        .synIconBig{ width:78px; height:78px; border-radius:16px; }
+        .synImg{ width:100%; height:100%; object-fit:contain; display:block; }
+        .synImgPh{ width:100%; height:100%; background:#f8fafc; }
+        .synTxt{ min-width:0; }
+        .synT{ font-size:12px; font-weight:900; color:${COMELIT_BLUE}; }
+        .synL1{ margin-top:4px; font-size:10px; font-weight:800; color:#475569; }
+        .synL2{ margin-top:3px; font-size:10px; font-weight:800; color:#b45309; }
+
+        .synNvr{ background:#f8fafc; }
+        .synHddMini{
+          margin-top:10px; display:flex; align-items:center; gap:10px;
+          background:#fff; border:1px solid #e5e7eb; border-radius:14px;
+          padding:10px 12px;
+        }
+        .synHddIcon{ width:32px; height:32px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; overflow:hidden; display:flex; align-items:center; justify-content:center;}
+        .synImgMini{ width:100%; height:100%; object-fit:contain; display:block; }
+        .synImgPhMini{ width:100%; height:100%; background:#f8fafc; }
+        .synHddTxt{ font-size:10px; font-weight:900; color:#475569; }
+      </style>
+    </div>
+  `;
 };
-
-
-
 
     return `
 <div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:${COMELIT_BLUE}; background:#ffffff;">
