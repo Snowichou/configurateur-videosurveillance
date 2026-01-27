@@ -854,7 +854,6 @@ const DOM = {
   dataStatusEl: $("#dataStatus"),
 
   btnExportPdf: $("#btnExportPdf"),
-  btnExportXlsx: $("#btnExportXlsx"),
   btnExportPdfPack: $("#btnExportPdfPack"),
 };
 
