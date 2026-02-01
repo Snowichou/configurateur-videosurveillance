@@ -1,53 +1,19 @@
-from __future__ import annotations
-
-import os
-import io
-import re
-import csv
-import json
-import time
-import zipfile
-import secrets
-from collections import defaultdict, deque
-from typing import Dict, Set, Tuple, Optional, List
-
-from fastapi import FastAPI, HTTPException, Header, Body, Depends, Request
-from fastapi.responses import PlainTextResponse, FileResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+import os, secrets, time, json, csv, io, sqlite3
+from datetime import datetime, timezone
 
-
-# ==========================================================
-# Paths / Config
-# ==========================================================
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.abspath(os.path.join(APP_ROOT, ".."))
 
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# data/Fiche_tech/<family>/<REF>.pdf
-DATASHEETS_DIR = os.path.join(DATA_DIR, "Fiche_tech")
+ADMIN_PASSWORD = os.getenv("CONFIG_ADMIN_PASSWORD", "admin")  # change in prod
+TOKENS: dict[str, float] = {}
 
-# data/Images/<family>/<REF>.png
-IMAGES_DIR = os.path.join(DATA_DIR, "Images")
-
-DEBUG_BACK = os.getenv("DEBUG_BACK", "0") == "1"
-
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin")
-
-TOKENS: Dict[str, float] = {}
-TOKEN_TTL_SECONDS = 8 * 60 * 60  # 8h
-
-security = HTTPBasic()
-
-# anti brute-force login (local-friendly)
-LOGIN_WINDOW_SEC = 60
-LOGIN_MAX_ATTEMPTS = 8
-LOGIN_ATTEMPTS = defaultdict(lambda: deque())  # ip -> timestamps
-
-# CSVs exposed by the admin panel
 ALLOWED = {
     "cameras": "cameras.csv",
     "nvrs": "nvrs.csv",
@@ -59,392 +25,220 @@ ALLOWED = {
     "signage": "signage.csv",
 }
 
-# Families used for local datasheets classification in the ZIP
-FAMILIES = {
-    "cameras": "cameras",
-    "nvrs": "nvrs",
-    "hdds": "hdds",
-    "switches": "switches",
-    "accessories": "accessories",
-    "screens": "screens",
-    "enclosures": "enclosures",
-    "signage": "signage",
-}
+KPI_DB = os.path.join(APP_ROOT, "kpi.sqlite3")
+
+def _db():
+    con = sqlite3.connect(KPI_DB)
+    con.execute("""
+      CREATE TABLE IF NOT EXISTS kpi_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts_utc TEXT NOT NULL,
+        session_id TEXT,
+        event TEXT NOT NULL,
+        payload_json TEXT,
+        path TEXT,
+        ua TEXT,
+        ip TEXT
+      );
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS idx_kpi_ts ON kpi_events(ts_utc);")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_kpi_event ON kpi_events(event);")
+    con.commit()
+    return con
+
+_db().close()
+
+app = FastAPI()
+
+# Front
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="app")
+
+# ✅ Data (CSV + Images + fiches tech)
+# Sans ça : /data/*.csv et /data/Images/... = 404 -> configurateur KO
+if os.path.isdir(DATA_DIR):
+    app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
+else:
+    print("[WARN] DATA_DIR not found:", DATA_DIR)
 
 
-# ==========================================================
-# Helpers
-# ==========================================================
-def _log(*a):
-    if DEBUG_BACK:
-        print(*a)
-
-
-def cleanup_expired_tokens() -> None:
-    now = time.time()
-    expired = [t for (t, exp) in TOKENS.items() if exp < now]
-    for t in expired:
-        TOKENS.pop(t, None)
-
-
-def require_auth(auth: str | None) -> bool:
-    cleanup_expired_tokens()
-
+def require_auth(auth: str | None):
     if not auth or not auth.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing token")
     token = auth.split(" ", 1)[1].strip()
     exp = TOKENS.get(token)
     if not exp or exp < time.time():
-        TOKENS.pop(token, None)
-        raise HTTPException(status_code=401, detail="Invalid/expired token")
-    return True
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+def _csv_path(kind: str) -> str:
+    fn = ALLOWED.get(kind)
+    if not fn:
+        raise HTTPException(status_code=404, detail="Unknown catalog")
+    p = os.path.abspath(os.path.join(DATA_DIR, fn))
+    if not p.startswith(os.path.abspath(DATA_DIR)):
+        raise HTTPException(status_code=400, detail="Bad path")
+    return p
 
-def require_basic_admin(credentials: HTTPBasicCredentials = Depends(security)) -> bool:
-    ok_user = secrets.compare_digest(credentials.username, "admin")
-    ok_pwd = secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
-    if not (ok_user and ok_pwd):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return True
+def _read_csv_as_rows(path: str):
+    if not os.path.exists(path):
+        return [], []
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+        cols = reader.fieldnames or []
+        rows = list(reader)
+    return cols, rows
 
-
-def check_login_rate_limit(ip: str) -> None:
-    now = time.time()
-    q = LOGIN_ATTEMPTS[ip]
-    while q and (now - q[0]) > LOGIN_WINDOW_SEC:
-        q.popleft()
-    if len(q) >= LOGIN_MAX_ATTEMPTS:
-        raise HTTPException(status_code=429, detail="Too many attempts, retry later")
-    q.append(now)
-
-
-# ==========================================================
-# App + CORS
-# ==========================================================
-app = FastAPI()
-
-# DEV: CORS permissif pour que html2canvas/html2pdf ne fasse pas de caprices
-# (pas de cookies => allow_credentials=False OK)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000",
-    ],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
-
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(IMAGES_DIR, exist_ok=True)
-os.makedirs(DATASHEETS_DIR, exist_ok=True)
-
-_log("BASE_DIR      =", BASE_DIR)
-_log("FRONTEND_DIR  =", FRONTEND_DIR)
-_log("DATA_DIR      =", DATA_DIR)
-_log("IMAGES_DIR    =", IMAGES_DIR)
-_log("DATASHEETS_DIR=", DATASHEETS_DIR)
-
-
-# ==========================================================
-# Frontend routes
-# ==========================================================
-@app.get("/")
-def home():
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
-    if not os.path.isfile(index_path):
-        raise HTTPException(status_code=500, detail=f"index.html introuvable: {index_path}")
-    return FileResponse(index_path)
-
-
-@app.get("/admin")
-def admin_page(_=Depends(require_basic_admin)):
-    admin_path = os.path.join(FRONTEND_DIR, "admin.html")
-    if not os.path.isfile(admin_path):
-        raise HTTPException(status_code=500, detail=f"admin.html introuvable: {admin_path}")
-    return FileResponse(admin_path)
-
+def _write_rows_as_csv(path: str, columns: list[str], rows: list[dict]):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: ("" if r.get(c) is None else str(r.get(c))) for c in columns})
 
 @app.get("/health")
 def health():
-    return {"ok": True, "time": time.time()}
+    return {"ok": True}
 
+class LoginIn(BaseModel):
+    password: str = Field(..., min_length=1)
 
-# ==========================================================
-# API: login + CSV read/write
-# ==========================================================
 @app.post("/api/login")
-def login(request: Request, payload: dict = Body(...)):
-    ip = request.client.host if request.client else "unknown"
-    check_login_rate_limit(ip)
+def login(data: LoginIn):
+    if data.password != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Bad password")
+    token = secrets.token_urlsafe(24)
+    TOKENS[token] = time.time() + 24 * 3600
+    return {"token": token, "expires_in": 24 * 3600}
 
-    pwd = (payload.get("password") or "").strip()
-    if pwd != ADMIN_PASSWORD:
-        raise HTTPException(status_code=401, detail="Bad password")
+@app.get("/admin", include_in_schema=False)
+def admin_page():
+    cand1 = os.path.join(FRONTEND_DIR, "public", "admin.html")
+    cand2 = os.path.join(FRONTEND_DIR, "admin.html")
+    cand3 = os.path.join(APP_ROOT, "admin.html")
+    for p in (cand1, cand2, cand3):
+        if os.path.exists(p):
+            return FileResponse(p)
+    raise HTTPException(status_code=404, detail="admin.html not found")
 
-    token = secrets.token_urlsafe(32)
-    TOKENS[token] = time.time() + TOKEN_TTL_SECONDS
-    return {"token": token, "expires_in": TOKEN_TTL_SECONDS}
+class CatalogOut(BaseModel):
+    kind: str
+    filename: str
+    columns: list[str]
+    rows: list[dict]
 
+class CatalogIn(BaseModel):
+    columns: list[str]
+    rows: list[dict]
 
-@app.get("/api/csv/{name}", response_class=PlainTextResponse)
-def read_csv(name: str):
-    if name not in ALLOWED:
-        raise HTTPException(status_code=404, detail="Unknown CSV")
-
-    path = os.path.join(DATA_DIR, ALLOWED[name])
-    if not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail=f"File missing: {path}")
-
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
-
-
-@app.post("/api/csv/{name}", response_class=PlainTextResponse)
-def write_csv(
-    name: str,
-    content: str = Body(..., embed=True),
-    authorization: str | None = Header(default=None),
-):
+@app.get("/api/admin/catalog/{kind}", response_model=CatalogOut)
+def get_catalog(kind: str, authorization: str | None = Header(default=None)):
     require_auth(authorization)
+    path = _csv_path(kind)
+    cols, rows = _read_csv_as_rows(path)
+    return {"kind": kind, "filename": os.path.basename(path), "columns": cols, "rows": rows}
 
-    if name not in ALLOWED:
-        raise HTTPException(status_code=404, detail="Unknown CSV")
+@app.put("/api/admin/catalog/{kind}")
+def put_catalog(kind: str, data: CatalogIn, authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    path = _csv_path(kind)
+    cols = [c.strip() for c in (data.columns or []) if str(c).strip()]
+    if not cols:
+        raise HTTPException(status_code=400, detail="Empty columns")
+    rows = []
+    for r in (data.rows or []):
+        if not isinstance(r, dict):
+            raise HTTPException(status_code=400, detail="Bad row format")
+        rows.append(r)
+    _write_rows_as_csv(path, cols, rows)
+    return {"ok": True, "rows": len(rows)}
 
-    os.makedirs(DATA_DIR, exist_ok=True)
-    path = os.path.join(DATA_DIR, ALLOWED[name])
+class KpiIn(BaseModel):
+    session_id: str | None = None
+    event: str = Field(..., min_length=1, max_length=80)
+    payload: dict = Field(default_factory=dict)
 
-    # backup
-    if os.path.isfile(path):
+@app.post("/api/kpi/collect")
+async def kpi_collect(data: KpiIn, request: Request):
+
+    ts = datetime.now(timezone.utc).isoformat()
+    ua = request.headers.get("user-agent", "")
+    ip = request.client.host if request.client else ""
+    path = request.headers.get("x-page-path") or request.headers.get("referer") or ""
+
+    payload_json = json.dumps(data.payload or {}, ensure_ascii=False)
+
+    con = _db()
+    con.execute(
+        "INSERT INTO kpi_events(ts_utc, session_id, event, payload_json, path, ua, ip) VALUES(?,?,?,?,?,?,?)",
+        (ts, data.session_id, data.event, payload_json, path, ua, ip),
+    )
+    con.commit()
+    con.close()
+    return {"ok": True}
+# ✅ Alias rétro-compat : certains fronts envoient encore /api/kpi/event
+@app.post("/api/kpi/event")
+async def kpi_event_alias(data: KpiIn, request: Request):
+    return await kpi_collect(data, request)
+
+@app.get("/api/kpi/summary")
+def kpi_summary(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    con = _db()
+    cur = con.cursor()
+    cur.execute("SELECT COUNT(*) FROM kpi_events;")
+    total = int(cur.fetchone()[0] or 0)
+    cur.execute("SELECT event, COUNT(*) c FROM kpi_events GROUP BY event ORDER BY c DESC LIMIT 20;")
+    top = [{"event": e, "count": int(c)} for (e, c) in cur.fetchall()]
+    cur.execute("""
+      SELECT substr(ts_utc,1,10) d, COUNT(*) c
+      FROM kpi_events
+      GROUP BY d
+      ORDER BY d DESC
+      LIMIT 30;
+    """)
+    by_day = [{"date": d, "count": int(c)} for (d, c) in cur.fetchall()][::-1]
+    con.close()
+    return {"total": total, "top": top, "by_day": by_day}
+
+@app.get("/api/kpi/events")
+def kpi_events(limit: int = 200, authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    limit = max(1, min(int(limit or 200), 2000))
+    con = _db()
+    cur = con.cursor()
+    cur.execute("""
+      SELECT ts_utc, session_id, event, payload_json, path, ip
+      FROM kpi_events
+      ORDER BY id DESC
+      LIMIT ?;
+    """, (limit,))
+    rows = []
+    for ts, sid, ev, pj, path, ip in cur.fetchall():
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                old = f.read()
-            with open(path + ".bak", "w", encoding="utf-8") as f:
-                f.write(old)
+            payload = json.loads(pj) if pj else {}
         except Exception:
-            pass
+            payload = {"_raw": pj}
+        rows.append({"ts_utc": ts, "session_id": sid, "event": ev, "payload": payload, "path": path, "ip": ip})
+    con.close()
+    return {"rows": rows}
 
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(content.strip() + "\n")
-
-    return "OK"
-
-
-# ==========================================================
-# Static mounts
-# ==========================================================
-# Canonique: tout data
-app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
-
-# Alias "media" (si ton buildPdfHtml pointe sur /media/...)
-app.mount("/media", StaticFiles(directory=DATA_DIR), name="media")
-
-# ✅ IMPORTANT : endpoint images dédié (plus stable pour html2canvas)
-# => /images/<family>/<file>
-app.mount("/images", StaticFiles(directory=IMAGES_DIR), name="images")
-
-# Front static assets (si tu utilises le backend pour servir le front)
-app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
-
-
-# ==========================================================
-# Local datasheets indexing (for ZIP export)
-# ==========================================================
-def _safe_zip_name(name: str) -> str:
-    name = (name or "file").strip()
-    name = re.sub(r'[\\/\?%\*:|"<>]', "_", name)
-    name = re.sub(r"\s+", " ", name)
-    return name[:180]
-
-
-def _read_csv_ids(csv_path: str) -> Set[str]:
-    ids: Set[str] = set()
-    if not os.path.isfile(csv_path):
-        return ids
-    with open(csv_path, "r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            pid = (row.get("id") or "").strip()
-            if pid:
-                ids.add(pid.upper())
-    return ids
-
-
-_CATALOG_CACHE_SIG: Optional[Tuple[float, ...]] = None
-_CATALOG_ID_TO_FAMILY: Dict[str, str] = {}
-
-
-def _catalog_signature() -> Tuple[float, ...]:
-    mtimes: List[float] = []
-    for key in FAMILIES.keys():
-        p = os.path.join(DATA_DIR, ALLOWED.get(key, ""))
-        try:
-            mtimes.append(os.path.getmtime(p))
-        except Exception:
-            mtimes.append(0.0)
-    return tuple(mtimes)
-
-
-def _build_catalog_id_to_family() -> Dict[str, str]:
-    m: Dict[str, str] = {}
-    for fam_key, fam_name in FAMILIES.items():
-        csv_file = ALLOWED.get(fam_key)
-        if not csv_file:
-            continue
-        ids = _read_csv_ids(os.path.join(DATA_DIR, csv_file))
-        for pid in ids:
-            m.setdefault(pid, fam_name)
-    return m
-
-
-def get_catalog_id_to_family() -> Dict[str, str]:
-    global _CATALOG_CACHE_SIG, _CATALOG_ID_TO_FAMILY
-    sig = _catalog_signature()
-    if _CATALOG_CACHE_SIG != sig or not _CATALOG_ID_TO_FAMILY:
-        _CATALOG_ID_TO_FAMILY = _build_catalog_id_to_family()
-        _CATALOG_CACHE_SIG = sig
-        _log(f"[catalog] rebuilt id->family map ({len(_CATALOG_ID_TO_FAMILY)} ids)")
-    return _CATALOG_ID_TO_FAMILY
-
-
-def _find_local_datasheet_path(family: str, product_id: str) -> Optional[str]:
-    if not product_id:
-        return None
-    pid = product_id.strip()
-    if not pid:
-        return None
-
-    fam_dir = os.path.join(DATASHEETS_DIR, family)
-    if not os.path.isdir(fam_dir):
-        return None
-
-    candidates = [
-        os.path.join(fam_dir, f"{pid}.pdf"),
-        os.path.join(fam_dir, f"{pid}.PDF"),
-        os.path.join(fam_dir, f"{pid.upper()}.pdf"),
-        os.path.join(fam_dir, f"{pid.upper()}.PDF"),
-        os.path.join(fam_dir, f"{pid.lower()}.pdf"),
-        os.path.join(fam_dir, f"{pid.lower()}.PDF"),
-    ]
-    for p in candidates:
-        if os.path.isfile(p):
-            return p
-
-    target = f"{pid}.pdf".lower()
-    try:
-        for fn in os.listdir(fam_dir):
-            if fn.lower() == target:
-                p = os.path.join(fam_dir, fn)
-                if os.path.isfile(p):
-                    return p
-    except Exception:
-        return None
-
-    return None
-
-
-def _group_missing(missing: List[Tuple[str, str]]) -> str:
-    grouped: Dict[str, List[str]] = defaultdict(list)
-    for fam, pid in missing:
-        grouped[fam].append(pid)
-
-    lines: List[str] = []
-    for fam in sorted(grouped.keys()):
-        lines.append(f"[{fam}]")
-        for pid in sorted(set(grouped[fam])):
-            lines.append(f"- {pid}")
-        lines.append("")
-
-    return "\n".join(lines).strip() + "\n"
-
-
-# ==========================================================
-# Export: PDF + local datasheets ZIP (Option B)
-# ==========================================================
-@app.post("/export/localzip")
-def export_local_zip(payload: dict):
-    import base64
-
-    pdf_b64 = payload.get("pdf_base64")
-    product_ids = payload.get("product_ids") or []
-    zip_name = payload.get("zip_name") or "export_configurateur.zip"
-
-    if not pdf_b64:
-        raise HTTPException(status_code=400, detail="pdf_base64 manquant")
-
-    try:
-        pdf_bytes = base64.b64decode(pdf_b64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="pdf_base64 invalide")
-
-    ids: List[str] = []
-    seen = set()
-    for x in product_ids:
-        pid = str(x or "").strip()
-        if not pid:
-            continue
-        up = pid.upper()
-        if up in seen:
-            continue
-        seen.add(up)
-        ids.append(up)
-
-    id_to_family = get_catalog_id_to_family()
-
-    mem = io.BytesIO()
-    missing: List[Tuple[str, str]] = []
-    included: List[Dict[str, str]] = []
-
-    generated_at = time.strftime("%Y-%m-%d %H:%M:%S")
-
-    with zipfile.ZipFile(mem, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        z.writestr("rapport/rapport_configurateur.pdf", pdf_bytes)
-
-        for pid in ids:
-            fam = id_to_family.get(pid, "autres")
-
-            fam_try = [fam] if fam != "autres" else []
-            fam_try.extend([v for v in FAMILIES.values() if v not in fam_try])
-            fam_try.append("autres")
-
-            found_path = None
-            found_fam = None
-            for ftry in fam_try:
-                p = _find_local_datasheet_path(ftry, pid)
-                if p:
-                    found_path = p
-                    found_fam = ftry
-                    break
-
-            if not found_path or not found_fam:
-                missing.append((fam, pid))
-                continue
-
-            arcname = f"fiches_techniques/{found_fam}/{pid}.pdf"
-            try:
-                z.write(found_path, arcname=arcname)
-                included.append({"id": pid, "family": found_fam, "zip_path": arcname})
-            except Exception:
-                missing.append((found_fam, pid))
-
-        if missing:
-            z.writestr("fiches_techniques/_MANQUANTES.txt", _group_missing(missing))
-
-        manifest = {
-            "generated_at": generated_at,
-            "datasheets_dir": os.path.relpath(DATASHEETS_DIR, BASE_DIR).replace("\\", "/"),
-            "total_ids_requested": len(ids),
-            "total_datasheets_included": len(included),
-            "total_missing": len({(f, i) for (f, i) in missing}),
-            "included": included,
-            "missing": [{"family": f, "id": i} for (f, i) in missing],
-        }
-        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-
-    mem.seek(0)
-    headers = {"Content-Disposition": f'attachment; filename="{_safe_zip_name(zip_name)}"'}
-    return StreamingResponse(mem, media_type="application/zip", headers=headers)
+@app.get("/api/kpi/export.csv")
+def kpi_export_csv(authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    con = _db()
+    cur = con.cursor()
+    cur.execute("""
+      SELECT ts_utc, session_id, event, payload_json, path, ua, ip
+      FROM kpi_events
+      ORDER BY id DESC;
+    """)
+    out = io.StringIO()
+    w = csv.writer(out, delimiter=";")
+    w.writerow(["ts_utc","session_id","event","payload_json","path","ua","ip"])
+    for r in cur.fetchall():
+        w.writerow(list(r))
+    con.close()
+    data = out.getvalue().encode("utf-8")
+    headers = {"Content-Disposition": 'attachment; filename="kpi_export.csv"'}
+    return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)

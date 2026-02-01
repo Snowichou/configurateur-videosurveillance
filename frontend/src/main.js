@@ -13,21 +13,18 @@ window.jsPDF = jsPDF;
 
 // 1) On injecte ton “ancien” HTML dans #app
 document.querySelector("#app").innerHTML = `
-  <header class="appHeader">
-    <div class="brand">
-      <div class="brandTop">
-        <div class="brandTitle">Configurateur Vidéosurveillance</div>
-        <span class="pill">MVP</span>
-      </div>
+  <header class="appHeader appHeaderCentered">
+    <div class="brandCenter" aria-label="COMELIT">
+      <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
+      <div class="brandTitle">Configurateur Vidéosurveillance</div>
+      <div class="brandTagline">With you always</div>
+    </div>
 
-      <div id="dataStatus" class="statusLine">—</div>
-
-      <div class="progressWrap" id="progressWrap" aria-label="Progression">
-        <div class="progressOuter" id="progressBarOuter">
-          <div class="progressBar" id="progressBar"></div>
-        </div>
-        <div class="progressText" id="progressText"></div>
+    <div class="progressWrap" id="progressWrap" aria-label="Progression">
+      <div class="progressOuter" id="progressBarOuter">
+        <div class="progressBar" id="progressBar"></div>
       </div>
+      <div class="progressText" id="progressText"></div>
     </div>
 
     <div class="headerActions">
@@ -64,8 +61,7 @@ document.querySelector("#app").innerHTML = `
         <div class="resultsBody">
           <div class="exportRow">
             <button id="btnExportPdf" class="btn" type="button">Export PDF</button>
-            <button id="btnExportXlsx" class="btn" type="button">Export XLSX</button>
-          </div>
+</div>
 
           <div id="resultsEmpty" class="emptyState">
             <div class="emptyTitle">Pas encore finalisé</div>
@@ -87,6 +83,7 @@ document.querySelector("#app").innerHTML = `
       <div class="modalHeader">
         <div>
           <div id="adminTitle" class="modalTitle">Admin panel</div>
+          <div id="dataStatus" class="statusLine adminOnly">—</div>
           <div class="modalSubtitle">Gestion des CSV (lecture/édition/sauvegarde).</div>
         </div>
         <button id="btnAdminClose" class="btn icon" type="button" aria-label="Fermer">✕</button>

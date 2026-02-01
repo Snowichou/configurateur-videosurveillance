@@ -1,230 +1,533 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Admin • Configurateur</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin — Configurateur</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 18px; background:#0b0f14; color:#e8eef6; }
-    .card { background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; max-width:1100px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    input, button, textarea { border-radius:12px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color:#e8eef6; padding:10px 12px; }
-    button { cursor:pointer; }
-    textarea { width:100%; min-height: 520px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.4; }
-    .muted { color: rgba(232,238,246,.7); font-size: 13px; }
-    .tabs button { padding:10px 12px; }
-    .ok { color:#7CFC98; font-weight:700; }
-    .err { color:#ff6b6b; font-weight:700; }
-    .hint { font-size:12px; color: rgba(232,238,246,.55); margin-top:6px; }
+    :root{
+      --cosmos:#1C1F2B;
+      --green:#00BC70;
+      --bg:#F6F7F9;
+      --card:#ffffff;
+      --line: rgba(28,31,42,.14);
+      --muted: rgba(15,23,42,.62);
+      --shadow: 0 10px 22px rgba(2,6,23,.06);
+      --r: 16px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    body{margin:0;background:var(--bg);color:var(--cosmos);}
+    header{
+      position:sticky;top:0;z-index:5;
+      background:linear-gradient(180deg,#fff,rgba(255,255,255,.92));
+      backdrop-filter:saturate(180%) blur(10px);
+      border-bottom:1px solid var(--line);
+    }
+        .wrap{
+      /* avant: max-width:1180px; */
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 16px;
+      max-width: 100%;
+      overflow-x: hidden; /* ✅ empêche le “débordement page” */
+    }
+
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .brand{display:flex;align-items:center;gap:10px;}
+    .logo{
+      width:36px;height:36px;border-radius:12px;
+      border:1px solid var(--line);background:#fff;
+      display:grid;place-items:center;overflow:hidden;
+    }
+    .logo img{width:100%;height:100%;object-fit:contain;}
+    .title{font-weight:950;line-height:1.1}
+    .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+    .tabs{display:flex;gap:8px;margin-top:12px;}
+    .tabBtn{
+      border:1px solid var(--line);background:#fff;color:var(--cosmos);
+      padding:8px 12px;border-radius:999px;font-weight:900;font-size:13px;
+      cursor:pointer;
+    }
+    .tabBtn.on{border-color:rgba(0,188,112,.45);background:rgba(0,188,112,.10);}
+    .grid{
+      display:grid;
+
+      /* ✅ colonne gauche flexible + colonne droite FIXE */
+      grid-template-columns: minmax(0, 1fr) 360px;
+
+      gap: 14px;
+      margin-top: 14px;
+
+      /* ✅ la grid ne dépasse jamais l’écran */
+      width: 100%;
+      max-width: 100%;
+    }
+
+    @media(max-width: 1100px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+      box-shadow:var(--shadow); padding:14px;
+    }
+    .h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+    .h .h1{font-weight:950}
+    .h .h2{color:var(--muted);font-size:12.5px;margin-top:4px}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;
+      border:1px solid var(--line);background:#fff;font-weight:900;font-size:12.5px;}
+    .pill.ok{border-color:rgba(0,188,112,.35);background:rgba(0,188,112,.10)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,select,button,textarea{font:inherit}
+    .in{
+      border:1px solid var(--line);border-radius:12px;background:#fff;
+      padding:10px 12px; min-height:40px;
+    }
+    .btn{
+      border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--cosmos);
+      padding:10px 12px; min-height:40px; font-weight:900;
+      cursor:pointer;
+      transition:transform .08s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .btn:hover{border-color:rgba(0,188,112,.35);box-shadow:0 10px 22px rgba(2,6,23,.08);transform:translateY(-1px);}
+    .btn.primary{border-color:rgba(0,188,112,.45);background:rgba(0,188,112,.12)}
+    .btn.danger{border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.08)}
+    .muted{color:var(--muted);font-size:12.5px}
+    .sep{height:1px;background:var(--line);margin:12px 0}
+    .hidden{display:none!important}
+
+/* Table editor */
+.tableWrap{
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+
+  overflow: auto;             /* ✅ scroll horizontal & vertical dedans */
+  border:1px solid var(--line);
+  border-radius:14px;
+
+  /* ✅ hauteur visible + pas de page qui s’étire */
+  max-height: calc(100vh - 260px);
+}
+
+/* ✅ Le tableau ne doit JAMAIS étirer la page */
+.tableWrap table{
+  border-collapse: collapse;
+  background:#fff;
+
+  /* ✅ largeur réelle, scroll interne */
+  width: max-content;
+  min-width: 100%;
+
+  /* ✅ stabilité */
+  table-layout: fixed;
+}
+
+.tableWrap th,
+.tableWrap td{
+  border-bottom:1px solid rgba(28,31,42,.10);
+  padding:10px 10px;
+  vertical-align:top;
+
+  /* ✅ empêche un texte long d’élargir la page */
+  white-space: nowrap;
+}
+
+.tableWrap th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+  font-size: 12px;
+  text-align: left;
+  font-weight: 950;
+}
+
+/* ✅ Inputs : ne doivent pas forcer une largeur monstrueuse */
+.tableWrap td input{
+  width: 140px;              /* ✅ largeur stable par cellule */
+  max-width: 100%;
+  box-sizing: border-box;
+
+  border:1px solid rgba(28,31,42,.12);
+  border-radius:10px;
+  padding:8px 10px;
+  background:#fff;
+  min-height:36px;
+}
+
+    .actionsCol{white-space:nowrap}
+    .miniBtn{
+      padding:7px 10px;min-height:34px;border-radius:10px;font-weight:900;font-size:12px;
+      border:1px solid var(--line);background:#fff;cursor:pointer;
+    }
+    .miniBtn:hover{border-color:rgba(0,188,112,.35)}
+    .miniBtn.del{border-color:rgba(220,38,38,.30);background:rgba(220,38,38,.06)}
+    .kpiGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    @media(max-width:720px){ .kpiGrid{grid-template-columns:1fr} }
+    .kpiTile{border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px}
+    .kpiLabel{color:var(--muted);font-size:12px;font-weight:900}
+    .kpiVal{font-weight:950;font-size:22px;margin-top:4px}
+    .list{margin:0;padding:0;list-style:none}
+    .list li{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed rgba(28,31,42,.12)}
+    .list li:last-child{border-bottom:0}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
   </style>
 </head>
 <body>
-  <h1>Admin panel</h1>
+<header>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo"><img src="/app/public/logo.png" onerror="this.style.display='none'" alt="COMELIT"></div>
+        <div>
+          <div class="title">Admin configurateur</div>
+          <div class="sub">Catalogues (édition simple) + KPI (tracking)</div>
+        </div>
+      </div>
+      <div class="row">
+        <span id="authState" class="pill">Non connecté</span>
+        <button class="btn" id="btnLogout">Déconnexion</button>
+      </div>
+    </div>
 
-  <div class="card">
+    <div class="tabs">
+      <button class="tabBtn on" data-tab="catalog">Catalogues</button>
+      <button class="tabBtn" data-tab="kpi">KPI</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- LOGIN -->
+  <div id="loginCard" class="card">
+    <div class="h">
+      <div>
+        <div class="h1">Connexion</div>
+        <div class="h2">Accès admin requis (token bearer)</div>
+      </div>
+    </div>
     <div class="row">
-      <input id="pwd" type="password" placeholder="Mot de passe admin" style="min-width:260px" />
-      <button id="btnLogin">Se connecter</button>
-      <button id="btnLogout" title="Supprime le token">Se déconnecter</button>
-      <span id="status" class="muted"></span>
-    </div>
-
-    <div class="hint">
-      ℹ️ Lecture/écriture CSV via API. Si tu vois 401 → reconnecte-toi (token expiré ou manquant).
-    </div>
-
-    <hr style="border:none;border-top:1px solid rgba(255,255,255,.12); margin:14px 0;">
-
-    <div class="row tabs">
-      <button data-csv="cameras">cameras.csv</button>
-      <button data-csv="nvrs">nvrs.csv</button>
-      <button data-csv="hdds">hdds.csv</button>
-      <button data-csv="switches">switches.csv</button>
-      <button data-csv="accessories">accessories.csv</button>
-      <button data-csv="screens">screens.csv</button>
-      <button data-csv="enclosures">enclosures.csv</button>
-      <button data-csv="signage">signage.csv</button>
-      <span class="muted" id="activeTab"></span>
-    </div>
-
-    <div style="margin-top:12px" class="muted">
-      ✅ Tu édites le CSV brut. Sauvegarde = écrit sur disque + backup .bak automatique.
-    </div>
-
-    <div style="margin-top:12px">
-      <textarea id="editor" placeholder="Charge un CSV..."></textarea>
-    </div>
-
-    <div class="row" style="margin-top:12px; justify-content:flex-end">
-      <button id="btnReload">Recharger</button>
-      <button id="btnSave">Sauvegarder</button>
+      <input id="pwd" class="in" type="password" placeholder="Mot de passe admin"/>
+      <button id="btnLogin" class="btn primary">Se connecter</button>
+      <span id="loginMsg" class="muted"></span>
     </div>
   </div>
 
+  <!-- CATALOG -->
+  <section id="tab_catalog">
+    <div class="grid">
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Éditeur de catalogues</div>
+            <div class="h2">Tu édites via une table (plus de CSV brut côté UI).</div>
+          </div>
+          <div class="row">
+            <select id="catalogKind" class="in">
+              <option value="cameras">cameras</option>
+              <option value="nvrs">nvrs</option>
+              <option value="hdds">hdds</option>
+              <option value="switches">switches</option>
+              <option value="accessories">accessories</option>
+              <option value="screens">screens</option>
+              <option value="enclosures">enclosures</option>
+              <option value="signage">signage</option>
+            </select>
+            <button id="btnLoad" class="btn">Charger</button>
+            <button id="btnAddRow" class="btn">+ Ligne</button>
+            <button id="btnSave" class="btn primary">Enregistrer</button>
+          </div>
+        </div>
+
+        <div id="catMeta" class="muted"></div>
+        <div class="sep"></div>
+
+        <div class="tableWrap">
+          <table id="catTable">
+            <thead><tr id="catHead"></tr></thead>
+            <tbody id="catBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Conseils déploiement</div>
+            <div class="h2">Pour éviter les bêtises en prod.</div>
+          </div>
+        </div>
+        <ul class="list">
+          <li><span>Mot de passe admin</span><span class="mono">CONFIG_ADMIN_PASSWORD</span></li>
+          <li><span>HTTPS obligatoire</span><span>✅</span></li>
+          <li><span>Admin non indexé</span><span>✅</span></li>
+          <li><span>Export KPI</span><span>CSV</span></li>
+        </ul>
+        <div class="sep"></div>
+        <div class="muted">
+          Note : l’API KPI est accessible sans auth (collect), mais le dashboard + export sont protégés.
+          Si tu veux durcir (anti-spam), on ajoutera rate-limit + allowlist d’origin.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI -->
+  <section id="tab_kpi" class="hidden">
+    <div class="grid">
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">KPI — Synthèse</div>
+            <div class="h2">Vue rapide + top events</div>
+          </div>
+          <div class="row">
+            <button id="btnRefreshKpi" class="btn">Rafraîchir</button>
+            <button id="btnExportKpi" class="btn primary">Exporter CSV</button>
+          </div>
+        </div>
+
+        <div class="kpiGrid">
+          <div class="kpiTile"><div class="kpiLabel">Événements (total)</div><div id="kpiTotal" class="kpiVal">—</div></div>
+          <div class="kpiTile"><div class="kpiLabel">Derniers 30 jours</div><div id="kpi30" class="kpiVal">—</div></div>
+          <div class="kpiTile"><div class="kpiLabel">Aujourd’hui</div><div id="kpiToday" class="kpiVal">—</div></div>
+        </div>
+
+        <div class="sep"></div>
+        <div class="h"><div><div class="h1">Top events</div><div class="h2">Top 20</div></div></div>
+        <ul id="kpiTop" class="list"></ul>
+      </div>
+
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Derniers événements</div>
+            <div class="h2">Debug rapide</div>
+          </div>
+          <div class="row">
+            <select id="kpiLimit" class="in">
+              <option value="50">50</option>
+              <option value="200" selected>200</option>
+              <option value="500">500</option>
+            </select>
+            <button id="btnLoadEvents" class="btn">Charger</button>
+          </div>
+        </div>
+        <div id="kpiEvents" class="muted"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
 <script>
 (() => {
-  let token = localStorage.getItem("admin_token") || "";
-  let active = "cameras";
+  const $ = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
 
-  const $ = (s) => document.querySelector(s);
+  const LS_TOKEN = "cfg_admin_token";
+  let token = localStorage.getItem(LS_TOKEN) || "";
+  let catalog = { kind:"", filename:"", columns:[], rows:[] };
 
-  function setStatus(msg, kind = "muted") {
-    const el = $("#status");
-    el.className = kind;
-    el.textContent = msg || "";
+  function setAuthUI(){
+    const st = $("#authState");
+    if(token){
+      st.textContent = "Connecté";
+      st.classList.add("ok");
+      $("#loginCard").classList.add("hidden");
+    } else {
+      st.textContent = "Non connecté";
+      st.classList.remove("ok");
+      $("#loginCard").classList.remove("hidden");
+    }
   }
 
-  function clearToken() {
+  async function api(path, opts={}){
+    const headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
+    if(token) headers["Authorization"] = "Bearer " + token;
+    const res = await fetch(path, Object.assign({}, opts, {headers}));
+    if(!res.ok){
+      const t = await res.text().catch(()=> "");
+      throw new Error(t || ("HTTP "+res.status));
+    }
+    const ct = res.headers.get("content-type") || "";
+    if(ct.includes("application/json")) return await res.json();
+    return await res.text();
+  }
+
+  // --- Tabs
+  $$(".tabBtn").forEach(b => b.addEventListener("click", () => {
+    $$(".tabBtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    const tab = b.dataset.tab;
+    $("#tab_catalog").classList.toggle("hidden", tab !== "catalog");
+    $("#tab_kpi").classList.toggle("hidden", tab !== "kpi");
+  }));
+
+  // --- Login / logout
+  $("#btnLogin").addEventListener("click", async () => {
+    $("#loginMsg").textContent = "";
+    try{
+      const pwd = $("#pwd").value || "";
+      const out = await api("/api/login", {method:"POST", body: JSON.stringify({password: pwd}) , headers:{}});
+      token = out.token;
+      localStorage.setItem(LS_TOKEN, token);
+      setAuthUI();
+    }catch(e){
+      $("#loginMsg").textContent = "Erreur: " + (e?.message || e);
+    }
+  });
+
+  $("#btnLogout").addEventListener("click", () => {
     token = "";
-    localStorage.removeItem("admin_token");
-  }
+    localStorage.removeItem(LS_TOKEN);
+    setAuthUI();
+  });
 
-  function authHeaders() {
-    return token ? { "Authorization": `Bearer ${token}` } : {};
-  }
+  // --- Catalog render
+  function renderTable(){
+    const head = $("#catHead");
+    const body = $("#catBody");
+    head.innerHTML = "";
+    body.innerHTML = "";
 
-  async function readTextSafe(res) {
-    try { return await res.text(); } catch { return ""; }
-  }
-
-  async function login() {
-    const password = $("#pwd").value.trim();
-    if (!password) {
-      setStatus("Entre le mot de passe.", "err");
+    const cols = catalog.columns || [];
+    if(!cols.length){
+      head.innerHTML = "<th>Aucune colonne</th>";
       return;
     }
+    cols.forEach(c => {
+      const th = document.createElement("th");
+      th.textContent = c;
+      head.appendChild(th);
+    });
+    const thA = document.createElement("th");
+    thA.textContent = "Actions";
+    head.appendChild(thA);
 
-    setStatus("Connexion...");
-    try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ password }),
-        credentials: "same-origin",
+    (catalog.rows||[]).forEach((row, idx) => {
+      const tr = document.createElement("tr");
+      cols.forEach(c => {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.value = row?.[c] ?? "";
+        inp.addEventListener("input", () => { catalog.rows[idx][c] = inp.value; });
+        td.appendChild(inp);
+        tr.appendChild(td);
       });
-
-      const txt = await readTextSafe(res);
-      if (!res.ok) {
-        clearToken();
-        throw new Error(`Login refusé (${res.status}) ${txt || ""}`.trim());
-      }
-
-      let data = null;
-      try { data = JSON.parse(txt); } catch {}
-
-      token = data?.token || "";
-      if (!token) {
-        clearToken();
-        throw new Error("Login OK mais token manquant (réponse invalide).");
-      }
-
-      localStorage.setItem("admin_token", token);
-      $("#pwd").value = "";
-      setStatus("Connecté ✅", "ok");
-      await loadActive();
-    } catch (e) {
-      setStatus(e?.message || "Erreur login", "err");
-    }
-  }
-
-  async function logout() {
-    clearToken();
-    $("#editor").value = "";
-    setStatus("Déconnecté.", "muted");
-  }
-
-  async function loadCsv(name) {
-    setStatus(`Chargement ${name}...`);
-
-    const res = await fetch(`/api/csv/${name}`, {
-      cache: "no-store",
-      headers: { ...authHeaders() },
-      credentials: "same-origin",
+      const tdA = document.createElement("td");
+      tdA.className = "actionsCol";
+      const del = document.createElement("button");
+      del.className = "miniBtn del";
+      del.textContent = "Suppr.";
+      del.addEventListener("click", () => {
+        catalog.rows.splice(idx, 1);
+        renderTable();
+      });
+      tdA.appendChild(del);
+      tr.appendChild(tdA);
+      body.appendChild(tr);
     });
 
-    const txt = await readTextSafe(res);
-
-    if (res.status === 401) {
-      clearToken();
-      $("#editor").value = "";
-      setStatus(`401 Unauthorized → reconnecte-toi. ${txt || ""}`.trim(), "err");
-      return;
-    }
-
-    if (!res.ok) {
-      $("#editor").value = "";
-      setStatus(`Erreur chargement (${res.status}) ${txt || ""}`.trim(), "err");
-      return;
-    }
-
-    $("#editor").value = txt;
-    setStatus("Chargé ✅", "ok");
+    $("#catMeta").textContent = catalog.kind
+      ? ("Fichier: " + catalog.filename + " • Colonnes: " + cols.length + " • Lignes: " + (catalog.rows||[]).length)
+      : "";
   }
 
-  async function saveCsv(name) {
-    if (!token) {
-      setStatus("Non connecté. Clique 'Se connecter'.", "err");
-      return;
+  $("#btnLoad").addEventListener("click", async () => {
+    try{
+      const kind = $("#catalogKind").value;
+      const out = await api("/api/admin/catalog/" + encodeURIComponent(kind));
+      catalog = out;
+      renderTable();
+    }catch(e){
+      alert("Erreur chargement: " + (e?.message || e));
     }
-
-    setStatus("Sauvegarde...");
-    const content = $("#editor").value;
-
-    const res = await fetch(`/api/csv/${name}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeaders(),
-      },
-      credentials: "same-origin",
-      body: JSON.stringify({ content }),
-    });
-
-    const txt = await readTextSafe(res);
-
-    if (res.status === 401) {
-      clearToken();
-      setStatus(`401 Unauthorized → reconnecte-toi. ${txt || ""}`.trim(), "err");
-      return;
-    }
-
-    if (!res.ok) {
-      setStatus(`Sauvegarde refusée (${res.status}) ${txt || ""}`.trim(), "err");
-      return;
-    }
-
-    setStatus("Sauvegardé ✅ (backup .bak fait)", "ok");
-  }
-
-  async function loadActive() {
-    $("#activeTab").textContent = "• " + active;
-    await loadCsv(active);
-  }
-
-  document.addEventListener("click", async (e) => {
-    const b = e.target.closest("button[data-csv]");
-    if (!b) return;
-    active = b.getAttribute("data-csv");
-    await loadActive();
   });
 
-  $("#btnLogin").addEventListener("click", login);
-  $("#btnLogout").addEventListener("click", logout);
-  $("#btnReload").addEventListener("click", loadActive);
-  $("#btnSave").addEventListener("click", () => saveCsv(active));
-
-  $("#pwd").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") login();
+  $("#btnAddRow").addEventListener("click", () => {
+    const cols = catalog.columns || [];
+    if(!cols.length){ alert("Charge un catalogue d'abord."); return; }
+    const r = {};
+    cols.forEach(c => r[c] = "");
+    catalog.rows.push(r);
+    renderTable();
   });
 
-  if (token) {
-    setStatus("Token trouvé (session) ✅", "ok");
-    loadActive().catch(() => {
-      clearToken();
-      setStatus("Token invalide/expiré, reconnecte-toi.", "err");
+  $("#btnSave").addEventListener("click", async () => {
+    try{
+      if(!catalog.kind){ alert("Charge un catalogue d'abord."); return; }
+      await api("/api/admin/catalog/" + encodeURIComponent(catalog.kind), {
+        method:"PUT",
+        body: JSON.stringify({columns: catalog.columns, rows: catalog.rows})
+      });
+      alert("Enregistré ✅");
+    }catch(e){
+      alert("Erreur save: " + (e?.message || e));
+    }
+  });
+
+  // --- KPI
+  async function refreshKpi(){
+    const sum = await api("/api/kpi/summary");
+    $("#kpiTotal").textContent = sum.total ?? "0";
+
+    const byDay = sum.by_day || [];
+    const today = new Date().toISOString().slice(0,10);
+    const todayRow = byDay.find(x => x.date === today);
+    $("#kpiToday").textContent = todayRow ? todayRow.count : "0";
+
+    const last30 = byDay.slice(-30).reduce((a,x)=>a+(x.count||0),0);
+    $("#kpi30").textContent = String(last30);
+
+    const ul = $("#kpiTop");
+    ul.innerHTML = "";
+    (sum.top||[]).forEach(it => {
+      const li = document.createElement("li");
+      li.innerHTML = "<span class='mono'>" + it.event + "</span><span class='pill'>" + it.count + "</span>";
+      ul.appendChild(li);
     });
-  } else {
-    setStatus("Connecte-toi pour éditer.", "muted");
+  }
+
+  $("#btnRefreshKpi").addEventListener("click", () => refreshKpi().catch(e => alert(e.message||e)));
+  $("#btnExportKpi").addEventListener("click", async () => {
+    if(!token){ alert("Connecte-toi d'abord"); return; }
+    // direct download with auth header: do it with fetch -> blob
+    try{
+      const res = await fetch("/api/kpi/export.csv", {headers: {"Authorization":"Bearer "+token}});
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "kpi_export.csv";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 2500);
+    }catch(e){
+      alert("Export error: " + (e?.message||e));
+    }
+  });
+
+  $("#btnLoadEvents").addEventListener("click", async () => {
+    const limit = Number($("#kpiLimit").value || 200);
+    const out = await api("/api/kpi/events?limit=" + encodeURIComponent(limit));
+    const rows = out.rows || [];
+    const div = $("#kpiEvents");
+    div.innerHTML = rows.map(r => {
+      const t = (r.ts_utc||"").replace("T"," ").replace("Z","");
+      const p = JSON.stringify(r.payload||{});
+      return "<div style='padding:8px 0;border-bottom:1px dashed rgba(28,31,42,.12)'>"
+        + "<div><span class='mono'>" + (r.event||"") + "</span> <span class='muted'>• " + t + "</span></div>"
+        + "<div class='muted mono' style='white-space:pre-wrap;word-break:break-word'>" + p + "</div>"
+        + "</div>";
+    }).join("") || "<div class='muted'>Aucun event.</div>";
+  });
+
+  setAuthUI();
+
+  // auto-load if token present
+  if(token){
+    $("#btnLoad").click();
+    refreshKpi().catch(()=>{});
   }
 })();
 </script>

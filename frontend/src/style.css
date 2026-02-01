@@ -1,304 +1,355 @@
 /* ============================================================
-   Configurateur Vidéosurveillance (MVP) — style.css (Vite)
-   Clean + moderne + compatible avec ton app.js
+   Configurateur Vidéosurveillance — UI Light COMELIT (Clean)
+   Objectif : blanc, lisible, sobre (cosmos + vert uniquement)
+
+   ✅ Clean pass :
+   - Dédoublonnage massif (final summary, export row, buttons, tables)
+   - Règles texte factorisées (phrases vs refs)
+   - Boutons unifiés (compat + nouvelles variantes btn--*)
+   - Final summary scoped (évite collisions)
+   - Admin modal scoped (évite de casser le reste)
+   - Responsive & print propres
+
    ============================================================ */
 
-/* ---------- 1) Design tokens ---------- */
+
+/* ============================================================
+   1) Design tokens
+   ============================================================ */
 :root{
-  --bg: #0b0f17;
-  --panel: rgba(255,255,255,.06);
-  --panel2: rgba(255,255,255,.08);
-  --line: rgba(255,255,255,.10);
-  --line2: rgba(255,255,255,.16);
-  --text: rgba(255,255,255,.92);
-  --muted: rgba(255,255,255,.65);
+  /* Brand */
+  --cosmos: #1C1F2A;          /* Bleu cosmos */
+  --comelit-green: #00BC70;   /* Vert Comelit */
 
-  --accent: #4ea1ff;
-  --accent2: #7c5cff;
+  /* Base */
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel2: #F3F4F6;          /* surfaces secondaires */
+  --panel3: #FAFAFB;          /* très léger */
+  --line: #E5E7EB;
+  --line2: rgba(28,31,42,.18);
 
-  --danger: #ff4d4d;
-  --warn: #ffb020;
-  --ok: #37d67a;
+  --text: rgba(15,23,42,.92);
+  --muted: rgba(15,23,42,.62);
 
-  --shadow: 0 10px 30px rgba(0,0,0,.35);
-  --shadow2: 0 6px 18px rgba(0,0,0,.25);
+  --danger: #DC2626;
+  --warn: #F59E0B;
+  --ok: var(--comelit-green);
 
+  --shadow: 0 14px 30px rgba(2, 6, 23, .08);
+  --shadow2: 0 8px 18px rgba(2, 6, 23, .08);
+
+  /* Radius */
   --r12: 12px;
-  --r16: 16px;
-  --r20: 20px;
+  --r16: 20px;
+  --r20: 40px;
 
+  /* Padding */
   --pad: 14px;
   --pad2: 18px;
 
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
-/* ---------- 2) Reset / base ---------- */
+
+/* ============================================================
+   2) Reset / base / utilities
+   ============================================================ */
 *{ box-sizing: border-box; }
 html, body{ height: 100%; }
-
 body{
   margin: 0;
   font-family: var(--font);
   color: var(--text);
-  background:
-    radial-gradient(900px 600px at 20% -10%, rgba(78,161,255,.18), transparent 60%),
-    radial-gradient(900px 600px at 90% 0%, rgba(124,92,255,.18), transparent 55%),
-    radial-gradient(900px 700px at 50% 110%, rgba(55,214,122,.10), transparent 60%),
-    var(--bg);
+  background: var(--bg);
 }
-
-a{ color: var(--accent); text-decoration: none; }
-a:hover{ text-decoration: underline; }
-
+a{ color: var(--cosmos); text-decoration: none; }
+a:hover{ color: var(--comelit-green); text-decoration: underline; }
 code{ font-family: var(--mono); font-size: .95em; }
 
-/* Vite container */
-#app{
-  width: 100%;
-  min-height: 100vh;
+#app{ width: 100%; min-height: 100vh; }
+
+.hidden{ display:none !important; }
+.muted{ color: var(--muted); font-size: 12px; }
+.mono{ font-family: var(--mono); }
+
+/* Phrases : pas de casse moche */
+.help, .reasons, .cardSubtitle, .adminHint, .label, .optLabel, .optCardDesc, .statusLine,
+.stepHelp, .sumName, .sumDesc{
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 
-/* ---------- 3) Buttons (compat app.js) ---------- */
-.btn{
+/* Réfs/IDs : on autorise la casse */
+.recoName, .cameraPickName, .sumRef, .pickKey{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Thumb générique (si tu en as besoin ailleurs) */
+.thumb{
+  width:52px;
+  height:52px;
+  object-fit:contain;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fff;
+  display:inline-block;
+}
+
+
+/* ============================================================
+   3) Buttons (compat + version clean)
+   ============================================================ */
+
+/* Base commune : TOUT bouton ressemble à un bouton */
+.btn, .btnGhost, .btnPrimary, .btnDatasheet,
+button.btn, button.btnGhost, button.btnPrimary, button.btnDatasheet{
   appearance: none;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
-  color: var(--text);
+  background: #fff;
+  color: var(--cosmos);
   border-radius: 999px;
   padding: 10px 14px;
-  font-weight: 700;
+  font-weight: 900;
   cursor: pointer;
-  transition: transform .08s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
   user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease, opacity .15s ease, box-shadow .15s ease;
 }
-.btn:hover{
-  background: rgba(255,255,255,.10);
-  border-color: var(--line2);
+
+.btn:hover, .btnGhost:hover, .btnPrimary:hover, .btnDatasheet:hover{
+  background: rgba(0,188,112,.05);
+  border-color: rgba(0,188,112,.35);
 }
-.btn:active{ transform: translateY(1px); }
-.btn:disabled{
+.btn:active, .btnGhost:active, .btnPrimary:active, .btnDatasheet:active{
+  transform: translateY(1px);
+}
+.btn:disabled, .btnGhost:disabled, .btnPrimary:disabled, .btnDatasheet:disabled{
   opacity: .45;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
-.btn.primary{
-  border-color: rgba(78,161,255,.35);
-  background: linear-gradient(180deg, rgba(78,161,255,.25), rgba(78,161,255,.12));
+/* Variantes historiques (compat app.js existant) */
+.btn.primary,
+.btnPrimary{
+  border-color: rgba(0,188,112,.55);
+  background: var(--comelit-green);
+  color: #0b1220;
 }
-.btn.primary:hover{
-  border-color: rgba(78,161,255,.60);
-  background: linear-gradient(180deg, rgba(78,161,255,.32), rgba(78,161,255,.14));
+.btn.primary:hover,
+.btnPrimary:hover{
+  background: rgba(0,188,112,.92);
+  border-color: rgba(0,188,112,.72);
 }
 
+/* Secondary cosmos */
 .btn.secondary{
-  border-color: rgba(124,92,255,.30);
-  background: linear-gradient(180deg, rgba(124,92,255,.20), rgba(124,92,255,.10));
+  border-color: rgba(28,31,42,.30);
+  background: #fff;
+  color: var(--cosmos);
 }
 .btn.secondary:hover{
-  border-color: rgba(124,92,255,.55);
-  background: linear-gradient(180deg, rgba(124,92,255,.28), rgba(124,92,255,.12));
+  background: rgba(28,31,42,.06);
+  border-color: rgba(28,31,42,.42);
 }
 
-.btn.icon{
-  border-radius: 12px;
-  padding: 8px 10px;
-}
-
-.btn.full{ width: 100%; }
-
-/* Ces classes sont utilisées dans ton HTML généré côté JS */
+/* Ghost historique */
 .btnGhost{
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
-  color: var(--text);
-  cursor: pointer;
+  border-color: rgba(28,31,42,.28);
+  background: #fff;
+  color: var(--cosmos);
 }
-.btnGhost:hover{ background: rgba(255,255,255,.10); border-color: var(--line2); }
-
-.btnPrimary{
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(78,161,255,.55);
-  background: rgba(78,161,255,.18);
-  color: var(--text);
-  cursor: pointer;
-  font-weight: 800;
+.btnGhost:hover{
+  background: rgba(28,31,42,.06);
+  border-color: rgba(28,31,42,.40);
 }
-.btnPrimary:hover{ background: rgba(78,161,255,.25); border-color: rgba(78,161,255,.75); }
 
-.btnSmall{ padding: 8px 10px; border-radius: 12px; font-weight: 800; }
-.btnGhost.btnSmall{ padding: 8px 10px; }
+/* Datasheet */
+.btnDatasheet{
+  border: 1px solid rgba(28,31,42,.30);
+  background: #fff;
+  color: var(--cosmos);
+}
+.btnDatasheet:hover{
+  background: rgba(28,31,42,.06);
+  border-color: rgba(28,31,42,.45);
+}
 
-/* ---------- 4) Header ---------- */
+/* Helpers */
+.btn.icon{ border-radius: 12px; padding: 8px 10px; }
+.btn.full{ width: 100%; }
+.btnSmall{ padding: 8px 10px; border-radius: 12px; }
+
+/* ✅ Version clean future-proof (si tu veux migrer plus tard) */
+.btn--primary{ border-color: rgba(0,188,112,.55); background: var(--comelit-green); color:#0b1220; }
+.btn--secondary{ border-color: rgba(28,31,42,.30); background:#fff; color:var(--cosmos); }
+.btn--ghost{ border-color: rgba(28,31,42,.28); background:#fff; color:var(--cosmos); }
+
+/* Focus visible cohérent */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus{ outline:none; }
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible{
+  box-shadow:
+    0 0 0 3px rgba(28,31,42,.18),
+    0 8px 18px rgba(2,6,23,.10);
+  border-color: rgba(28,31,42,.45);
+}
+
+
+/* ============================================================
+   4) Header
+   ============================================================ */
 .appHeader{
   position: sticky;
   top: 0;
   z-index: 10;
   backdrop-filter: blur(10px);
-  background: rgba(11,15,23,.72);
+  background: rgba(255,255,255,.90);
   border-bottom: 1px solid var(--line);
   box-shadow: var(--shadow2);
 
   padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  justify-content: space-between;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 13px;
   flex-wrap: wrap;
 }
 
-.brand{
-  display: grid;
-  gap: 10px;
-  min-width: 260px;
-}
-
-.brandTop{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
+.brand{ display:grid; gap: 10px; min-width: 260px; }
+.brandTop{ display:flex; gap:10px; align-items:center; }
 
 .brandTitle{
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 950;
   letter-spacing: .2px;
+  color: var(--cosmos);
 }
 
 .pill{
-  display: inline-flex;
-  align-items: center;
+  display:inline-flex;
+  align-items:center;
   gap: 8px;
   padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  background: rgba(28,31,42,.06);
+  color: var(--cosmos);
   font-weight: 900;
   font-size: 12px;
 }
+.statusLine{ color: var(--muted); font-size: 12px; }
 
-.statusLine{
-  color: var(--muted);
-  font-size: 12px;
-}
-
-/* progress */
-.progressWrap{
-  display: grid;
-  gap: 6px;
-  max-width: 460px;
-}
+.progressWrap{ display:grid; gap: 6px; max-width: 460px; }
 .progressOuter{
   width: 100%;
   height: 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
+  background: var(--panel2);
   overflow: hidden;
 }
 .progressBar{
   height: 100%;
   width: 0%;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(78,161,255,.90), rgba(124,92,255,.80));
+  background: linear-gradient(90deg, var(--comelit-green), rgba(0,188,112,.75));
 }
-.progressText{
-  font-size: 12px;
-  color: var(--muted);
-}
+.progressText{ font-size: 12px; color: var(--muted); }
 
-.headerActions{
-  display: flex;
+.headerActions, .headerActionsLeft, .headerActionsRight, .actions{
+  display:flex;
   gap: 10px;
-  align-items: center;
+  align-items:center;
   flex-wrap: wrap;
 }
 
-.headerActionsLeft, .headerActionsRight{
-  display: flex;
-  gap: 10px;
-  align-items: center;
+/* Header centré (si utilisé) */
+.appHeader.appHeaderCentered{
+  flex-direction: column;
+  align-items:center;
+  justify-content:center;
+  gap: 12px;
+}
+.brandCenter{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  gap: 8px;
+}
+.brandLogoImg{ height: 210px; width:auto; object-fit: contain; }
+.brandTagline{
+  font-size: 11px;
+  font-weight: 800;
+  opacity: .75;
+  letter-spacing: .4px;
+  text-transform: uppercase;
 }
 
-/* app.js cherche ".actions" pour ajouter btnToggleResults */
-.actions{
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
 
-/* ---------- 5) Main layout ---------- */
+/* ============================================================
+   5) Layout + Cards globales
+   ============================================================ */
 .appMain{
   width: 100%;
   padding: 16px;
-  display: flex;
-  justify-content: center;
+  display:flex;
+  justify-content:center;
 }
 
 .appGrid{
   width: min(1280px, 100%);
-  display: grid;
+  display:grid;
   grid-template-columns: 1.35fr .95fr;
   gap: 16px;
-  align-items: start;
+  align-items:start;
 }
-
-/* Quand app.js met .singleCol => on masque la colonne résultats */
-.appGrid.singleCol{
-  grid-template-columns: 1fr;
-}
+.appGrid.singleCol{ grid-template-columns: 1fr; }
 
 .card{
   border: 1px solid var(--line);
   background: var(--panel);
   border-radius: var(--r20);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  overflow:hidden;
 }
-
-.hiddenCard{ display: none; }
+.hiddenCard{ display:none; }
 
 .cardHeader{
   padding: 14px 16px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255,255,255,.04);
+  background: #fff;
 }
-
-.cardTitle{
-  font-size: 14px;
-  font-weight: 900;
-}
+.cardTitle{ font-size: 14px; font-weight: 950; color: var(--cosmos); }
 .cardSubtitle{
   margin-top: 4px;
   color: var(--muted);
   font-size: 12px;
 }
 
-.steps{
-  padding: 14px;
-}
+.steps{ padding: 14px; }
+.resultsBody{ padding: 14px; }
 
-.resultsBody{
-  padding: 14px;
-}
+.step, .steps, .card, .recoCard, .resultsBody, .adminSection{ min-width: 0; }
 
-.exportRow{
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
 
-/* ---------- 6) Step wrapper (render()) ---------- */
-.step{ display: grid; gap: 12px; }
+/* ============================================================
+   6) Steps — titres + badges + help (cohérent)
+   ============================================================ */
+.step{ display:grid; gap: 12px; }
 
+/* Bande “étape” (si tu l’utilises) */
 .stepTitle{
   display:flex;
   align-items:center;
@@ -307,7 +358,15 @@ code{ font-family: var(--mono); font-size: .95em; }
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--r16);
-  background: rgba(255,255,255,.05);
+  background: var(--panel3);
+  position: relative;
+}
+.stepTitle::before{
+  content:"";
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:4px;
+  background: rgba(0,188,112,.55);
 }
 
 .badge{
@@ -315,27 +374,27 @@ code{ font-family: var(--mono); font-size: .95em; }
   align-items:center;
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(78,161,255,.35);
-  background: rgba(78,161,255,.14);
+  border: 1px solid rgba(28,31,42,.14);
+  background: rgba(28,31,42,.06);
+  color: var(--cosmos);
   font-weight: 900;
   font-size: 12px;
 }
 
-.help{
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.35;
-  padding: 0 2px;
-}
 
-/* ---------- 7) Cards internes (reco) ---------- */
+/* ============================================================
+   7) Reco card (résultats / blocs)
+   ============================================================ */
 .recoCard{
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
+  background: var(--panel3);
   border-radius: var(--r16);
   padding: 14px;
-  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  box-shadow: 0 6px 18px rgba(2,6,23,.06);
+  overflow:hidden;
+  transition: transform .10s ease, box-shadow .18s ease, border-color .18s ease;
 }
+.recoCard:hover{ transform: translateY(-1px); }
 
 .recoHeader{
   display:flex;
@@ -343,34 +402,22 @@ code{ font-family: var(--mono); font-size: .95em; }
   justify-content:space-between;
   gap: 12px;
 }
-
 .recoName{
   font-size: 14px;
-  font-weight: 900;
+  font-weight: 950;
+  color: var(--cosmos);
 }
-
-.muted{
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .score{
   min-width: 44px;
   height: 34px;
   border-radius: 12px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(0,188,112,.35);
+  background: rgba(0,188,112,.12);
+  color: var(--cosmos);
   display:flex;
   align-items:center;
   justify-content:center;
-  font-weight: 900;
-}
-
-.reasons{
-  margin-top: 10px;
-  color: var(--text);
-  line-height: 1.35;
-  font-size: 13px;
+  font-weight: 950;
 }
 
 .kv{
@@ -381,195 +428,614 @@ code{ font-family: var(--mono); font-size: .95em; }
 }
 .kv > div{
   border: 1px solid var(--line);
-  background: rgba(0,0,0,.18);
+  background: #fff;
   border-radius: 14px;
   padding: 10px 12px;
   font-size: 13px;
 }
 
-/* ---------- 8) Camera pick cards ---------- */
+/* Alerts */
+.alert.warn, .alert.info, .alert.ok{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background: var(--panel3);
+}
+.alert.warn{ border-left: 4px solid rgba(245,158,11,.65); }
+.alert.info{ border-left: 4px solid rgba(28,31,42,.35); }
+.alert.ok{ border-left: 4px solid rgba(0,188,112,.60); }
+
+.alerts{ margin: 12px 0 0; padding-left: 18px; }
+.alerts li{ margin: 6px 0; color: var(--muted); }
+.alerts li.danger{ color: rgba(220,38,38,.95); font-weight: 950; }
+.alerts li.warn{ color: rgba(245,158,11,.95); font-weight: 950; }
+
+
+/* ============================================================
+   8) Camera pick (propositions)
+   ============================================================ */
 .stepSplit{
   display:grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
   gap: 12px;
-  align-items: start;
+  align-items:start;
 }
+.stepSplit > *{ min-width:0; }
+.blocksCol, .proposalsCol{ min-width:0; display:grid; gap: 12px; }
 
-
-/* 🔒 Fix grid overflow (évite que la colonne droite passe dessous) */
-.stepSplit > *{
-  min-width: 0;
-}
-.blocksCol, .proposalsCol{
-  min-width: 0;
-}
-
-/* ⭐ Colonne propositions “collée” (confort) */
 .proposalsCol{
   position: sticky;
-  top: 92px; /* ajuste selon la hauteur de ton header */
+  top: 92px;
   align-self: start;
 }
-/* 🧯 Anti-débordement textes */
-.recoName, .muted{
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
 
-.cameraPickMeta{
-  min-width: 0;
-}
-
-.cameraPickActions{
-  min-width: 0;
-}
-
-.blocksCol, .proposalsCol{ display: grid; gap: 12px; }
-
-.proposalsTitle{
+.uiToolbar.v2{
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   justify-content:space-between;
   gap: 12px;
-}
-
-.cameraPickCard{
+  margin: 10px 0 6px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  border-radius: var(--r16);
-  padding: 12px;
-  margin-top: 12px;
-}
-
-.cameraPickTop{
-  display:flex;
-  gap: 12px;
-  align-items:flex-start;
-}
-
-.cameraPickImg{
-  width: 112px;
-  height: 92px;
   border-radius: 14px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.04);
-  object-fit: cover;
-  flex: 0 0 auto;
+  background: rgba(255,255,255,.65);
 }
-
-.cameraPickMeta{ flex: 1; min-width: 0; }
-
-.cameraPickActions{
-  display:flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-/* badges */
-.badgeRow{
-  display:flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.badgePill{
-  display:inline-flex;
-  align-items:center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
-  font-size: 12px;
-  font-weight: 800;
-}
+.uiToolbar.v2 .uiToolbarLeft{ display:flex; gap: 8px; align-items:center; flex-wrap: wrap; }
+.uiToolbar.v2 .uiToolbarRight{ text-align:right; max-width: 420px; line-height: 1.2; }
 
 .pillBtn{
   padding:8px 12px;
   border-radius:999px;
   border:1px solid var(--line);
-  background:rgba(255,255,255,.04);
-  color:var(--text);
+  background:#fff;
+  color:var(--cosmos);
   cursor:pointer;
+  transition: transform .08s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease, color .18s ease, filter .18s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
+.pillBtn:hover{ filter: brightness(.985); }
+.pillBtn:active{ transform: translateY(1px) scale(.99); }
+
 .pillBtn.pillActive{
-  background:rgba(255,255,255,.12);
-  border-color:rgba(255,255,255,.22);
+  border-color: rgba(28,31,42,.55) !important;
+  background: rgba(28,31,42,.06) !important;
+  color: rgba(15,23,42,.95) !important;
+  box-shadow: inset 0 0 0 1px rgba(28,31,42,.10), 0 6px 14px rgba(2,6,23,.08) !important;
 }
-.divider{
-  height:1px;
-  background:rgba(255,255,255,.10);
-}
-.alert.warn{
-  padding:10px 12px;
-  border-radius:12px;
-  border:1px solid rgba(255,180,0,.25);
-  background:rgba(255,180,0,.08);
-}
-.alert.info{
-  padding:10px 12px;
-  border-radius:12px;
-  border:1px solid rgba(120,190,255,.25);
-  background:rgba(120,190,255,.08);
-}
-.alert.ok{
-  padding:10px 12px;
-  border-radius:12px;
-  border:1px solid rgba(90,255,160,.18);
-  background:rgba(90,255,160,.07);
+.pillBtn.pillActive::after{
+  content:"";
+  position:absolute;
+  left: 10px; right: 10px; bottom: 6px;
+  height: 3px; border-radius: 999px;
+  background: rgba(28,31,42,.55);
 }
 
-
-/* ---------- 9) Empty + results toggle ---------- */
-.hidden{ display: none !important; }
-
-.emptyState{
-  padding: 14px;
-  border: 1px dashed var(--line2);
+.cameraPickCard{
+  border: 1px solid var(--line);
+  background: #fff;
   border-radius: var(--r16);
-  background: rgba(255,255,255,.04);
+  padding: 10px;
+  margin-top: 12px;
+  box-shadow: var(--shadow2);
+  position: relative;
+  overflow:hidden;
+  cursor:pointer;
+  transition: transform .10s ease, box-shadow .18s ease, border-color .18s ease;
 }
-.emptyTitle{
-  font-weight: 900;
-  margin-bottom: 6px;
+.cameraPickCard:hover{ transform: translateY(-1px); }
+
+.cameraPickCard.isValidated::after{
+  content:"Validée";
+  position:absolute;
+  top: 10px; right: 10px;
+  font-size: 11px;
+  font-weight: 950;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0,188,112,.22);
+  border: 1px solid rgba(0,188,112,.45);
+  color:#fff;
 }
 
-/* Alerts list */
-.alerts{
-  margin: 12px 0 0 0;
-  padding-left: 18px;
+/* Bande statut */
+.cameraPickCard::before{
+  content:"";
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:6px;
+  background: rgba(28,31,42,.18);
 }
-.alerts li{
-  margin: 6px 0;
+.cameraPickCard.lvl-ok::before{ background: var(--comelit-green); }
+.cameraPickCard.lvl-warn::before{ background: rgba(28,31,42,.22); }
+.cameraPickCard.lvl-bad::before{ background: rgba(28,31,42,.22); }
+
+.cameraPickTop{ display:flex; gap: 12px; align-items:flex-start; }
+.cameraPickImg{
+  width: 112px; height: 92px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel3);
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+.cameraPickMeta{ flex:1; min-width:0; }
+.cameraPickTitle{ font-weight: 950; color: var(--cosmos); font-size: 13px; line-height: 1.1; }
+.cameraPickName{ font-size: 12px; font-weight: 800; opacity: .92; }
+
+.cameraPickActions{
+  margin-top: 10px;
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+.cameraPickActions .btnPrimary,
+.cameraPickActions .btnDatasheet{
+  height: 44px;
+  min-width: 150px;
+}
+
+
+/* ============================================================
+   9) Compléments (écran + boîtier + signage) — FIX icons + thumbs
+   ============================================================ */
+
+.complementsGrid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  align-items:start;
+}
+
+/* Carte option */
+.optCard{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: #fff;
+  padding: 10px;
+  box-shadow: var(--shadow2);
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+  cursor:pointer;
+  min-width: 0;
+  transition: transform .10s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.optCard:hover{
+  transform: translateY(-1px);
+  border-color: rgba(0,0,0,.18);
+}
+
+/* ✅ IMPORTANT : état "activé" (ton JS met souvent .on) */
+.optCard.on{
+  border-color: rgba(0,188,112,.55);
+  box-shadow: 0 0 0 3px rgba(0,188,112,.12), var(--shadow2);
+}
+
+/* Header (icône + texte + toggle/qty) */
+.optCardHead{
+  display:grid;
+  grid-template-columns: 44px minmax(0,1fr) auto;
+  gap: 10px;
+  align-items:start;
+  min-width:0;
+}
+
+/* ✅ Zone icône / image */
+.optCardHead > :first-child{
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel3);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+/* Si tu as des IMG dans les cartes compléments */
+.optCardHead img{
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* ✅ évite l’image “buggée” */
+  display:block;
+}
+
+/* Si tu as des SVG / icônes dans les cartes */
+.optCardHead svg,
+.optCardHead i{
+  width: 22px;
+  height: 22px;
+  color: rgba(28,31,42,.55);
+  fill: currentColor;
+  transition: color .15s ease, fill .15s ease, filter .15s ease;
+}
+
+/* ✅ Quand c’est activé : icône verte (le point que tu veux) */
+.optCard.on svg,
+.optCard.on i{
+  color: var(--comelit-green);
+  fill: var(--comelit-green);
+  filter: drop-shadow(0 6px 10px rgba(0,188,112,.18));
+}
+
+.optCardTitle{
+  font-weight: 950;
+  line-height: 1.15;
+  color: var(--cosmos);
+}
+
+.optCardDesc{
+  margin-top: 3px;
   color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow:hidden;
 }
-.alerts li.danger{ color: rgba(255,77,77,.95); font-weight: 900; }
-.alerts li.warn{ color: rgba(255,176,32,.95); font-weight: 900; }
 
-/* ---------- 10) Form controls ---------- */
+/* Inputs */
+.optInput, .optSelect{
+  width: 100%;
+  max-width: 100%;
+  padding: 9px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background:#fff;
+  color: var(--text);
+}
+.optInput:focus, .optSelect:focus{
+  border-color: rgba(0,188,112,.55);
+  box-shadow: 0 0 0 3px rgba(0,188,112,.14);
+  outline:none;
+}
+
+/* ============================================================
+   10) Form controls
+   ============================================================ */
 input, select, textarea{
   font-family: var(--font);
   color: var(--text);
-  outline: none;
+  outline:none;
 }
-
 .input, .select, .textarea{
   width: 100%;
   padding: 10px 12px;
   border-radius: 14px;
   border: 1px solid var(--line);
-  background: rgba(0,0,0,.20);
+  background:#fff;
   color: var(--text);
 }
+.input:focus, .select:focus, .textarea:focus{
+  border-color: rgba(0,188,112,.55);
+  box-shadow: 0 0 0 3px rgba(0,188,112,.14);
+}
+.textarea{ min-height: 240px; resize: vertical; }
 
-.textarea{
-  min-height: 240px;
-  resize: vertical;
+
+/* ============================================================
+   11) SUMMARY STEP (6/6) — export row + hint + full width
+   ============================================================ */
+.stepTitleRow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.mono{ font-family: var(--mono); }
+.stepBadge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 52px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(28,31,42,.06);
+  color: var(--cosmos);
+  font-weight: 950;
+}
 
-/* ---------- 11) Modal (Admin) ---------- */
+.stepHelp{
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  margin-bottom: 10px;
+}
+
+.summaryHint{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  padding: 10px 12px;
+  background: var(--panel3);
+  font-weight: 900;
+  margin-bottom: 12px;
+}
+.summaryHint.ok{ border-left: 4px solid rgba(0,188,112,.60); }
+.summaryHint.warn{ border-left: 4px solid rgba(245,158,11,.65); }
+
+.stepSummary{ display:grid; gap: 12px; }
+.stepSummary .summaryFullWidth{ width: 100%; }
+
+/* Export row : visible + premium + sticky sous header */
+.exportRow{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items:center;
+
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: rgba(255,255,255,.92);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow2);
+}
+
+.exportRowSummary{
+  position: sticky;
+  top: 86px; /* sous le header sticky */
+  z-index: 5;
+}
+
+/* Dans la zone export : on renforce la présence des boutons */
+.exportRow .btn,
+.exportRow .btnPrimary,
+.exportRow .btnGhost{
+  height: 44px;
+  box-shadow: 0 8px 18px rgba(2,6,23,.08);
+}
+
+
+/* ============================================================
+   12) FINAL SUMMARY (Résultat devis) — aligned with YOUR HTML
+   Structure attendue :
+   .sumRow -> .sumThumb(.sumThumbImg) + .sumMain(.sumTop .sumPill ...)
+
+   ============================================================ */
+
+.finalSummary{
+  padding: 14px;
+}
+
+/* Header */
+.finalSummary .recoHeader{ align-items:center; }
+.finalSummary .recoName{ font-size: 16px; }
+.finalSummary .muted{ font-size: 12px; }
+
+/* Score badge */
+.finalSummary .score{
+  min-width: 86px;
+  height: auto;
+  padding: 10px 12px;
+  border-radius: 14px;
+  text-align: right;
+  line-height: 1.05;
+}
+
+/* ✅ Grid des sections */
+.finalSummary .finalGrid{
+  margin-top: 14px;
+  display:grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+@media (max-width: 420px){
+  .finalSummary .finalGrid{ grid-template-columns: 1fr; }
+}
+
+.finalSummary .finalCard{
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--r16);
+  padding: 12px;
+  box-shadow: var(--shadow2);
+  min-width:0;
+}
+
+.finalSummary .finalCardHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.finalSummary .finalCardTitle{
+  font-weight: 950;
+  color: var(--cosmos);
+}
+
+.finalSummary .finalChip{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(28,31,42,.14);
+  background: rgba(28,31,42,.06);
+  color: var(--cosmos);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+/* Sub blocks */
+.finalSummary .finalSub{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0,0,0,.10);
+}
+.finalSummary .finalSubTitle{
+  font-weight: 950;
+  color: var(--cosmos);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+/* ✅ LIST */
+.finalSummary .sumList{
+  display:grid;
+  gap: 10px;
+}
+
+/* ✅ TA LIGNE : thumb + main */
+.finalSummary .sumRow{
+  display:grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items:start;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel3);
+}
+
+/* ✅ Wrapper image (DIV sumThumb) */
+.finalSummary .sumThumb{
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+/* IMG interne (sumThumbImg) */
+.finalSummary .sumThumbImg{
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* ✅ pas de stretch */
+  display:block;
+}
+
+/* Placeholder */
+.finalSummary .sumThumbPh{
+  border-style: dashed;
+  background: rgba(0,0,0,.02);
+  color: var(--muted);
+  font-weight: 950;
+}
+
+/* Main */
+.finalSummary .sumMain{
+  min-width: 0;
+  display:grid;
+  gap: 6px;
+}
+
+/* Ligne pill (qty + ref) */
+.finalSummary .sumTop{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items:center;
+}
+
+/* Pill */
+.finalSummary .sumPill{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background:#fff;
+  color: var(--cosmos);
+  font-weight: 950;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* Place label */
+.finalSummary .sumPlace{
+  display:inline-flex;
+  align-items:center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,188,112,.22);
+  background: rgba(0,188,112,.10);
+  font-weight: 950;
+  font-size: 12px;
+  color: var(--cosmos);
+}
+
+/* Name */
+.finalSummary .sumName{
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 800;
+  color: var(--text);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Empty */
+.finalSummary .sumEmpty{
+  padding: 10px 12px;
+  border: 1px dashed rgba(0,0,0,.18);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(0,0,0,.02);
+}
+
+/* Mobile */
+@media (max-width: 560px){
+  .finalSummary .sumRow{
+    grid-template-columns: 60px minmax(0,1fr);
+  }
+  .finalSummary .sumThumb{
+    width: 60px;
+    height: 60px;
+  }
+}
+
+/* KPIs */
+.finalSummary .finalKpis{
+  margin-top: 14px;
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.finalSummary .kpiTile{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background:#fff;
+  padding: 12px;
+  box-shadow: var(--shadow2);
+}
+.finalSummary .kpiLabel{
+  color: var(--muted);
+  font-weight: 900;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.finalSummary .kpiValue{
+  font-weight: 950;
+  font-size: 18px;
+  color: var(--cosmos);
+}
+.finalSummary .kpiUnit{
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+/* ============================================================
+   13) Admin modal — SCOPED (évite collisions)
+   ============================================================ */
 .modal{
   position: fixed;
   inset: 0;
@@ -587,7 +1053,7 @@ input, select, textarea{
   max-height: 92vh;
   overflow: auto;
   border-radius: var(--r20);
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255,255,255,.10);
   background: rgba(15,20,30,.92);
   box-shadow: var(--shadow);
 }
@@ -600,36 +1066,39 @@ input, select, textarea{
   align-items:flex-start;
   justify-content:space-between;
   gap: 12px;
-
   padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid rgba(255,255,255,.10);
   background: rgba(15,20,30,.92);
   backdrop-filter: blur(10px);
 }
 
-.modalTitle{ font-weight: 950; }
-.modalSubtitle{ margin-top: 4px; color: var(--muted); font-size: 12px; }
+.modalTitle{ font-weight: 950; color: #fff; }
+.modalSubtitle{ margin-top: 4px; color: rgba(255,255,255,.65); font-size: 12px; }
 
-.adminSection{
-  padding: 16px;
-  display: grid;
-  gap: 12px;
-}
+.adminSection{ padding: 16px; display:grid; gap: 12px; }
 
-.field{ display:grid; gap: 8px; }
-.field.inline{
+.modal .field{ display:grid; gap: 8px; }
+.modal .field.inline{
   grid-auto-flow: column;
   grid-auto-columns: max-content 1fr;
-  align-items: center;
+  align-items:center;
   gap: 10px;
 }
-.label{
-  color: var(--muted);
+.modal .label{
+  color: rgba(255,255,255,.65);
   font-weight: 800;
   font-size: 12px;
 }
 
-/* ---------- 12) Admin toolbar + grid ---------- */
+.modal .adminHint{
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: rgba(255,255,255,.65);
+  font-size: 12px;
+}
+
 .adminToolbar{
   display:flex;
   align-items:center;
@@ -637,59 +1106,16 @@ input, select, textarea{
   gap: 10px;
   flex-wrap: wrap;
 }
-
-.toolbarBtns{
-  display:flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.adminHint{
-  border: 1px solid var(--line);
-  background: rgba(255,255,255,.05);
-  border-radius: 14px;
-  padding: 10px 12px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.adminGridWrap{
-  display:grid;
-  gap: 12px;
-}
-
-.adminGridTop{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.adminGridActions{
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-
-.adminGridSep{
-  width: 1px;
-  height: 26px;
-  background: var(--line);
-  display:inline-block;
-  margin: 0 2px;
-}
+.toolbarBtns{ display:flex; gap: 10px; flex-wrap: wrap; }
 
 .adminTableMount{
-  border: 1px solid var(--line);
+  border: 1px solid rgba(255,255,255,.10);
   border-radius: var(--r16);
-  background: rgba(0,0,0,.18);
-  overflow: auto;
+  background: rgba(255,255,255,.04);
+  overflow:auto;
   max-height: 52vh;
 }
 
-/* Table “Excel-like” */
 .adminTable{
   width: 100%;
   border-collapse: separate;
@@ -697,20 +1123,18 @@ input, select, textarea{
   font-size: 12px;
   min-width: 840px;
 }
-
 .adminTable thead th{
   position: sticky;
   top: 0;
   z-index: 1;
   background: rgba(18,24,35,.98);
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+  color: rgba(255,255,255,.70);
+  text-align:left;
   padding: 10px 10px;
   font-weight: 900;
   white-space: nowrap;
 }
-
 .adminTable tbody td{
   border-bottom: 1px solid rgba(255,255,255,.06);
   padding: 6px 8px;
@@ -719,12 +1143,11 @@ input, select, textarea{
 
 .rowSel{
   width: 72px;
-  text-align: center;
-  color: var(--muted);
+  text-align:center;
+  color: rgba(255,255,255,.55);
   font-family: var(--mono);
   border-right: 1px solid rgba(255,255,255,.06);
 }
-
 .adminRow.selected{
   outline: 1px solid rgba(78,161,255,.30);
   background: rgba(78,161,255,.08);
@@ -734,80 +1157,969 @@ input, select, textarea{
   width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(255,255,255,.08);
-  background: rgba(255,255,255,.04);
-  color: var(--text);
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.92);
 }
 .adminCell:focus{
   border-color: rgba(78,161,255,.65);
   box-shadow: 0 0 0 3px rgba(78,161,255,.14);
 }
 
-/* Expert textarea */
-.adminExpertBox{
-  border: 1px solid var(--line);
-  border-radius: var(--r16);
-  padding: 12px;
-  background: rgba(255,255,255,.04);
-}
-.adminExpertBox.hidden{ display:none; }
+
 /* ============================================================
-   FIX overflow / fit (Step 4 + blocs internes)
-   À coller AVANT la section "13) Responsive"
+   14) Responsive
    ============================================================ */
-
-/* Empêche les enfants de grid/flex de forcer un débordement */
-.step, .steps, .card, .recoCard, .resultsBody, .adminSection { 
-  min-width: 0;
-}
-
-/* Les longues chaînes (ex: URLs, CSV, labels) doivent casser la ligne */
-.recoCard, .card, .stepTitle, .help, .muted {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* Si tu as des lignes de boutons/inputs qui débordent */
-.row, .cameraPickActions, .adminToolbar, .toolbarBtns, .adminGridActions {
-  flex-wrap: wrap;
-}
-
-/* Les cartes avec des zones scroll (si un bloc devient trop haut) */
-.recoCard {
-  overflow: hidden; /* évite le “dépassement visuel” */
-}
-
-/* ---------- 13) Responsive ---------- */
 @media (max-width: 980px){
   .appGrid{ grid-template-columns: 1fr; }
-  .hiddenCard{ display: block; } /* on garde la carte mais app.js va gérer hiddenCard aussi */
+  .hiddenCard{ display:none !important; }
   .stepSplit{ grid-template-columns: 1fr; }
   .cameraPickTop{ flex-direction: column; }
   .cameraPickImg{ width: 100%; height: 160px; }
   .kv{ grid-template-columns: 1fr; }
+  .complementsGrid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
-
 @media (max-width: 560px){
   .appHeader{ padding: 12px; }
   .brand{ min-width: auto; width: 100%; }
   .headerActions{ width: 100%; justify-content: space-between; }
   .actions{ width: 100%; }
-  .btn{ width: 100%; justify-content: center; }
+  .btn, .btnGhost, .btnPrimary, .btnDatasheet{ width: 100%; }
+  .proposalsCol{ position: static; top:auto; }
+  .cameraPickActions a, .cameraPickActions button{ width: 100%; min-width:0; }
+  .complementsGrid{ grid-template-columns: 1fr; }
+  .exportRowSummary{ top: 0; }
 }
 
-/* ---------- 14) Print / PDF safety ---------- */
+
+/* ============================================================
+   15) Print / PDF safety
+   ============================================================ */
 @media print{
-  body{ background: #fff !important; color: #111 !important; }
-  .appHeader{ position: static; box-shadow: none; background: #fff; color: #111; }
-  .card, .recoCard{ box-shadow: none; }
+  body{ background:#fff !important; color:#111 !important; }
+  .appHeader{ position: static; box-shadow:none; background:#fff; color:#111; }
+  .card, .recoCard{ box-shadow:none; }
+}
+/* ============================================================
+   PATCH — Camera pick (tags + typo) RESTORE
+   Objectif : récupérer la hiérarchie texte + tags/badges
+   sans impacter le résumé final.
+   ============================================================ */
+
+.cameraPickCard{
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: var(--r16);
+  padding: 10px;
+  box-shadow: var(--shadow2);
+  overflow: hidden;
 }
 
-.thumb{
-  width:52px;
-  height:52px;
-  object-fit:contain;
-  border:1px solid var(--c-line);
-  border-radius:10px;
-  background:#fff;
-  display:inline-block;
+/* Bande statut (OK/WARN/BAD) */
+.cameraPickCard::before{
+  content:"";
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:6px;
+  background: rgba(28,31,42,.16);
+}
+.cameraPickCard.lvl-ok::before{ background: var(--comelit-green); }
+.cameraPickCard.lvl-warn::before{ background: rgba(245,158,11,.75); }
+.cameraPickCard.lvl-bad::before{ background: rgba(220,38,38,.75); }
+
+/* Layout interne */
+.cameraPickTop{
+  display:flex;
+  gap: 12px;
+  align-items:flex-start;
+}
+
+/* Image */
+.cameraPickImg{
+  width: 112px;
+  height: 92px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel3);
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+/* Meta */
+.cameraPickMeta{
+  flex: 1;
+  min-width: 0;
+}
+
+.cameraPickTitleRow{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 10px;
+}
+
+.cameraPickTitleMain{
+  min-width: 0;
+  display:grid;
+  gap: 3px;
+}
+
+.cameraPickTitle{
+  font-weight: 950;
+  letter-spacing: -0.01em;
+  color: var(--cosmos);
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.cameraPickName{
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(15,23,42,.92);
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+/* Ligne meta (MP, lentille, IR, ext/int etc.) */
+.pickMetaLine{
+  margin-top: 6px;
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+  align-items:center;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 900;
+}
+.pickMetaLine .dot{ opacity:.45; }
+
+/* ✅ TAGS / BADGES : c’est ça qui te manque */
+.badgeRow{
+  margin-top: 8px;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badgePill,
+.recoTag{
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(28,31,42,.14);
+  background: rgba(28,31,42,.06);
+  font-weight: 950;
+  font-size: 12px;
+  color: var(--cosmos);
+}
+
+/* Variantes */
+.recoTag-ok,
+.badgePill.ok{
+  border-color: rgba(0,188,112,.28);
+  background: rgba(0,188,112,.10);
+}
+.badgePill.warn{
+  border-color: rgba(245,158,11,.30);
+  background: rgba(245,158,11,.10);
+}
+.badgePill.danger{
+  border-color: rgba(220,38,38,.28);
+  background: rgba(220,38,38,.10);
+}
+
+/* Texte “commercial” (si tu as un bloc recoText) */
+.recoText{
+  margin-top: 8px;
+  font-weight: 900;
+  color: var(--cosmos);
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Actions */
+.cameraPickActions{
+  margin-top: 10px;
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items:center;
+}
+.cameraPickActions .btnPrimary,
+.cameraPickActions .btnDatasheet{
+  height: 44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+
+/* Mobile */
+@media (max-width: 560px){
+  .cameraPickTop{ flex-direction: column; }
+  .cameraPickImg{ width: 100%; height: 160px; }
+  .cameraPickActions{ flex-direction: column; align-items: stretch; }
+  .cameraPickActions .btnPrimary,
+  .cameraPickActions .btnDatasheet{ width: 100%; }
+}
+/* ============================================================
+   PRODUITS COMPLÉMENTAIRES — UI clean / premium (scopé)
+   Cible uniquement la zone compléments via .complementsGrid
+   ============================================================ */
+
+.complementsGrid{
+  /* tokens locaux (tu peux garder tes variables globales) */
+  --comp-radius: 18px;
+  --comp-line: rgba(28,31,42,.12);
+  --comp-soft: rgba(28,31,42,.05);
+  --comp-text: var(--cosmos);
+  --comp-muted: var(--muted);
+  --comp-green: var(--comelit-green);
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  align-items: stretch;
+}
+
+@media (max-width: 980px){
+  .complementsGrid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px){
+  .complementsGrid{ grid-template-columns: 1fr; }
+}
+
+/* ------------------------------------------------------------
+   Carte complément
+   ------------------------------------------------------------ */
+.complementsGrid .optCard{
+  border: 1px solid var(--comp-line);
+  border-radius: var(--comp-radius);
+  background: linear-gradient(180deg, #fff, rgba(250,250,251,.92));
+  box-shadow: 0 10px 22px rgba(2,6,23,.06);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden; /* ✅ anti-débordement global */
+  transition: transform .12s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.complementsGrid .optCard:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(2,6,23,.10);
+  border-color: rgba(28,31,42,.18);
+}
+
+/* États ON (ton JS : .on / .active / .enabled / .selected) */
+.complementsGrid .optCard.on,
+.complementsGrid .optCard.active,
+.complementsGrid .optCard.enabled,
+.complementsGrid .optCard.selected{
+  border-color: rgba(0,188,112,.55);
+  box-shadow:
+    0 0 0 3px rgba(0,188,112,.10),
+    0 14px 30px rgba(2,6,23,.10);
+}
+
+/* ------------------------------------------------------------
+   Head (icône + texte + toggle)
+   ------------------------------------------------------------ */
+.complementsGrid .optCardHead{
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+
+/* Icône “tile” */
+.complementsGrid .optCardHead > :first-child{
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid var(--comp-line);
+  background: rgba(28,31,42,.03);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Si c’est un SVG / icône */
+.complementsGrid .optCardHead svg,
+.complementsGrid .optCardHead i{
+  width: 22px;
+  height: 22px;
+  color: rgba(28,31,42,.58);
+  fill: currentColor;
+  transition: color .15s ease, fill .15s ease, filter .15s ease;
+}
+
+/* ON -> icône verte */
+.complementsGrid .optCard.on svg,
+.complementsGrid .optCard.active svg,
+.complementsGrid .optCard.enabled svg,
+.complementsGrid .optCard.selected svg,
+.complementsGrid .optCard.on i,
+.complementsGrid .optCard.active i,
+.complementsGrid .optCard.enabled i,
+.complementsGrid .optCard.selected i{
+  color: var(--comp-green);
+  fill: var(--comp-green);
+  filter: drop-shadow(0 6px 10px rgba(0,188,112,.18));
+}
+
+/* Titres / description (meilleure hiérarchie) */
+.complementsGrid .optCardTitle{
+  font-weight: 950;
+  font-size: 14.5px;
+  color: var(--comp-text);
+  line-height: 1.1;
+  letter-spacing: .1px;
+}
+
+.complementsGrid .optCardDesc{
+  margin-top: 4px;
+  color: var(--comp-muted);
+  font-size: 12.5px;
+  line-height: 1.25;
+}
+
+/* Petit état “Désactivé” si tu utilises .muted dans la carte */
+.complementsGrid .optCard .muted{
+  font-size: 12px;
+}
+
+/* ------------------------------------------------------------
+   Toggle Oui/Non (segmented)
+   ------------------------------------------------------------ */
+.complementsGrid .optSeg{
+  display: flex;
+  border: 1px solid var(--comp-line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(28,31,42,.02);
+}
+
+.complementsGrid .segBtn{
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 7px 12px;
+  font-weight: 950;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--comp-text);
+  transition: background .15s ease, color .15s ease;
+}
+
+.complementsGrid .segBtn:not(.on):hover{
+  background: rgba(28,31,42,.04);
+}
+
+.complementsGrid .segBtn.on{
+  background: rgba(0,188,112,.14);
+  color: var(--comp-text);
+}
+
+/* Pastille “Activé” en haut quand ON (plus discret que ton ancien) */
+.complementsGrid .optCard.on .optCardHead::after,
+.complementsGrid .optCard.active .optCardHead::after,
+.complementsGrid .optCard.enabled .optCardHead::after,
+.complementsGrid .optCard.selected .optCardHead::after{
+  content: "Activé";
+  justify-self: end;
+  align-self: start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,188,112,.32);
+  background: rgba(0,188,112,.10);
+  color: var(--comp-text);
+  font-weight: 950;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* ------------------------------------------------------------
+   Inputs / champs dans compléments
+   ------------------------------------------------------------ */
+.complementsGrid :is(.optInput, .optSelect, input, select){
+  border-radius: 14px;
+  border: 1px solid rgba(28,31,42,.12);
+  background: #fff;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.complementsGrid :is(.optInput, .optSelect, input, select):focus{
+  border-color: rgba(0,188,112,.45);
+  box-shadow: 0 0 0 3px rgba(0,188,112,.12);
+}
+
+/* ------------------------------------------------------------
+   Aperçu produit : image confinée + cadre clean
+   ------------------------------------------------------------ */
+.complementsGrid :is(details, .optDetails, .optPreviewWrap, .optDetailsBody){
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.complementsGrid img{
+  max-width: 100%;
+  height: auto;
+}
+
+/* image d’aperçu : pas de “poster géant” */
+.complementsGrid :is(.optPreviewImg, .optDetailsBody img, details img){
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  display: block;
+
+  background: rgba(28,31,42,.02);
+  border: 1px solid rgba(28,31,42,.10);
+  border-radius: 14px;
+
+  /* petit padding visuel sans casser l’image */
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+/* vignette mini si utilisée */
+.complementsGrid .optMiniImg{
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 14px;
+  border: 1px solid rgba(28,31,42,.10);
+  background: #fff;
+}
+
+/* ------------------------------------------------------------
+   Responsive fin
+   ------------------------------------------------------------ */
+@media (max-width: 560px){
+  .complementsGrid .optCardHead{
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+  }
+  .complementsGrid .optCardHead > :first-child{
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+
+.complementsGrid .optCard.on{
+  background:
+    linear-gradient(180deg, rgba(0,188,112,.06), rgba(0,188,112,0) 42%),
+    linear-gradient(180deg, #fff, rgba(250,250,251,.92));
+}
+}
+/* ============================================================
+   PATCH UI — Compléments (scopé .complementsGrid)
+   - Ligne résumé (ref/qté/code) plus pro
+   - Boutons pouces (pillBtn) plus clean + état actif
+   - Espacements + hiérarchie typographique
+   - Bouton "Fiche" premium
+   - Aperçu produit (details) bien cadré + badges
+   ============================================================ */
+
+.complementsGrid{
+  /* Variables locales (tweak rapide) */
+  --c-gap: 12px;
+  --c-pad: 14px;
+  --c-radius: 18px;
+
+  --c-line: rgba(28,31,42,.14);
+  --c-line2: rgba(28,31,42,.10);
+  --c-soft: rgba(28,31,42,.02);
+
+  --c-text: rgba(15,23,42,.92);
+  --c-muted: rgba(15,23,42,.62);
+
+  --c-green: var(--comelit-green);
+}
+
+/* =========================
+   0) Carte / Body / Rythme
+   ========================= */
+
+.complementsGrid .optCard{
+  padding: var(--c-pad);
+  gap: var(--c-gap);
+}
+
+.complementsGrid .optCardBody{
+  display: grid;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+/* =========================
+   1) Ligne résumé : optMiniSummary
+   Exemple : 18" × 1 — MMON185A
+   ========================= */
+
+.complementsGrid .optMiniSummary{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--c-line2);
+  background: var(--c-soft);
+  color: var(--c-text);
+  font-weight: 850;
+  font-size: 13px;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Si un jour tu wrappers des morceaux (recommandé), ces styles s’appliqueront direct */
+.complementsGrid .optMiniSummary .optPill{
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(28,31,42,.12);
+  font-weight: 950;
+  font-size: 12.5px;
+  color: var(--c-text);
+}
+
+.complementsGrid .optMiniSummary .optRefBadge{
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,188,112,.26);
+  background: rgba(0,188,112,.10);
+  color: var(--cosmos);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+  font-weight: 950;
+  font-size: 12.5px;
+  letter-spacing: .2px;
+}
+
+.complementsGrid .optMiniSummary .optDash{
+  color: rgba(28,31,42,.45);
+  font-weight: 900;
+}
+
+/* =========================
+   2) Champs : optRow / optField / optLabel / inputs
+   ========================= */
+
+.complementsGrid .optRow{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.complementsGrid .optFieldWide{
+  grid-column: 1 / -1;
+}
+
+/* OptRow qui contient la fiche : on met le bouton à droite */
+.complementsGrid .optRow:has(.btnDatasheet){
+  grid-template-columns: 1fr auto;
+  align-items: end;
+}
+
+.complementsGrid .optLabel{
+  font-weight: 900;
+  font-size: 12.5px;
+  color: rgba(15,23,42,.88);
+  margin-bottom: 6px;
+}
+
+.complementsGrid .optInput,
+.complementsGrid .optSelect{
+  min-height: 40px;
+  border-radius: 14px;
+  border: 1px solid rgba(28,31,42,.12);
+  background: #fff;
+  padding: 10px 12px;
+  font-weight: 750;
+  color: var(--c-text);
+}
+
+/* Focus “pro” */
+.complementsGrid .optInput:focus,
+.complementsGrid .optSelect:focus{
+  outline: none;
+  border-color: rgba(0,188,112,.45);
+  box-shadow: 0 0 0 3px rgba(0,188,112,.12);
+}
+
+/* =========================
+   3) Boutons pouces : optPills / pillBtn
+   ========================= */
+
+.complementsGrid .optPills{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.complementsGrid .optPills .pillBtn{
+  appearance: none;
+  border: 1px solid rgba(28,31,42,.14);
+  background: #fff;
+  color: rgba(15,23,42,.92);
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-weight: 950;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    transform .08s ease,
+    box-shadow .15s ease,
+    border-color .15s ease,
+    background .15s ease;
+}
+
+.complementsGrid .optPills .pillBtn:hover{
+  border-color: rgba(0,188,112,.35);
+  box-shadow: 0 10px 20px rgba(2,6,23,.06);
+  transform: translateY(-1px);
+}
+
+/* Actif : ton JS met pillActive (et parfois on/active/selected) */
+.complementsGrid .optPills .pillBtn.on,
+.complementsGrid .optPills .pillBtn.pillActive,
+.complementsGrid .optPills .pillBtn.active,
+.complementsGrid .optPills .pillBtn.selected,
+.complementsGrid .optPills .pillBtn[aria-pressed="true"]{
+  background: rgba(0,188,112,.14);
+  border-color: rgba(0,188,112,.45);
+  box-shadow: 0 0 0 3px rgba(0,188,112,.10);
+}
+
+/* =========================
+   4) Bouton "Fiche" : btnDatasheet
+   ========================= */
+
+.complementsGrid .btnDatasheet{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 9px 12px;
+  min-height: 40px;
+
+  border-radius: 14px;
+  border: 1px solid rgba(28,31,42,.14);
+  background: #fff;
+  color: rgba(15,23,42,.90);
+
+  font-weight: 950;
+  font-size: 12.5px;
+  text-decoration: none;
+
+  cursor: pointer;
+  transition:
+    transform .08s ease,
+    box-shadow .15s ease,
+    border-color .15s ease,
+    background .15s ease;
+}
+
+.complementsGrid .btnDatasheet:hover{
+  border-color: rgba(0,188,112,.35);
+  box-shadow: 0 10px 20px rgba(2,6,23,.06);
+  transform: translateY(-1px);
+  background: rgba(0,188,112,.06);
+}
+
+/* =========================
+   5) Aperçu produit : details / mini product
+   ========================= */
+
+.complementsGrid .optDetails{
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid rgba(28,31,42,.10);
+  background: #fff;
+}
+
+.complementsGrid .optDetailsSum{
+  padding: 10px 12px;
+  font-weight: 950;
+  font-size: 12.5px;
+  color: rgba(15,23,42,.88);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Mini product layout */
+.complementsGrid .optMiniProduct{
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  align-items: center;
+}
+
+.complementsGrid .optMiniImg{
+  width: 96px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid rgba(28,31,42,.10);
+  background: rgba(28,31,42,.02);
+  display: block;
+}
+
+.complementsGrid .optMiniName{
+  font-weight: 950;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--c-text);
+}
+
+/* Code (ref) en monospace */
+.complementsGrid .optMiniMeta .muted{
+  margin-top: 4px;
+  color: var(--c-muted);
+  font-weight: 900;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+}
+
+/* Badges */
+.complementsGrid .optMiniBadges{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.complementsGrid .badgePill{
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(28,31,42,.14);
+  background: rgba(28,31,42,.03);
+  color: rgba(15,23,42,.88);
+  font-weight: 950;
+  font-size: 12px;
+}
+
+/* Responsive */
+@media (max-width: 560px){
+  .complementsGrid .optMiniProduct{
+    grid-template-columns: 1fr;
+  }
+  .complementsGrid .optMiniImg{
+    width: 100%;
+    height: 140px;
+  }
+}
+/* ============================================================
+   PATCH FIT — Admin : table editor qui tient dans l’écran
+   ✅ À coller TOUT EN BAS du <style>
+   (override sans casser ton CSS existant)
+   ============================================================ */
+
+html, body { height: 100%; }
+body { min-height: 100%; }
+
+/* Ton header est sticky => on donne un vrai cadre au main */
+main.wrap{
+  min-height: calc(100vh - 120px);
+}
+
+/* Grid : évite que la carte table devienne minuscule + empêche les débordements */
+.grid{
+  align-items: stretch;
+}
+.grid > .card{
+  min-width: 0;               /* ✅ important pour éviter overflow horizontal */
+  display: flex;
+  flex-direction: column;     /* ✅ pour que tableWrap puisse scroller */
+}
+
+/* La table doit scroller DANS la carte, pas la page */
+.tableWrap{
+  min-height: 0;
+  overflow: auto;
+  background: #fff;
+
+  /* ✅ la clé : hauteur max dynamique
+     (tu peux ajuster le -260px si tu veux plus/moins de place) */
+  max-height: calc(100vh - 260px);
+}
+
+/* Sur laptop on récupère un peu de marge */
+@media (max-width: 1400px){
+  .tableWrap{ max-height: calc(100vh - 300px); }
+}
+/* En 1 colonne (mobile/tablette) */
+@media (max-width: 980px){
+  .tableWrap{ max-height: calc(100vh - 340px); }
+}
+
+/* Sticky header de la table toujours visible */
+.tableWrap th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+}
+
+/* Petit confort visuel */
+.tableWrap tbody tr:hover{
+  background: rgba(0,188,112,.05);
+}
+/* ============================================================
+   PATCH HARD — Admin: empêcher la page de déborder
+   Objectif:
+   - plus de scroll horizontal sur le body
+   - le tableau scroll UNIQUEMENT dans .tableWrap (X + Y)
+   - cartes et grid ne peuvent plus dépasser la largeur écran
+   ============================================================ */
+
+html, body { width: 100%; }
+body{
+  overflow-x: hidden;              /* ✅ la page ne peut plus partir à droite */
+}
+
+/* wrap: autorise à respirer mais sans dépasser */
+.wrap{
+  max-width: 1180px;               /* garde ton layout */
+  width: min(1180px, calc(100vw - 24px));
+}
+
+/* grid & cards: autorise le shrink (sinon overflow) */
+.grid{ min-width: 0; }
+.grid > .card{ min-width: 0; overflow: hidden; }  /* ✅ clé */
+
+/* La zone table doit être la SEULE à scroller */
+.tableWrap{
+  width: 100%;
+  max-width: 100%;
+  overflow: auto;                  /* ✅ scroll X + Y ici */
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+
+  /* hauteur max dynamique (ajuste si tu veux) */
+  max-height: calc(100vh - 260px);
+}
+
+/* IMPORTANT: le tableau doit pouvoir être plus large que le conteneur
+   pour déclencher le scroll horizontal DANS .tableWrap */
+.tableWrap table{
+  width: max-content;              /* ✅ au lieu de 100% */
+  min-width: 100%;                 /* ✅ mais jamais plus petit que le conteneur */
+  border-collapse: collapse;
+}
+
+/* cellules: évite que tout se compact trop */
+.tableWrap th, .tableWrap td{
+  white-space: nowrap;             /* ✅ sinon ça explose en hauteur */
+}
+
+/* inputs: largeur stable sans pousser la page */
+.tableWrap td input{
+  min-width: 140px;                /* ✅ un input a une largeur mini */
+  width: 100%;
+}
+
+/* Sticky header table */
+.tableWrap th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+}
+
+/* Responsive: en 1 colonne, on garde le scroll table dans la carte */
+@media (max-width: 980px){
+  .wrap{
+    width: calc(100vw - 20px);
+    max-width: none;
+  }
+  .tableWrap{
+    max-height: calc(100vh - 320px);
+  }
+}
+/* ============================================================
+   FIX FINAL — Admin / Éditeur de catalogues
+   Objectif : le tableau ne sort PLUS JAMAIS de la page
+   ============================================================ */
+
+/* 1. La page ne peut jamais scroller horizontalement */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 2. La grid et les cartes doivent pouvoir "shrink" */
+.grid,
+.grid > .card {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 3. Carte éditeur : on enferme le contenu */
+#tab_catalog .card {
+  overflow: hidden;     /* 🔑 empêche le tableau d'élargir la carte */
+  contain: layout paint;/* 🔑 isole les calculs de layout */
+}
+
+/* 4. La zone table devient le SEUL viewport scrollable */
+.tableWrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  min-width: 0;
+
+  /* hauteur visible confortable */
+  max-height: calc(100vh - 260px);
+
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+/* 5. Le tableau peut être large MAIS reste confiné */
+.tableWrap table {
+  width: max-content;   /* autorise largeur réelle */
+  min-width: 100%;      /* mais jamais plus petit que le conteneur */
+  table-layout: fixed;  /* 🔑 empêche le navigateur de recalculer la page */
+}
+
+/* 6. Colonnes stables, pas de débordement texte */
+.tableWrap th,
+.tableWrap td {
+  white-space: nowrap;
+}
+
+/* 7. Inputs ne poussent jamais la largeur */
+.tableWrap td input {
+  min-width: 140px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* 8. Header sticky OK sans casser le scroll */
+.tableWrap th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
 }
