@@ -250,20 +250,6 @@ button.btn, button.btnGhost, button.btnPrimary, button.btnDatasheet{
 .statusLine{ color: var(--muted); font-size: 12px; }
 
 .progressWrap{ display:grid; gap: 6px; max-width: 460px; }
-.progressOuter{
-  width: 100%;
-  height: 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--panel2);
-  overflow: hidden;
-}
-.progressBar{
-  height: 100%;
-  width: 0%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--comelit-green), rgba(0,188,112,.75));
-}
 .progressText{ font-size: 12px; color: var(--muted); }
 
 .headerActions, .headerActionsLeft, .headerActionsRight, .actions{
@@ -288,7 +274,7 @@ button.btn, button.btnGhost, button.btnPrimary, button.btnDatasheet{
   text-align:center;
   gap: 8px;
 }
-.brandLogoImg{ height: 210px; width:auto; object-fit: contain; }
+.brandLogoImg{ height: 80px; width:auto; object-fit: contain; }
 .brandTagline{
   font-size: 11px;
   font-weight: 800;
@@ -2123,3 +2109,500 @@ html, body {
   z-index: 2;
   background: #fff;
 }
+
+
+/* ============================================================
+   1) RÉDUCTION GLOBALE DE L'UI
+   ============================================================ */
+
+/* Root : réduire les paddings et rayons */
+:root {
+  --pad: 10px;
+  --pad2: 14px;
+  --r12: 10px;
+  --r16: 14px;
+  --r20: 24px;
+}
+
+/* Body : taille de police de base légèrement réduite */
+body {
+  font-size: 14px;
+}
+
+/* App container : max-width adaptatif */
+#app {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+
+/* ============================================================
+   2) HEADER PLUS COMPACT
+   ============================================================ */
+
+.appHeader {
+  padding: 10px 14px;
+  gap: 10px;
+}
+
+.appHeader.appHeaderCentered {
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+/* Logo beaucoup plus petit */
+.brandLogoImg {
+  height: 80px;       /* Était 210px ! */
+  width: auto;
+  max-width: 180px;
+}
+
+.brandTitle {
+  font-size: 14px;
+}
+
+.brandTagline {
+  font-size: 10px;
+}
+
+/* Progress bar plus compact */
+.progressWrap {
+  max-width: 380px;
+  gap: 4px;
+}
+
+.progressOuter {
+  height: 8px;
+}
+
+.progressText {
+  font-size: 11px;
+}
+
+/* Boutons header */
+.headerActions .btn,
+.headerActionsRight .btn {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+
+/* ============================================================
+   3) LAYOUT PRINCIPAL ADAPTATIF
+   ============================================================ */
+
+.appMain {
+  padding: 12px;
+}
+
+.appGrid {
+  width: min(1200px, 100%);
+  gap: 12px;
+}
+
+/* Cards plus compactes */
+.card {
+  border-radius: var(--r16);
+}
+
+.cardHeader {
+  padding: 10px 14px;
+}
+
+.cardTitle {
+  font-size: 13px;
+}
+
+.cardSubtitle {
+  font-size: 11px;
+}
+
+.steps {
+  padding: 10px;
+}
+
+.resultsBody {
+  padding: 10px;
+}
+
+
+/* ============================================================
+   4) BOUTONS D'EXPORT CENTRÉS
+   ============================================================ */
+
+/* Export row : centrer les boutons */
+.exportRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;    /* ✅ CENTRER */
+  
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: rgba(255,255,255,.95);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow2);
+}
+
+.exportRowSummary {
+  position: sticky;
+  top: 70px;
+  z-index: 5;
+  justify-content: center;    /* ✅ CENTRER */
+}
+
+/* Boutons dans exportRow */
+.exportRow .btn,
+.exportRow .btnPrimary,
+.exportRow .btnGhost,
+.exportRow .btnDatasheet {
+  height: 40px;
+  padding: 8px 16px;
+  font-size: 13px;
+  box-shadow: 0 6px 14px rgba(2,6,23,.08);
+}
+
+/* Style spécifique pour "Modifier la configuration" */
+.exportRow .btn.secondary,
+.exportRow .btnGhost {
+  background: #fff;
+  border-color: rgba(28,31,42,.25);
+}
+
+
+/* ============================================================
+   5) RÉSUMÉ FINAL PLUS COMPACT
+   ============================================================ */
+
+.finalSummary {
+  padding: 10px;
+}
+
+.finalSummary .recoName {
+  font-size: 14px;
+}
+
+.finalSummary .score {
+  min-width: 70px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.finalSummary .finalGrid {
+  margin-top: 10px;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.finalSummary .finalCard {
+  padding: 10px;
+  border-radius: 14px;
+}
+
+.finalSummary .sumRow {
+  padding: 8px;
+  gap: 10px;
+}
+
+.finalSummary .sumThumb {
+  width: 50px;
+  height: 50px;
+}
+
+.finalSummary .sumThumbImg {
+  width: 50px;
+  height: 50px;
+}
+
+.finalSummary .sumName {
+  font-size: 12px;
+}
+
+.finalSummary .sumPill {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+
+/* ============================================================
+   6) ÉLÉMENTS DIVERS PLUS COMPACTS
+   ============================================================ */
+
+/* Badges */
+.badge, .badgePill, .recoTag {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+/* Pills */
+.pill {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.pillBtn {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Boutons généraux */
+.btn, .btnGhost, .btnPrimary, .btnDatasheet {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.btnSmall {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* Inputs et selects */
+.input, .select, input, select {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+/* KPI boxes */
+.kv > div {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+/* Reco cards */
+.recoCard {
+  padding: 10px;
+  border-radius: 14px;
+}
+
+.recoName {
+  font-size: 13px;
+}
+
+.score {
+  min-width: 40px;
+  height: 30px;
+  font-size: 12px;
+}
+
+/* Camera pick cards */
+.cameraPickCard {
+  padding: 8px;
+}
+
+.cameraPickImg {
+  width: 90px;
+  height: 75px;
+}
+
+.cameraPickTitle {
+  font-size: 12px;
+}
+
+.cameraPickName {
+  font-size: 11px;
+}
+
+.cameraPickActions {
+  margin-top: 8px;
+  gap: 8px;
+}
+
+.cameraPickActions .btnPrimary,
+.cameraPickActions .btnDatasheet {
+  height: 38px;
+  min-width: 120px;
+  font-size: 12px;
+}
+
+
+/* ============================================================
+   7) COMPLÉMENTS PLUS COMPACTS
+   ============================================================ */
+
+.complementsGrid {
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.complementsGrid .optCard {
+  padding: 8px;
+}
+
+.complementsGrid .optCardTitle {
+  font-size: 12px;
+}
+
+.complementsGrid .optCardDesc {
+  font-size: 11px;
+}
+
+.complementsGrid .qIcon {
+  width: 36px;
+  height: 36px;
+}
+
+.complementsGrid .optMiniImg {
+  width: 80px;
+  height: 60px;
+}
+
+
+/* ============================================================
+   8) RESPONSIVE AMÉLIORÉ
+   ============================================================ */
+
+/* Grands écrans */
+@media (min-width: 1400px) {
+  .appGrid {
+    width: min(1400px, 95vw);
+  }
+}
+
+/* Écrans moyens */
+@media (max-width: 1200px) {
+  .appGrid {
+    grid-template-columns: 1fr 0.9fr;
+  }
+  
+  .brandLogoImg {
+    height: 60px;
+  }
+}
+
+/* Tablettes */
+@media (max-width: 980px) {
+  .appGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .brandLogoImg {
+    height: 50px;
+  }
+  
+  .brandTitle {
+    font-size: 13px;
+  }
+  
+  .exportRow {
+    justify-content: center;
+  }
+  
+  .finalSummary .finalGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Mobiles */
+@media (max-width: 560px) {
+  .appHeader {
+    padding: 8px 10px;
+  }
+  
+  .brandLogoImg {
+    height: 40px;
+  }
+  
+  .brandTitle {
+    font-size: 12px;
+  }
+  
+  .brandTagline {
+    display: none;
+  }
+  
+  .progressWrap {
+    max-width: 100%;
+  }
+  
+  .exportRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .exportRow .btn,
+  .exportRow .btnPrimary,
+  .exportRow .btnGhost {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .cameraPickImg {
+    width: 100%;
+    height: 120px;
+  }
+}
+
+/* Très petits écrans */
+@media (max-width: 400px) {
+  body {
+    font-size: 13px;
+  }
+  
+  .appMain {
+    padding: 8px;
+  }
+  
+  .card {
+    border-radius: 12px;
+  }
+  
+  .btn, .btnGhost, .btnPrimary {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}
+
+
+/* ============================================================
+   9) HAUTEUR VIEWPORT - ÉVITER LE SCROLL INUTILE
+   ============================================================ */
+
+/* S'assurer que l'app utilise bien la hauteur disponible */
+html {
+  height: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+/* Header sticky moins imposant */
+.appHeader {
+  max-height: 120px;
+}
+
+/* Ajuster la position sticky des éléments */
+.exportRowSummary {
+  top: 60px;
+}
+
+.proposalsCol {
+  top: 80px;
+}
+
+
+/* ============================================================
+   10) SCALE GLOBAL OPTIONNEL (décommenter si besoin)
+   ============================================================ */
+
+/*
+   Si tu veux une réduction GLOBALE de 10%, décommente ceci :
+   
+@media (max-width: 1400px) {
+  #app {
+    transform: scale(0.95);
+    transform-origin: top center;
+  }
+}
+
+@media (max-width: 1200px) {
+  #app {
+    transform: scale(0.92);
+    transform-origin: top center;
+  }
+}
+*/

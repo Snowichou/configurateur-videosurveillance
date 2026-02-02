@@ -1,0 +1,1228 @@
+/* ---------- 1) Design tokens ---------- */
+:root{
+  --bg: #ffffff;
+  --panel: rgba(28, 31, 42, 0.086);
+  --panel2: rgb(218, 218, 218);
+  --line: rgb(42, 28, 28);
+  --line2: rgb(0, 188, 112);
+  --text: rgba(15,23,42,.92);
+  --muted: rgba(15,23,42,.62);
+
+  --accent: #00bc71;
+  --accent2: #fdfdfd;
+
+  --danger: #e11d48;
+  --warn: #f59e0b;
+  --ok: #16a34a;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.372);
+  --shadow2: 0 3px 10px rgba(0, 0, 0, 0.372);
+
+  --r12: 12px;
+  --r16: 20px;
+  --r20: 40px;
+
+  --pad: 14px;
+  --pad2: 18px;
+
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+
+  color-scheme: light;
+}
+
+
+/* ---------- 2) Reset / base ---------- */
+*{ box-sizing: border-box; }
+html, body{ height: 100%; }
+
+body{
+  margin: 0;
+  font-family: var(--font);
+  color: var(--text);
+  background:
+    var(--bg);
+}
+
+a{ color: var(--accent); text-decoration: none; }
+a:hover{ text-decoration: underline; }
+
+code{ font-family: var(--mono); font-size: .95em; }
+
+/* Vite container */
+#app{
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* ---------- 3) Buttons (compat app.js) ---------- */
+.btn{
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgb(255, 255, 255);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
+  user-select: none;
+}
+.btn:hover{
+  background: rgba(255,255,255,.10);
+  border-color: var(--line2);
+}
+.btn:active{ transform: translateY(1px); }
+.btn:disabled{
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.btn.primary{
+  border-color: rgb(0, 0, 0);
+  background: linear-gradient(180deg, rgba(255, 255, 255), rgba(255, 255, 255));
+}
+.btn.primary:hover{
+  border-color: rgb(0, 0, 0);
+  background: linear-gradient(180deg, rgb(0, 188, 112), rgb(0, 188, 112));
+}
+
+.btn.secondary{
+  border-color: rgb(0, 0, 0);
+  background: linear-gradient(180deg, rgb(255, 255, 255), rgb(255, 255, 255));
+}
+.btn.secondary:hover{
+  border-color: rgba(0, 0, 0);
+  background: linear-gradient(180deg, rgb(0, 188, 112), rgb(0, 188, 112));
+}
+
+.btn.icon{
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+
+.btn.full{ width: 100%; }
+
+/* Ces classes sont utilisées dans ton HTML généré côté JS */
+.btnGhost{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  cursor: pointer;
+}
+.btnGhost:hover{ background: rgba(255,255,255,.10); border-color: var(--line2); }
+
+.btnPrimary{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  background: rgba(0, 188, 112);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 800;
+}
+.btnPrimary:hover{ background: rgb(255, 255, 255); border-color: rgba(0, 0, 0, 0.75); }
+
+.btnSmall{ padding: 8px 10px; border-radius: 12px; font-weight: 800; }
+.btnGhost.btnSmall{ padding: 8px 10px; }
+
+/* ---------- 4) Header ---------- */
+.appHeader{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.72);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow2);
+
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.brand{
+  display: grid;
+  gap: 10px;
+  min-width: 260px;
+}
+
+.brandTop{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.brandTitle{
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+
+.pill{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 0, 0, 0.06);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.statusLine{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* progress */
+.progressWrap{
+  display: grid;
+  gap: 6px;
+  max-width: 460px;
+}
+.progressOuter{
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(0, 188, 113, 0.263);
+  overflow: hidden;
+}
+.progressBar{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(78,161,255,.90), rgba(124,92,255,.80));
+}
+.progressText{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.headerActions{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.headerActionsLeft, .headerActionsRight{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* app.js cherche ".actions" pour ajouter btnToggleResults */
+.actions{
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ---------- 5) Main layout ---------- */
+.appMain{
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.appGrid{
+  width: min(1280px, 100%);
+  display: grid;
+  grid-template-columns: 1.35fr .95fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Quand app.js met .singleCol => on masque la colonne résultats */
+.appGrid.singleCol{
+  grid-template-columns: 1fr;
+}
+
+.card{
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--r20);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.hiddenCard{ display: none; }
+
+.cardHeader{
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.04);
+}
+
+.cardTitle{
+  font-size: 14px;
+  font-weight: 900;
+}
+.cardSubtitle{
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.steps{
+  padding: 14px;
+}
+
+.resultsBody{
+  padding: 14px;
+}
+
+.exportRow{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ---------- 6) Step wrapper (render()) ---------- */
+.step{ display: grid; gap: 12px; }
+
+.stepTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: rgba(255, 0, 0, 0.05);
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(78,161,255,.35);
+  background: rgba(0, 119, 255, 0.14);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.help{
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 0 2px;
+}
+
+/* ---------- 7) Cards internes (reco) ---------- */
+.recoCard{
+  border: 1px solid var(--line);
+  background: rgba(28, 31, 42, 0);
+  border-radius: var(--r16);
+  padding: 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+
+.recoHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.recoName{
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.muted{
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.score{
+  min-width: 44px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgb(0,188,112);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+}
+
+.reasons{
+  margin-top: 10px;
+  color: var(--text);
+  line-height: 1.35;
+  font-size: 13px;
+}
+
+.kv{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.kv > div{
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.18);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+/* ---------- 8) Camera pick cards ---------- */
+.stepSplit{
+  display:grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  gap: 12px;
+  align-items: start;
+}
+
+
+/* 🔒 Fix grid overflow (évite que la colonne droite passe dessous) */
+.stepSplit > *{
+  min-width: 0;
+}
+.blocksCol, .proposalsCol{
+  min-width: 0;
+}
+
+/* ⭐ Colonne propositions “collée” (confort) */
+.proposalsCol{
+  position: sticky;
+  top: 92px; /* ajuste selon la hauteur de ton header */
+  align-self: start;
+}
+/* 🧯 Anti-débordement textes */
+.recoName, .muted{
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.cameraPickMeta{
+  min-width: 0;
+}
+
+.cameraPickActions{
+  min-width: 0;
+}
+
+.blocksCol, .proposalsCol{ display: grid; gap: 12px; }
+
+.proposalsTitle{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+}
+
+.cameraPickCard{
+  border: 1px solid var(--line);
+  background: rgba(0, 188, 113, 0.103);
+  border-radius: var(--r16);
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.cameraPickTop{
+  display:flex;
+  gap: 12px;
+  align-items:flex-start;
+}
+
+.cameraPickImg{
+  width: 112px;
+  height: 92px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.cameraPickMeta{ flex: 1; min-width: 0; }
+
+.cameraPickActions{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* badges */
+.badgeRow{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badgePill{
+  display:inline-flex;
+  align-items:center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgb(255, 254, 254);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pillBtn{
+  padding:8px 12px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+  cursor:pointer;
+}
+.pillBtn.pillActive{
+  background:rgba(255,255,255,.12);
+  border-color:rgba(255,255,255,.22);
+}
+.divider{
+  height:1px;
+  background:rgba(255,255,255,.10);
+}
+.alert.warn{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(255,180,0,.25);
+  background:rgba(255,180,0,.08);
+}
+.alert.info{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(120,190,255,.25);
+  background:rgba(120,190,255,.08);
+}
+.alert.ok{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(90,255,160,.18);
+  background:rgba(90,255,160,.07);
+}
+
+
+/* ---------- 9) Empty + results toggle ---------- */
+.hidden{ display: none !important; }
+
+.emptyState{
+  padding: 14px;
+  border: 1px dashed var(--line2);
+  border-radius: var(--r16);
+  background: rgba(255,255,255,.04);
+}
+.emptyTitle{
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+/* Alerts list */
+.alerts{
+  margin: 12px 0 0 0;
+  padding-left: 18px;
+}
+.alerts li{
+  margin: 6px 0;
+  color: var(--muted);
+}
+.alerts li.danger{ color: rgba(255,77,77,.95); font-weight: 900; }
+.alerts li.warn{ color: rgba(255,176,32,.95); font-weight: 900; }
+
+/* ---------- 10) Form controls ---------- */
+input, select, textarea{
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+}
+
+.input, .select, .textarea{
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.20);
+  color: var(--text);
+}
+
+.textarea{
+  min-height: 240px;
+  resize: vertical;
+}
+
+.mono{ font-family: var(--mono); }
+
+/* ---------- 11) Modal (Admin) ---------- */
+.modal{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 16px;
+  z-index: 50;
+}
+.modal.hidden{ display:none; }
+
+.modalCard{
+  width: min(1100px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: var(--r20);
+  border: 1px solid var(--line);
+  background: rgba(15,20,30,.92);
+  box-shadow: var(--shadow);
+}
+
+.modalHeader{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(15,20,30,.92);
+  backdrop-filter: blur(10px);
+}
+
+.modalTitle{ font-weight: 950; }
+.modalSubtitle{ margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+.adminSection{
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.field{ display:grid; gap: 8px; }
+.field.inline{
+  grid-auto-flow: column;
+  grid-auto-columns: max-content 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.label{
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+/* ---------- 12) Admin toolbar + grid ---------- */
+.adminToolbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbarBtns{
+  display:flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adminHint{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+  border-radius: 14px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.adminGridWrap{
+  display:grid;
+  gap: 12px;
+}
+
+.adminGridTop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.adminGridActions{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+}
+
+.adminGridSep{
+  width: 1px;
+  height: 26px;
+  background: var(--line);
+  display:inline-block;
+  margin: 0 2px;
+}
+
+.adminTableMount{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  background: rgba(0,0,0,.18);
+  overflow: auto;
+  max-height: 52vh;
+}
+
+/* Table “Excel-like” */
+.adminTable{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  min-width: 840px;
+}
+
+.adminTable thead th{
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(18,24,35,.98);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  text-align: left;
+  padding: 10px 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.adminTable tbody td{
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.rowSel{
+  width: 72px;
+  text-align: center;
+  color: var(--muted);
+  font-family: var(--mono);
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+
+.adminRow.selected{
+  outline: 1px solid rgba(78,161,255,.30);
+  background: rgba(78,161,255,.08);
+}
+
+.adminCell{
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+}
+.adminCell:focus{
+  border-color: rgba(78,161,255,.65);
+  box-shadow: 0 0 0 3px rgba(78,161,255,.14);
+}
+
+/* Expert textarea */
+.adminExpertBox{
+  border: 1px solid var(--line);
+  border-radius: var(--r16);
+  padding: 12px;
+  background: rgba(255,255,255,.04);
+}
+.adminExpertBox.hidden{ display:none; }
+/* ============================================================
+   FIX overflow / fit (Step 4 + blocs internes)
+   À coller AVANT la section "13) Responsive"
+   ============================================================ */
+
+/* Empêche les enfants de grid/flex de forcer un débordement */
+.step, .steps, .card, .recoCard, .resultsBody, .adminSection { 
+  min-width: 0;
+}
+
+/* Les longues chaînes (ex: URLs, CSV, labels) doivent casser la ligne */
+.recoCard, .card, .stepTitle, .help, .muted {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Si tu as des lignes de boutons/inputs qui débordent */
+.row, .cameraPickActions, .adminToolbar, .toolbarBtns, .adminGridActions {
+  flex-wrap: wrap;
+}
+
+/* Les cartes avec des zones scroll (si un bloc devient trop haut) */
+.recoCard {
+  overflow: hidden; /* évite le “dépassement visuel” */
+}
+
+/* ---------- 13) Responsive ---------- */
+@media (max-width: 980px){
+  .appGrid{ grid-template-columns: 1fr; }
+  .hiddenCard{ display: block; } /* on garde la carte mais app.js va gérer hiddenCard aussi */
+  .stepSplit{ grid-template-columns: 1fr; }
+  .cameraPickTop{ flex-direction: column; }
+  .cameraPickImg{ width: 100%; height: 160px; }
+  .kv{ grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px){
+  .appHeader{ padding: 12px; }
+  .brand{ min-width: auto; width: 100%; }
+  .headerActions{ width: 100%; justify-content: space-between; }
+  .actions{ width: 100%; }
+  .btn{ width: 100%; justify-content: center; }
+}
+
+/* ---------- 14) Print / PDF safety ---------- */
+@media print{
+  body{ background: #fff !important; color: #111 !important; }
+  .appHeader{ position: static; box-shadow: none; background: #fff; color: #111; }
+  .card, .recoCard{ box-shadow: none; }
+}
+
+.thumb{
+  width:52px;
+  height:52px;
+  object-fit:contain;
+  border:1px solid var(--c-line);
+  border-radius:10px;
+  background:#fff;
+  display:inline-block;
+}
+
+
+
+/* ============================================================
+   COMELIT — Header centré + logo/titre (V4)
+   ============================================================ */
+.appHeader.appHeaderCentered{
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.brandCenter{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  gap: 8px;
+}
+
+.brandLogoImg{
+  height: 128px;
+  width:auto;
+  object-fit: contain;
+}
+
+.brandTitle{
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: .2px;
+}
+
+.brandTagline{
+  font-size: 13px;
+  font-weight: 800;
+  opacity: .75;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+
+/* On ne veut plus du badge MVP (si jamais encore présent) */
+.pill{ display:none !important; }
+
+/* Progress centered */
+.progressWrap{
+  width: min(720px, 92vw);
+  margin: 0 auto;
+}
+
+/* ============================================================
+   SCORE — on retire les indications colorées (juste score + phrase)
+   ============================================================ */
+.scoreWrap.scoreNeutral{
+  border-left: 0 !important;
+  background: rgba(0,0,0,.02);
+}
+
+/* Si tu avais des états OK/WARN/BAD visibles, on les neutralise */
+.scoreOk, .scoreWarn, .scoreBad{
+  border-left: 0 !important;
+}
+
+/* Les détails restent dispo, mais plus discrets */
+.scoreDetails{
+  opacity: .75;
+}
+/* ============================================================
+   COMELIT FRIENDLY — Light / White / Cosmos / Green
+   (override final, gagne sur l'ancien)
+   ============================================================ */
+
+:root{
+  --cosmos: #1C1F2A;          /* Bleu cosmos (Pantone 532C approx) */
+  --comelit-green: #00BC70;   /* Vert (Pantone 7480C) */
+
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel2: #F3F4F6;          /* Gris clair pour zones de saisie */
+  --line: #E5E7EB;
+  --line2: var(--comelit-green);
+
+  --text: rgba(15,23,42,.95);
+  --muted: rgba(15,23,42,.65);
+
+  --accent: var(--comelit-green);
+  --accent2: #ffffff;
+
+  --danger: #DC2626;
+  --warn: #F59E0B;
+  --ok: #16A34A;
+
+  --shadow: 0 12px 26px rgba(2, 6, 23, .10);
+  --shadow2: 0 6px 14px rgba(2, 6, 23, .10);
+
+  color-scheme: light;
+}
+
+body{
+  background: var(--bg) !important; /* blanc unis */
+}
+
+/* Header blanc + titre centré + logo au-dessus */
+.appHeader{
+  background: rgba(255,255,255,.96) !important;
+  border-bottom: 1px solid var(--line) !important;
+  box-shadow: var(--shadow2) !important;
+}
+.appHeader.appHeaderCentered{ padding: 16px 16px 14px; }
+.brandLogoImg{ height: 110px !important; }
+.brandTitle{
+  font-size: 22px !important; /* logo > titre */
+  color: var(--cosmos) !important;
+}
+
+/* Ne pas afficher l'état de chargement hors Admin */
+.adminOnly{ display:none !important; }
+.modal .adminOnly{ display:block !important; }
+
+/* Cartes / layout */
+.card{
+  background: #fff !important;
+  border-color: var(--line) !important;
+  box-shadow: var(--shadow) !important;
+}
+.cardHeader{
+  background: var(--cosmos) !important;
+  border-bottom-color: rgba(255,255,255,.12) !important;
+}
+.cardTitle{ color:#fff !important; }
+.cardSubtitle{ color: rgba(255,255,255,.75) !important; }
+
+/* Gros blocs étapes = cosmos */
+.stepTitle{
+  background: var(--cosmos) !important;
+  border-color: var(--cosmos) !important;
+  color: #fff !important;
+}
+.stepTitle .badge{
+  border-color: rgba(255,255,255,.20) !important;
+  background: rgba(255,255,255,.12) !important;
+  color: #fff !important;
+}
+
+/* Zones de saisie en gris clair */
+.recoCard{
+  background: var(--panel2) !important;
+  border-color: var(--line) !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08) !important;
+}
+.input, .select, .textarea{
+  background: var(--panel2) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+.input:focus, .select:focus, .textarea:focus{
+  border-color: rgba(0,188,112,.55) !important;
+  box-shadow: 0 0 0 3px rgba(0,188,112,.18) !important;
+}
+
+/* Boutons COMELIT */
+.btn{
+  border-color: var(--line) !important;
+  background: #fff !important;
+}
+.btn:hover{ border-color: rgba(0,188,112,.55) !important; }
+.btn.primary, .btnPrimary{
+  background: var(--comelit-green) !important;
+  border-color: var(--comelit-green) !important;
+  color: #0b1220 !important;
+}
+.btn.primary:hover, .btnPrimary:hover{
+  filter: brightness(.98);
+}
+.btn.secondary{
+  border-color: var(--cosmos) !important;
+}
+.btn.secondary:hover{
+  background: var(--cosmos) !important;
+  color: #fff !important;
+}
+
+/* Annuler / Supprimer (orange / rouge) */
+.btnGhost[data-action="unvalidateBlock"]{
+  background: rgba(245,158,11,.20) !important;
+  border-color: rgba(245,158,11,.55) !important;
+  color: #0b1220 !important;
+}
+.btnGhost[data-action="unvalidateBlock"]:hover{
+  background: rgba(245,158,11,.30) !important;
+}
+.btnGhost[data-action="removeBlock"]{
+  background: rgba(220,38,38,.18) !important;
+  border-color: rgba(220,38,38,.55) !important;
+  color: #0b1220 !important;
+}
+.btnGhost[data-action="removeBlock"]:hover{
+  background: rgba(220,38,38,.26) !important;
+}
+
+/* Propositions caméras (selecteur) = fond cosmos */
+.recoCard.proposalsPanel{
+  background: var(--cosmos) !important;
+  border-color: var(--cosmos) !important;
+  color: #fff !important;
+}
+.recoCard.proposalsPanel .muted{ color: rgba(255,255,255,.72) !important; }
+
+/* Carte proposition caméra = cosmos + respirer */
+.cameraPickCard{
+  background: rgba(119, 114, 114, 0.118) !important; /* dans panel cosmos */
+  border-color: rgba(255,255,255,.14) !important;
+}
+.cameraPickName{ color:#fff !important; }
+.cameraPickRef{ font-weight: 950; }
+.cameraPickActions .btnGhost{
+  border-color: rgba(255,255,255,.22) !important;
+  background: rgba(255,255,255,.10) !important;
+  color: #fff !important;
+}
+.cameraPickActions .btnGhost:hover{
+  background: rgba(255,255,255,.16) !important;
+}
+
+/* Score “mis en avant” */
+.pickScoreLine{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.scoreBig{
+  display:flex;
+  align-items:baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: rgba(0,188,112,.18);
+  border: 1px solid rgba(0,188,112,.35);
+  color:#fff;
+  font-weight: 950;
+}
+.scoreBig span{ opacity: .85; font-weight: 900; }
+.scoreBig strong{ font-size: 16px; }
+.pickStatusTag{
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.10);
+  border: 1px solid rgba(255,255,255,.18);
+  font-weight: 900;
+}
+.tagValidated{
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(0,188,112,.22);
+  border: 1px solid rgba(0,188,112,.45);
+  font-weight: 900;
+  color:#fff;
+}
+
+/* Tags + séparateur visuel */
+.tagSection{ margin-top: 10px; }
+.tagGroup{ display:flex; flex-wrap:wrap; gap: 8px; }
+.tagDivider{
+  height:1px;
+  margin: 10px 0;
+  background: rgba(255,255,255,.14);
+}
+.badgePill{
+  border-color: rgb(0, 0, 0) !important;
+  background: rgb(255, 255, 255) !important;
+  color: #000000 !important;
+}
+
+/* ColorUp multicolore cliquable */
+.badgePill.tagColorUp{
+  border: 0 !important;
+  color: #fff !important;
+  background: linear-gradient(90deg, #ff2d55, #ffcc00, #34c759, #0a84ff, #bf5af2) !important;
+  text-decoration: none !important;
+}
+.badgePill.tagColorUp:hover{ filter: brightness(.98); }
+
+/* DORI bloc */
+.doriTitle{
+  font-weight: 950;
+  margin-bottom: 8px;
+}
+.doriGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.doriGrid > div{
+  display:flex;
+  justify-content:space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(247, 6, 6, 0.08);
+  border: 1px solid rgba(255,255,255,.12);
+}
+.doriK{ opacity: .80; font-weight: 900; }
+.doriV{ font-weight: 950; }
+
+/* Fiche technique (vert) */
+.btnDatasheet{
+  border-color: rgba(0,188,112,.55) !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+}
+.btnDatasheet:hover{
+  background: rgba(4, 227, 138, 0.24) !important;
+}
+
+/* Icônes compléments (écran/boitier/panneau) */
+.qSvg{
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+}
+/* ============================================================
+   UI PATCH — compact cards + overflow safe
+   ============================================================ */
+
+/* --- Camera card : phrase toujours lisible, compacte --- */
+.pickMetaLine{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.pickMetaLine strong{ color: var(--text); }
+.pickMetaLine .dot{ opacity: .5; }
+
+.recoLine{
+  margin-top: 8px;
+  display:flex;
+  gap: 10px;
+  align-items:flex-start;
+  flex-wrap: wrap;
+}
+.recoText{
+  flex: 1;
+  min-width: 220px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* Détails (non envahissant) */
+.pickMore{
+  border-top: 1px dashed rgba(0,0,0,.08);
+  padding-top: 10px;
+}
+.pickMoreSum{
+  cursor: pointer;
+  font-weight: 900;
+  color: var(--muted);
+}
+.pickMoreBody{
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+.pickDetailsSum{
+  cursor:pointer;
+  font-weight: 900;
+}
+.pickDetailsBody{
+  margin-top: 8px;
+  display:grid;
+  gap: 6px;
+}
+
+/* --- Compléments : éviter que le panneau “dépasse” --- */
+.optMiniProduct{
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  min-width: 0;
+}
+.optMiniImg{
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
+}
+.optMiniMeta{
+  min-width: 0;
+}
+.optMiniName{
+  font-size: 13px;
+  line-height: 1.15;
+  overflow-wrap:anywhere;
+  word-break: break-word;
+}
+
+/* Badges du panneau : éviter l'élargissement, mieux en mobile */
+.optMiniBadges{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.optMiniBadges .badgePill{
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile : garder la carte compacte */
+@media (max-width: 560px){
+  .recoText{ min-width: 0; }
+  .optMiniProduct{ gap: 10px; }
+}
+

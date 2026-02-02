@@ -1,8 +1,9 @@
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware  # ✅ AJOUT CORS
 from pydantic import BaseModel, Field
-import os, secrets, time, json, csv, io, sqlite3
+import os, secrets, time, json, csv, io, sqlite3, base64, zipfile
 from datetime import datetime, timezone
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -50,12 +51,30 @@ _db().close()
 
 app = FastAPI()
 
+# ============================================================
+# ✅ CORS MIDDLEWARE - PERMET LES REQUÊTES CROSS-ORIGIN
+# ============================================================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",      # Vite dev server
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",      # Autre port possible
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",      # Self
+        "http://127.0.0.1:8000",
+        "*",                          # Autorise tout (dev only, à restreindre en prod)
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],              # GET, POST, PUT, DELETE, OPTIONS, etc.
+    allow_headers=["*"],              # Tous les headers
+)
+
 # Front
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="app")
 
 # ✅ Data (CSV + Images + fiches tech)
-# Sans ça : /data/*.csv et /data/Images/... = 404 -> configurateur KO
 if os.path.isdir(DATA_DIR):
     app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
 else:
@@ -160,7 +179,6 @@ class KpiIn(BaseModel):
 
 @app.post("/api/kpi/collect")
 async def kpi_collect(data: KpiIn, request: Request):
-
     ts = datetime.now(timezone.utc).isoformat()
     ua = request.headers.get("user-agent", "")
     ip = request.client.host if request.client else ""
@@ -176,7 +194,8 @@ async def kpi_collect(data: KpiIn, request: Request):
     con.commit()
     con.close()
     return {"ok": True}
-# ✅ Alias rétro-compat : certains fronts envoient encore /api/kpi/event
+
+# ✅ Alias rétro-compat
 @app.post("/api/kpi/event")
 async def kpi_event_alias(data: KpiIn, request: Request):
     return await kpi_collect(data, request)
@@ -242,3 +261,162 @@ def kpi_export_csv(authorization: str | None = Header(default=None)):
     data = out.getvalue().encode("utf-8")
     headers = {"Content-Disposition": 'attachment; filename="kpi_export.csv"'}
     return Response(content=data, media_type="text/csv; charset=utf-8", headers=headers)
+
+
+# ============================================================
+# ✅ EXPORT ZIP (PDF + FICHES TECHNIQUES LOCALES)
+# ============================================================
+
+class ExportZipIn(BaseModel):
+    pdf_base64: str = Field(..., description="PDF principal encodé en base64")
+    product_ids: list[str] = Field(default_factory=list, description="Liste des IDs produits")
+    zip_name: str = Field(default="export.zip", description="Nom du fichier ZIP")
+
+def find_datasheet_for_product(product_id: str) -> str | None:
+    """
+    Cherche la fiche technique d'un produit dans DATA_DIR.
+    Retourne le chemin absolu si trouvé, None sinon.
+    """
+    if not product_id:
+        return None
+    
+    # Nettoyer l'ID
+    clean_id = str(product_id).strip()
+    
+    # Dossiers où chercher les fiches techniques
+    search_dirs = [
+        os.path.join(DATA_DIR, "fiches_techniques"),
+        os.path.join(DATA_DIR, "datasheets"),
+        os.path.join(DATA_DIR, "pdf"),
+        os.path.join(DATA_DIR, "docs"),
+        DATA_DIR,
+    ]
+    
+    # Extensions possibles
+    extensions = [".pdf", ".PDF"]
+    
+    # Patterns de noms de fichiers
+    patterns = [
+        clean_id,                           # Exact match
+        clean_id.upper(),
+        clean_id.lower(),
+        clean_id.replace("-", "_"),
+        clean_id.replace("_", "-"),
+        f"FT_{clean_id}",                   # Fiche Technique prefix
+        f"DS_{clean_id}",                   # Datasheet prefix
+        f"datasheet_{clean_id}",
+    ]
+    
+    for search_dir in search_dirs:
+        if not os.path.isdir(search_dir):
+            continue
+            
+        for pattern in patterns:
+            for ext in extensions:
+                candidate = os.path.join(search_dir, pattern + ext)
+                if os.path.isfile(candidate):
+                    return candidate
+                    
+        # Recherche récursive dans les sous-dossiers
+        for root, dirs, files in os.walk(search_dir):
+            for f in files:
+                if not f.lower().endswith(".pdf"):
+                    continue
+                name_no_ext = os.path.splitext(f)[0]
+                if clean_id.lower() in name_no_ext.lower():
+                    return os.path.join(root, f)
+    
+    return None
+
+
+@app.post("/export/localzip")
+async def export_localzip(data: ExportZipIn):
+    """
+    Génère un ZIP contenant :
+    - Le PDF principal (rapport de configuration)
+    - Les fiches techniques des produits (si trouvées localement)
+    """
+    
+    # 1) Décoder le PDF principal
+    try:
+        pdf_bytes = base64.b64decode(data.pdf_base64)
+        if len(pdf_bytes) < 1000:
+            raise ValueError("PDF trop petit")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"PDF base64 invalide: {e}")
+    
+    # 2) Créer le ZIP en mémoire
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Ajouter le PDF principal
+        zf.writestr("rapport_configuration.pdf", pdf_bytes)
+        
+        # 3) Chercher et ajouter les fiches techniques
+        added_files = set()
+        missing_products = []
+        
+        for product_id in data.product_ids:
+            if not product_id:
+                continue
+                
+            datasheet_path = find_datasheet_for_product(product_id)
+            
+            if datasheet_path and os.path.isfile(datasheet_path):
+                # Éviter les doublons
+                if datasheet_path in added_files:
+                    continue
+                added_files.add(datasheet_path)
+                
+                # Nom dans le ZIP
+                filename = os.path.basename(datasheet_path)
+                zip_path = f"fiches_techniques/{filename}"
+                
+                try:
+                    with open(datasheet_path, "rb") as f:
+                        zf.writestr(zip_path, f.read())
+                except Exception as e:
+                    print(f"[WARN] Impossible de lire {datasheet_path}: {e}")
+            else:
+                missing_products.append(product_id)
+        
+        # 4) Ajouter un fichier de log
+        log_content = f"""Export généré le {datetime.now().isoformat()}
+
+Produits demandés: {len(data.product_ids)}
+Fiches techniques trouvées: {len(added_files)}
+Fiches techniques manquantes: {len(missing_products)}
+
+Produits sans fiche technique:
+{chr(10).join(f"- {p}" for p in missing_products) if missing_products else "(aucun)"}
+"""
+        zf.writestr("_info_export.txt", log_content.encode("utf-8"))
+    
+    # 5) Retourner le ZIP
+    zip_buffer.seek(0)
+    zip_bytes = zip_buffer.getvalue()
+    
+    headers = {
+        "Content-Disposition": f'attachment; filename="{data.zip_name}"',
+        "Content-Type": "application/zip",
+    }
+    
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers=headers
+    )
+
+
+# ============================================================
+# ✅ ROUTE DE TEST POUR VÉRIFIER QUE LE BACKEND FONCTIONNE
+# ============================================================
+@app.get("/export/test")
+def export_test():
+    """Route de test pour vérifier que l'export fonctionne"""
+    return {
+        "ok": True,
+        "message": "Export endpoint is working",
+        "data_dir": DATA_DIR,
+        "data_dir_exists": os.path.isdir(DATA_DIR),
+    }

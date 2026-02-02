@@ -11,7 +11,7 @@ window.jsPDF = jsPDF;
 
 
 
-// 1) On injecte ton “ancien” HTML dans #app
+// 1) On injecte ton "ancien" HTML dans #app
 document.querySelector("#app").innerHTML = `
   <header class="appHeader appHeaderCentered">
     <div class="brandCenter" aria-label="COMELIT">
@@ -28,9 +28,7 @@ document.querySelector("#app").innerHTML = `
     </div>
 
     <div class="headerActions">
-      <div class="headerActionsLeft">
-        <button id="btnAdmin" class="btn secondary" type="button">Admin</button>
-      </div>
+      <!-- ✅ SUPPRIMÉ: Bouton Admin (page séparée sur /admin) -->
 
       <div class="headerActionsRight actions">
         <button id="btnReset" class="btn" type="button">Reset</button>
@@ -55,7 +53,7 @@ document.querySelector("#app").innerHTML = `
       <aside id="resultCard" class="card hiddenCard" aria-label="Résultats">
         <div class="cardHeader">
           <div class="cardTitle">Résultats</div>
-          <div class="cardSubtitle">Visible à la fin (ou via “Afficher résultats”).</div>
+          <div class="cardSubtitle">Visible à la fin (ou via "Afficher résultats").</div>
         </div>
 
         <div class="resultsBody">
@@ -65,7 +63,7 @@ document.querySelector("#app").innerHTML = `
 
           <div id="resultsEmpty" class="emptyState">
             <div class="emptyTitle">Pas encore finalisé</div>
-            <div class="muted">Avance jusqu’à la dernière étape, puis “Finaliser”.</div>
+            <div class="muted">Avance jusqu'à la dernière étape, puis "Finaliser".</div>
           </div>
 
           <div id="results" class="hidden">
@@ -77,95 +75,7 @@ document.querySelector("#app").innerHTML = `
     </div>
   </main>
 
-  <!-- ADMIN MODAL -->
-  <div id="adminModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="adminTitle">
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div>
-          <div id="adminTitle" class="modalTitle">Admin panel</div>
-          <div id="dataStatus" class="statusLine adminOnly">—</div>
-          <div class="modalSubtitle">Gestion des CSV (lecture/édition/sauvegarde).</div>
-        </div>
-        <button id="btnAdminClose" class="btn icon" type="button" aria-label="Fermer">✕</button>
-      </div>
-
-      <!-- LOGIN -->
-      <div id="adminLoginBox" class="adminSection">
-        <label class="field">
-          <span class="label">Mot de passe admin</span>
-          <input id="adminPassword" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
-        </label>
-
-        <button id="btnAdminLogin" class="btn primary full" type="button">Se connecter</button>
-        <div id="adminLoginMsg" class="muted"></div>
-      </div>
-
-      <!-- EDITOR -->
-      <div id="adminEditorBox" class="adminSection hidden">
-        <div class="adminToolbar">
-          <label class="field inline">
-            <span class="label">Fichier</span>
-            <select id="adminCsvSelect" class="select">
-              <option value="cameras">cameras.csv</option>
-              <option value="nvrs">nvrs.csv</option>
-              <option value="hdds">hdds.csv</option>
-              <option value="switches">switches.csv</option>
-              <option value="accessories">accessories.csv</option>
-              <option value="screens">screens.csv</option>
-              <option value="enclosures">enclosures.csv</option>
-              <option value="signage">signage.csv</option>
-            </select>
-          </label>
-
-          <div class="toolbarBtns">
-            <button id="btnAdminLoad" class="btn secondary" type="button">Charger</button>
-            <button id="btnAdminSave" class="btn primary" type="button">Sauvegarder</button>
-            <button id="btnAdminLogout" class="btn secondary" type="button">Déconnexion</button>
-          </div>
-        </div>
-
-        <div class="adminHint">
-          Tips : conserve les headers. Un backup <code>.bak</code> est fait côté serveur.
-        </div>
-
-        <!-- ✅ TABLE EDITOR (UI PRO) -->
-        <div class="adminGridWrap">
-          <div class="adminGridTop">
-            <div class="muted" id="adminGridMeta">—</div>
-
-            <div class="adminGridActions">
-              <button id="btnAdminAddRow" class="btn secondary" type="button">+ Ajouter</button>
-              <button id="btnAdminDupRow" class="btn secondary" type="button">Dupliquer</button>
-              <button id="btnAdminDelRow" class="btn secondary" type="button">Supprimer</button>
-
-              <span class="adminGridSep"></span>
-
-              <button id="btnAdminToggleExpert" class="btn" type="button">Mode expert</button>
-            </div>
-          </div>
-
-          <!-- ✅ La grille se monte ici -->
-          <div id="adminTableMount" class="adminTableMount"></div>
-
-          <!-- ✅ EXPERT MODE (CSV brut) -->
-          <div id="adminExpertBox" class="adminExpertBox hidden">
-            <div class="adminHint">
-              Mode expert : CSV brut (attention aux virgules/quotes). Les headers doivent rester identiques.
-            </div>
-
-            <textarea
-              id="adminCsvText"
-              class="textarea mono"
-              spellcheck="false"
-              placeholder="Le contenu CSV s’affiche ici…"
-            ></textarea>
-          </div>
-        </div>
-
-        <div id="adminMsg" class="muted"></div>
-      </div>
-    </div>
-  </div>
+  <!-- ✅ SUPPRIMÉ: Modal Admin complet (admin séparé sur /admin) -->
 `;
 
 // 2) IMPORTANT : on charge ton app.js APRÈS que le DOM soit en place.
