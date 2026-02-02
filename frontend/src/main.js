@@ -8,10 +8,21 @@ window.html2canvas = html2canvas;
 window.jspdf = { jsPDF };
 window.jsPDF = jsPDF;
 
+// Favicon
+(function setupPageMeta() {
+  const existingFavicon = document.querySelector('link[rel="icon"]');
+  if (existingFavicon) {
+    existingFavicon.href = '/assets/logosmall.png';
+  } else {
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.type = 'image/png';
+    link.href = '/assets/logosmall.png';
+    document.head.appendChild(link);
+  }
+  document.title = 'Configurateur Vidéosurveillance - Comelit';
+})();
 
-
-
-// 1) On injecte ton "ancien" HTML dans #app
 document.querySelector("#app").innerHTML = `
   <header class="appHeader appHeaderCentered">
     <div class="brandCenter" aria-label="COMELIT">
@@ -28,9 +39,8 @@ document.querySelector("#app").innerHTML = `
     </div>
 
     <div class="headerActions">
-      <!-- ✅ SUPPRIMÉ: Bouton Admin (page séparée sur /admin) -->
-
       <div class="headerActionsRight actions">
+        <button id="btnPrev" class="btn" type="button" title="Revenir à l'étape précédente" style="display:none">← Précédent</button>
         <button id="btnReset" class="btn" type="button">Reset</button>
         <button id="btnDemo" class="btn" type="button">Démo</button>
         <button id="btnCompute" class="btn primary" type="button">Suivant</button>
@@ -40,7 +50,6 @@ document.querySelector("#app").innerHTML = `
 
   <main class="appMain">
     <div id="mainGrid" class="appGrid">
-      <!-- COL 1 -->
       <section class="card" aria-label="Étapes">
         <div class="cardHeader">
           <div class="cardTitle">Étapes</div>
@@ -49,7 +58,6 @@ document.querySelector("#app").innerHTML = `
         <div id="steps" class="steps"></div>
       </section>
 
-      <!-- COL 2 -->
       <aside id="resultCard" class="card hiddenCard" aria-label="Résultats">
         <div class="cardHeader">
           <div class="cardTitle">Résultats</div>
@@ -59,7 +67,7 @@ document.querySelector("#app").innerHTML = `
         <div class="resultsBody">
           <div class="exportRow">
             <button id="btnExportPdf" class="btn" type="button">Export PDF</button>
-</div>
+          </div>
 
           <div id="resultsEmpty" class="emptyState">
             <div class="emptyTitle">Pas encore finalisé</div>
@@ -74,10 +82,6 @@ document.querySelector("#app").innerHTML = `
       </aside>
     </div>
   </main>
-
-  <!-- ✅ SUPPRIMÉ: Modal Admin complet (admin séparé sur /admin) -->
 `;
 
-// 2) IMPORTANT : on charge ton app.js APRÈS que le DOM soit en place.
-// Sinon ton DOM cache (#steps, #btnCompute, etc.) sera null au moment du chargement.
 import("./app.js");
