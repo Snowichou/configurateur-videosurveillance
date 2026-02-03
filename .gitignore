@@ -1,14 +1,43 @@
-# Python
-.venv/
+# ============================================================
+# .gitignore - Configurateur Comelit
+# ============================================================
+
+# Environnement Python
 venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
 
-# Node
+# Node.js
 node_modules/
-dist/
+npm-debug.log
+yarn-error.log
 
-# Backups / OLD
-OLD/
-*_BACKUP/
-frontend_BACKUP/
+# Build
+frontend/dist/
+*.log
+
+# Environnement
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Base de données locale (ne pas commiter en prod)
+*.sqlite3
+*.db
+
+# Secrets
+*.pem
+*.key

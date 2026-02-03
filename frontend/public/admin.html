@@ -1,0 +1,1117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin — Configurateur Comelit</title>
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root{
+      --cosmos:#1C1F2B;
+      --green:#00BC70;
+      --bg:#F6F7F9;
+      --card:#ffffff;
+      --line: rgba(28,31,42,.14);
+      --muted: rgba(15,23,42,.62);
+      --shadow: 0 10px 22px rgba(2,6,23,.06);
+      --r: 16px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    body{margin:0;background:var(--bg);color:var(--cosmos);}
+    
+    /* ============================================================
+       LOGIN OVERLAY - BLOQUE TOUT
+       ============================================================ */
+    #loginOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #1C1F2B 0%, #2d3348 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    #loginOverlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .loginBox {
+      background: #fff;
+      border-radius: 24px;
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    .loginLogo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 20px;
+      border-radius: 20px;
+      border: 2px solid var(--line);
+      background: #fff;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+    .loginLogo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .loginTitle {
+      font-size: 24px;
+      font-weight: 950;
+      color: var(--cosmos);
+      margin-bottom: 8px;
+    }
+    .loginSubtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 30px;
+    }
+    .loginInput {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid var(--line);
+      border-radius: 14px;
+      font-size: 16px;
+      margin-bottom: 16px;
+      box-sizing: border-box;
+      transition: border-color 0.2s ease;
+    }
+    .loginInput:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+    .loginBtn {
+      width: 100%;
+      padding: 14px 24px;
+      background: var(--green);
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+    }
+    .loginBtn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,188,112,0.3);
+    }
+    .loginBtn:active {
+      transform: translateY(0);
+    }
+    .loginBtn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .loginError {
+      color: #DC2626;
+      font-size: 13px;
+      margin-top: 12px;
+      min-height: 20px;
+    }
+    .loginFooter {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .securityBadge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(0,188,112,0.1);
+      border: 1px solid rgba(0,188,112,0.2);
+      border-radius: 20px;
+      font-size: 11px;
+      color: #065f46;
+    }
+    
+    /* ============================================================
+       ADMIN CONTENT (cache par defaut)
+       ============================================================ */
+    #adminContent {
+      display: none;
+    }
+    #adminContent.visible {
+      display: block;
+    }
+    
+    header{
+      position:sticky;top:0;z-index:5;
+      background:linear-gradient(180deg,#fff,rgba(255,255,255,.92));
+      backdrop-filter:saturate(180%) blur(10px);
+      border-bottom:1px solid var(--line);
+    }
+    .wrap{
+      width: min(1400px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 16px;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .brand{display:flex;align-items:center;gap:10px;}
+    .logo{
+      width:36px;height:36px;border-radius:12px;
+      border:1px solid var(--line);background:#fff;
+      display:grid;place-items:center;overflow:hidden;
+    }
+    .logo img{width:100%;height:100%;object-fit:contain;}
+    .title{font-weight:950;line-height:1.1}
+    .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+    .tabs{display:flex;gap:8px;margin-top:12px;}
+    .tabBtn{
+      border:1px solid var(--line);background:#fff;color:var(--cosmos);
+      padding:8px 14px;border-radius:999px;font-weight:900;font-size:13px;
+      cursor:pointer;transition:all .15s ease;
+    }
+    .tabBtn:hover{border-color:rgba(0,188,112,.35)}
+    .tabBtn.on{border-color:rgba(0,188,112,.45);background:rgba(0,188,112,.10);}
+    .grid{
+      display:grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 14px;
+      margin-top: 14px;
+      width: 100%;
+      max-width: 100%;
+    }
+    .gridFull{
+      grid-template-columns: 1fr;
+    }
+    @media(max-width: 1100px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+    .card{
+      background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+      box-shadow:var(--shadow); padding:14px;
+    }
+    .h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+    .h .h1{font-weight:950}
+    .h .h2{color:var(--muted);font-size:12.5px;margin-top:4px}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;
+      border:1px solid var(--line);background:#fff;font-weight:900;font-size:12.5px;}
+    .pill.ok{border-color:rgba(0,188,112,.35);background:rgba(0,188,112,.10)}
+    .pill.warn{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.10);color:#92400e}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,select,button,textarea{font:inherit}
+    .in{
+      border:1px solid var(--line);border-radius:12px;background:#fff;
+      padding:10px 12px; min-height:40px;
+    }
+    .btn{
+      border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--cosmos);
+      padding:10px 12px; min-height:40px; font-weight:900;
+      cursor:pointer;
+      transition:transform .08s ease, box-shadow .15s ease, border-color .15s ease;
+    }
+    .btn:hover{border-color:rgba(0,188,112,.35);box-shadow:0 10px 22px rgba(2,6,23,.08);transform:translateY(-1px);}
+    .btn.primary{border-color:rgba(0,188,112,.45);background:rgba(0,188,112,.12)}
+    .btn.danger{border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.08)}
+    .muted{color:var(--muted);font-size:12.5px}
+    .sep{height:1px;background:var(--line);margin:12px 0}
+    .hidden{display:none!important}
+
+    /* Table editor */
+    .tableWrap{
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: auto;
+      border:1px solid var(--line);
+      border-radius:14px;
+      max-height: calc(100vh - 260px);
+    }
+    .tableWrap table{
+      border-collapse: collapse;
+      background:#fff;
+      width: max-content;
+      min-width: 100%;
+      table-layout: fixed;
+    }
+    .tableWrap th,
+    .tableWrap td{
+      border-bottom:1px solid rgba(28,31,42,.10);
+      padding:10px 10px;
+      vertical-align:top;
+      white-space: nowrap;
+    }
+    .tableWrap th{
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #fff;
+      font-size: 12px;
+      text-align: left;
+      font-weight: 950;
+    }
+    .tableWrap td input{
+      width: 140px;
+      max-width: 100%;
+      box-sizing: border-box;
+      border:1px solid rgba(28,31,42,.12);
+      border-radius:10px;
+      padding:8px 10px;
+      background:#fff;
+      min-height:36px;
+    }
+    .actionsCol{white-space:nowrap}
+    .miniBtn{
+      padding:7px 10px;min-height:34px;border-radius:10px;font-weight:900;font-size:12px;
+      border:1px solid var(--line);background:#fff;cursor:pointer;
+    }
+    .miniBtn:hover{border-color:rgba(0,188,112,.35)}
+    .miniBtn.del{border-color:rgba(220,38,38,.30);background:rgba(220,38,38,.06)}
+
+    /* KPI Tiles */
+    .kpiGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    @media(max-width:900px){ .kpiGrid{grid-template-columns:repeat(2,1fr)} }
+    @media(max-width:500px){ .kpiGrid{grid-template-columns:1fr} }
+    .kpiTile{
+      border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;
+      transition:all .15s ease;
+    }
+    .kpiTile:hover{border-color:rgba(0,188,112,.3);box-shadow:0 4px 12px rgba(0,0,0,.06)}
+    .kpiLabel{color:var(--muted);font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.3px}
+    .kpiVal{font-weight:950;font-size:28px;margin-top:6px;color:var(--cosmos)}
+    .kpiVal small{font-size:14px;font-weight:800;color:var(--muted)}
+    .kpiTrend{font-size:12px;margin-top:4px}
+    .kpiTrend.up{color:#00BC70}
+    .kpiTrend.down{color:#DC2626}
+
+    /* Charts */
+    .chartWrap{
+      width:100%;height:280px;
+      border:1px solid var(--line);border-radius:14px;
+      background:#fff;padding:14px;box-sizing:border-box;
+    }
+    .chartTitle{font-weight:950;font-size:14px;margin-bottom:10px}
+
+    /* Top lists */
+    .list{margin:0;padding:0;list-style:none}
+    .list li{
+      display:flex;justify-content:space-between;gap:10px;
+      padding:10px 0;border-bottom:1px solid rgba(28,31,42,.08)
+    }
+    .list li:last-child{border-bottom:0}
+    .list .rank{
+      width:24px;height:24px;border-radius:8px;
+      background:rgba(0,188,112,.1);color:#00BC70;
+      font-weight:900;font-size:11px;
+      display:grid;place-items:center;flex-shrink:0;
+    }
+    .list .rank.top3{background:rgba(0,188,112,.2)}
+    .list .name{flex:1;font-weight:800;font-size:13px}
+    .list .val{font-weight:900;font-size:13px;color:var(--cosmos)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;}
+
+    /* Month selector */
+    .monthSelector{
+      display:flex;align-items:center;gap:8px;
+      border:1px solid var(--line);border-radius:12px;
+      padding:4px;background:#fff;
+    }
+    .monthSelector button{
+      border:none;background:transparent;padding:8px 12px;
+      border-radius:10px;font-weight:900;font-size:13px;cursor:pointer;
+    }
+    .monthSelector button:hover{background:rgba(0,188,112,.08)}
+    .monthSelector span{font-weight:900;min-width:140px;text-align:center}
+  </style>
+  <!-- Chart.js pour les graphiques -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ============================================================
+     LOGIN OVERLAY - BLOQUE TOUT LE CONTENU
+     ============================================================ -->
+<div id="loginOverlay">
+  <div class="loginBox">
+    <div class="loginLogo">
+      <img src="/assets/logo.png" onerror="this.parentElement.innerHTML='🔐'" alt="COMELIT">
+    </div>
+    <div class="loginTitle">Administration</div>
+    <div class="loginSubtitle">Configurateur Videosurveillance Comelit</div>
+    
+    <form id="loginForm">
+      <input 
+        type="password" 
+        id="loginPassword" 
+        class="loginInput" 
+        placeholder="Mot de passe administrateur"
+        autocomplete="current-password"
+        required
+      >
+      <button type="submit" id="loginBtn" class="loginBtn">
+        Se connecter
+      </button>
+    </form>
+    
+    <div id="loginError" class="loginError"></div>
+    
+    <div class="loginFooter">
+      <div class="securityBadge">
+        🔒 Connexion securisee
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     CONTENU ADMIN (CACHE PAR DEFAUT)
+     ============================================================ -->
+<div id="adminContent">
+  <header>
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo"><img src="/assets/logo.png" onerror="this.style.display='none'" alt="COMELIT"></div>
+          <div>
+            <div class="title">Admin Configurateur</div>
+            <div class="sub">Catalogues + KPI Metier</div>
+          </div>
+        </div>
+        <div class="row">
+          <span id="authState" class="pill ok">Connecte</span>
+          <button class="btn" id="btnLogout">Deconnexion</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tabBtn on" data-tab="catalog">Catalogues</button>
+        <button class="tabBtn" data-tab="kpi">KPI Metier</button>
+        <button class="tabBtn" data-tab="events">Evenements bruts</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- CATALOG -->
+    <section id="tab_catalog">
+      <div class="grid">
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Editeur de catalogues</div>
+              <div class="h2">Modification des donnees produits</div>
+            </div>
+            <div class="row">
+              <select id="catalogKind" class="in">
+                <option value="cameras">cameras</option>
+                <option value="nvrs">nvrs</option>
+                <option value="hdds">hdds</option>
+                <option value="switches">switches</option>
+                <option value="accessories">accessories</option>
+                <option value="screens">screens</option>
+                <option value="enclosures">enclosures</option>
+                <option value="signage">signage</option>
+              </select>
+              <button id="btnLoad" class="btn">Charger</button>
+              <button id="btnAddRow" class="btn">+ Ligne</button>
+              <button id="btnSave" class="btn primary">Enregistrer</button>
+            </div>
+          </div>
+
+          <div id="catMeta" class="muted"></div>
+          <div class="sep"></div>
+
+          <div class="tableWrap">
+            <table id="catTable">
+              <thead><tr id="catHead"></tr></thead>
+              <tbody id="catBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Guide</div>
+              <div class="h2">Conseils d'utilisation</div>
+            </div>
+          </div>
+          <ul class="list">
+            <li><span>Cameras</span><span class="pill">Principal</span></li>
+            <li><span>NVRs</span><span class="pill">Enregistreurs</span></li>
+            <li><span>HDDs</span><span class="pill">Stockage</span></li>
+            <li><span>Switches</span><span class="pill">Reseau</span></li>
+            <li><span>Accessories</span><span class="pill">Supports</span></li>
+          </ul>
+          <div class="sep"></div>
+          <div class="muted">
+            Modifiez les donnees puis cliquez sur "Enregistrer". Les modifications sont immediates.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KPI METIER -->
+    <section id="tab_kpi" class="hidden">
+      <!-- Selecteur de mois -->
+      <div class="row" style="margin-bottom:14px;justify-content:space-between">
+        <div class="monthSelector">
+          <button id="btnPrevMonth">&larr;</button>
+          <span id="currentMonth">Janvier 2025</span>
+          <button id="btnNextMonth">&rarr;</button>
+        </div>
+        <div class="row">
+          <button id="btnRefreshKpi" class="btn">Rafraichir</button>
+          <button id="btnExportKpi" class="btn primary">Exporter CSV</button>
+          <button id="btnResetMonth" class="btn danger">Reset mois (tests)</button>
+        </div>
+      </div>
+
+      <!-- KPIs principaux -->
+      <div class="kpiGrid" style="margin-bottom:14px">
+        <div class="kpiTile">
+          <div class="kpiLabel">Configurations generees</div>
+          <div id="kpiConfigs" class="kpiVal">--</div>
+          <div id="kpiConfigsTrend" class="kpiTrend"></div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Cameras configurees</div>
+          <div id="kpiCameras" class="kpiVal">--</div>
+          <div id="kpiCamerasTrend" class="kpiTrend"></div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Camera moyenne/config</div>
+          <div id="kpiAvgCam" class="kpiVal">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Sessions uniques</div>
+          <div id="kpiSessions" class="kpiVal">--</div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <!-- Graphique evolution mensuelle -->
+        <div class="card">
+          <div class="chartTitle">Evolution des configurations (12 derniers mois)</div>
+          <div style="height:250px">
+            <canvas id="chartConfigs"></canvas>
+          </div>
+        </div>
+
+        <!-- Graphique cameras par type -->
+        <div class="card">
+          <div class="chartTitle">Repartition par type de site</div>
+          <div style="height:250px">
+            <canvas id="chartSiteTypes"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+        <!-- Top cameras -->
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Top 10 Cameras</div>
+              <div class="h2">References les plus configurees</div>
+            </div>
+          </div>
+          <ul id="topCameras" class="list"></ul>
+        </div>
+
+        <!-- Top NVR -->
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Top NVR</div>
+              <div class="h2">Enregistreurs recommandes</div>
+            </div>
+          </div>
+          <ul id="topNvrs" class="list"></ul>
+        </div>
+
+        <!-- Repartition gammes -->
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Gammes produits</div>
+              <div class="h2">Repartition des ventes</div>
+            </div>
+          </div>
+          <ul id="topRanges" class="list"></ul>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+        <!-- Configs par jour de semaine -->
+        <div class="card">
+          <div class="chartTitle">Activite par jour de la semaine</div>
+          <div style="height:200px">
+            <canvas id="chartWeekday"></canvas>
+          </div>
+        </div>
+
+        <!-- Objectifs DORI -->
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Objectifs DORI</div>
+              <div class="h2">Repartition des besoins</div>
+            </div>
+          </div>
+          <ul id="topObjectives" class="list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- EVENTS BRUTS -->
+    <section id="tab_events" class="hidden">
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Evenements bruts</div>
+            <div class="h2">Debug et analyse detaillee</div>
+          </div>
+          <div class="row">
+            <select id="kpiLimit" class="in">
+              <option value="50">50</option>
+              <option value="200" selected>200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+            <select id="kpiEventType" class="in">
+              <option value="">Tous les events</option>
+              <option value="compute_project">compute_project</option>
+              <option value="validate_camera">validate_camera</option>
+              <option value="nav_next">nav_next</option>
+              <option value="export_pdf">export_pdf</option>
+            </select>
+            <button id="btnLoadEvents" class="btn">Charger</button>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div id="kpiEvents" class="muted" style="max-height:500px;overflow:auto"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
+  const LS_TOKEN = "cfg_admin_token";
+  let token = localStorage.getItem(LS_TOKEN) || "";
+  let catalog = { kind:"", filename:"", columns:[], rows:[] };
+  
+  // Mois courant pour les KPIs
+  let currentMonth = new Date();
+  
+  // Charts instances
+  let chartConfigs = null;
+  let chartSiteTypes = null;
+  let chartWeekday = null;
+
+  // ==================== AUTH ====================
+  function showAdmin() {
+    $("#loginOverlay").classList.add("hidden");
+    $("#adminContent").classList.add("visible");
+  }
+  
+  function hideAdmin() {
+    $("#loginOverlay").classList.remove("hidden");
+    $("#adminContent").classList.remove("visible");
+  }
+  
+  function checkAuth() {
+    if (token) {
+      // Verifier que le token est encore valide avec un appel API
+      api("/api/kpi/summary")
+        .then(() => {
+          showAdmin();
+          initAdminContent();
+        })
+        .catch(() => {
+          // Token invalide ou expire
+          token = "";
+          localStorage.removeItem(LS_TOKEN);
+          hideAdmin();
+        });
+    } else {
+      hideAdmin();
+    }
+  }
+
+  async function api(path, opts={}){
+    const headers = Object.assign({"Content-Type":"application/json"}, opts.headers||{});
+    if(token) headers["Authorization"] = "Bearer " + token;
+    const res = await fetch(path, Object.assign({}, opts, {headers}));
+    if(!res.ok){
+      const t = await res.text().catch(()=> "");
+      throw new Error(t || ("HTTP "+res.status));
+    }
+    const ct = res.headers.get("content-type") || "";
+    if(ct.includes("application/json")) return await res.json();
+    return await res.text();
+  }
+
+  // ==================== LOGIN FORM ====================
+  $("#loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    
+    const btn = $("#loginBtn");
+    const errorDiv = $("#loginError");
+    const pwd = $("#loginPassword").value;
+    
+    errorDiv.textContent = "";
+    btn.disabled = true;
+    btn.textContent = "Connexion...";
+    
+    try {
+      const out = await api("/api/login", {
+        method: "POST", 
+        body: JSON.stringify({password: pwd}),
+        headers: {}
+      });
+      
+      token = out.token;
+      localStorage.setItem(LS_TOKEN, token);
+      
+      showAdmin();
+      initAdminContent();
+      
+    } catch(e) {
+      errorDiv.textContent = "Mot de passe incorrect";
+      $("#loginPassword").value = "";
+      $("#loginPassword").focus();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Se connecter";
+    }
+  });
+
+  // ==================== LOGOUT ====================
+  $("#btnLogout").addEventListener("click", () => {
+    token = "";
+    localStorage.removeItem(LS_TOKEN);
+    hideAdmin();
+    $("#loginPassword").value = "";
+  });
+
+  // ==================== INIT ADMIN CONTENT ====================
+  function initAdminContent() {
+    // Charger le premier catalogue
+    $("#btnLoad").click();
+    // Rafraichir les KPIs
+    updateMonthDisplay();
+    refreshKpiMetier();
+  }
+
+  // ==================== TABS ====================
+  $$(".tabBtn").forEach(b => b.addEventListener("click", () => {
+    $$(".tabBtn").forEach(x => x.classList.remove("on"));
+    b.classList.add("on");
+    const tab = b.dataset.tab;
+    $("#tab_catalog").classList.toggle("hidden", tab !== "catalog");
+    $("#tab_kpi").classList.toggle("hidden", tab !== "kpi");
+    $("#tab_events").classList.toggle("hidden", tab !== "events");
+    
+    if(tab === "kpi") refreshKpiMetier();
+  }));
+
+  // ==================== CATALOG ====================
+  function renderTable(){
+    const head = $("#catHead");
+    const body = $("#catBody");
+    head.innerHTML = "";
+    body.innerHTML = "";
+
+    const cols = catalog.columns || [];
+    if(!cols.length){
+      head.innerHTML = "<th>Aucune colonne</th>";
+      return;
+    }
+    cols.forEach(c => {
+      const th = document.createElement("th");
+      th.textContent = c;
+      head.appendChild(th);
+    });
+    const thA = document.createElement("th");
+    thA.textContent = "Actions";
+    head.appendChild(thA);
+
+    (catalog.rows||[]).forEach((row, idx) => {
+      const tr = document.createElement("tr");
+      cols.forEach(c => {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.value = row?.[c] ?? "";
+        inp.addEventListener("input", () => { catalog.rows[idx][c] = inp.value; });
+        td.appendChild(inp);
+        tr.appendChild(td);
+      });
+      const tdA = document.createElement("td");
+      tdA.className = "actionsCol";
+      const del = document.createElement("button");
+      del.className = "miniBtn del";
+      del.textContent = "Suppr.";
+      del.addEventListener("click", () => {
+        catalog.rows.splice(idx, 1);
+        renderTable();
+      });
+      tdA.appendChild(del);
+      tr.appendChild(tdA);
+      body.appendChild(tr);
+    });
+
+    $("#catMeta").textContent = catalog.kind
+      ? ("Fichier: " + catalog.filename + " | Colonnes: " + cols.length + " | Lignes: " + (catalog.rows||[]).length)
+      : "";
+  }
+
+  $("#btnLoad").addEventListener("click", async () => {
+    try{
+      const kind = $("#catalogKind").value;
+      const out = await api("/api/admin/catalog/" + encodeURIComponent(kind));
+      catalog = out;
+      renderTable();
+    }catch(e){
+      alert("Erreur chargement: " + (e?.message || e));
+    }
+  });
+
+  $("#btnAddRow").addEventListener("click", () => {
+    const cols = catalog.columns || [];
+    if(!cols.length){ alert("Charge un catalogue d'abord."); return; }
+    const r = {};
+    cols.forEach(c => r[c] = "");
+    catalog.rows.push(r);
+    renderTable();
+  });
+
+  $("#btnSave").addEventListener("click", async () => {
+    try{
+      if(!catalog.kind){ alert("Charge un catalogue d'abord."); return; }
+      await api("/api/admin/catalog/" + encodeURIComponent(catalog.kind), {
+        method:"PUT",
+        body: JSON.stringify({columns: catalog.columns, rows: catalog.rows})
+      });
+      alert("Enregistre OK");
+    }catch(e){
+      alert("Erreur save: " + (e?.message || e));
+    }
+  });
+
+  // ==================== KPI METIER ====================
+  function updateMonthDisplay(){
+    const months = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
+    $("#currentMonth").textContent = months[currentMonth.getMonth()] + " " + currentMonth.getFullYear();
+  }
+
+  $("#btnPrevMonth").addEventListener("click", () => {
+    currentMonth.setMonth(currentMonth.getMonth() - 1);
+    updateMonthDisplay();
+    refreshKpiMetier();
+  });
+
+  $("#btnNextMonth").addEventListener("click", () => {
+    currentMonth.setMonth(currentMonth.getMonth() + 1);
+    updateMonthDisplay();
+    refreshKpiMetier();
+  });
+
+  async function refreshKpiMetier(){
+    try {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth() + 1;
+      
+      const summary = await api("/api/kpi/summary");
+      const events = await api(`/api/kpi/events?limit=5000`);
+      
+      const monthStr = `${year}-${String(month).padStart(2,'0')}`;
+      const monthEvents = (events.rows || []).filter(e => 
+        (e.ts_utc || "").startsWith(monthStr)
+      );
+      
+      const computeEvents = monthEvents.filter(e => e.event === "compute_project");
+      const validateEvents = monthEvents.filter(e => e.event === "validate_camera");
+      
+      const nbConfigs = computeEvents.length;
+      $("#kpiConfigs").textContent = nbConfigs;
+      
+      let totalCameras = 0;
+      const cameraCount = {};
+      const nvrCount = {};
+      const rangeCount = {};
+      const siteTypeCount = {};
+      const objectiveCount = {};
+      const sessions = new Set();
+      
+      computeEvents.forEach(e => {
+        const p = e.payload || {};
+        sessions.add(p.sid || e.session_id);
+        
+        const camQty = Number(p.cam_total_qty) || 0;
+        totalCameras += camQty;
+        
+        const siteType = p.config_type || "Autre";
+        siteTypeCount[siteType] = (siteTypeCount[siteType] || 0) + 1;
+        
+        if(p.nvr_id){
+          nvrCount[p.nvr_id] = (nvrCount[p.nvr_id] || 0) + 1;
+        }
+        
+        (p.cameras || []).forEach(cam => {
+          const id = cam.id || "?";
+          const qty = Number(cam.qty) || 1;
+          cameraCount[id] = (cameraCount[id] || 0) + qty;
+          
+          const range = id.includes("NEXT") ? "NEXT" : 
+                        id.includes("ADVANCE") ? "ADVANCE" : 
+                        id.includes("EASY") ? "EASY" : "Autre";
+          rangeCount[range] = (rangeCount[range] || 0) + qty;
+        });
+      });
+      
+      $("#kpiCameras").textContent = totalCameras;
+      $("#kpiAvgCam").innerHTML = nbConfigs > 0 ? (totalCameras / nbConfigs).toFixed(1) + "<small> cam/config</small>" : "--";
+      $("#kpiSessions").textContent = sessions.size;
+      
+      renderTopList("#topCameras", cameraCount, 10);
+      renderTopList("#topNvrs", nvrCount, 5);
+      renderTopList("#topRanges", rangeCount, 5);
+      renderTopList("#topObjectives", objectiveCount, 5);
+      
+      renderCharts(summary, siteTypeCount, monthEvents);
+      
+    } catch(e) {
+      console.error("KPI error:", e);
+    }
+  }
+
+  function renderTopList(selector, data, limit = 10){
+    const ul = $(selector);
+    if(!ul) return;
+    
+    const sorted = Object.entries(data)
+      .sort((a,b) => b[1] - a[1])
+      .slice(0, limit);
+    
+    if(sorted.length === 0){
+      ul.innerHTML = "<li class='muted'>Aucune donnee</li>";
+      return;
+    }
+    
+    ul.innerHTML = sorted.map((item, idx) => {
+      const [name, count] = item;
+      const rankClass = idx < 3 ? "rank top3" : "rank";
+      return `<li>
+        <span class="${rankClass}">${idx + 1}</span>
+        <span class="name">${name}</span>
+        <span class="val">${count}</span>
+      </li>`;
+    }).join("");
+  }
+
+  function renderCharts(summary, siteTypeCount, monthEvents){
+    const byDay = summary.by_day || [];
+    const last12Months = {};
+    const now = new Date();
+    for(let i = 11; i >= 0; i--){
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      last12Months[key] = 0;
+    }
+    byDay.forEach(d => {
+      const monthKey = (d.date || "").slice(0, 7);
+      if(last12Months.hasOwnProperty(monthKey)){
+        last12Months[monthKey] += d.count || 0;
+      }
+    });
+    
+    const labels1 = Object.keys(last12Months);
+    const data1 = Object.values(last12Months);
+    
+    if(chartConfigs) chartConfigs.destroy();
+    chartConfigs = new Chart($("#chartConfigs"), {
+      type: 'line',
+      data: {
+        labels: labels1.map(l => {
+          const [y, m] = l.split('-');
+          return ["Jan","Fev","Mar","Avr","Mai","Juin","Juil","Aout","Sep","Oct","Nov","Dec"][parseInt(m)-1] + " " + y.slice(2);
+        }),
+        datasets: [{
+          label: 'Evenements',
+          data: data1,
+          borderColor: '#00BC70',
+          backgroundColor: 'rgba(0,188,112,0.1)',
+          fill: true,
+          tension: 0.3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+    
+    const siteLabels = Object.keys(siteTypeCount);
+    const siteData = Object.values(siteTypeCount);
+    
+    if(chartSiteTypes) chartSiteTypes.destroy();
+    if(siteLabels.length > 0){
+      chartSiteTypes = new Chart($("#chartSiteTypes"), {
+        type: 'doughnut',
+        data: {
+          labels: siteLabels,
+          datasets: [{
+            data: siteData,
+            backgroundColor: ['#00BC70', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'right' } }
+        }
+      });
+    }
+    
+    const weekdayCount = [0,0,0,0,0,0,0];
+    monthEvents.forEach(e => {
+      const d = new Date(e.ts_utc);
+      if(!isNaN(d)) weekdayCount[d.getDay()]++;
+    });
+    
+    if(chartWeekday) chartWeekday.destroy();
+    chartWeekday = new Chart($("#chartWeekday"), {
+      type: 'bar',
+      data: {
+        labels: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+        datasets: [{
+          label: 'Activite',
+          data: weekdayCount,
+          backgroundColor: 'rgba(0,188,112,0.6)',
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+      }
+    });
+  }
+
+  $("#btnRefreshKpi").addEventListener("click", () => refreshKpiMetier());
+
+  $("#btnExportKpi").addEventListener("click", async () => {
+    try{
+      const res = await fetch("/api/kpi/export.csv", {headers: {"Authorization":"Bearer "+token}});
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "kpi_export.csv";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 2500);
+    }catch(e){
+      alert("Export error: " + (e?.message||e));
+    }
+  });
+
+  // ==================== RESET MOIS ====================
+  $("#btnResetMonth").addEventListener("click", async () => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const monthNames = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
+    const monthName = monthNames[month - 1] + " " + year;
+    
+    const confirm1 = confirm(
+      "ATTENTION - SUPPRESSION DEFINITIVE\n\n" +
+      "Tu vas supprimer TOUS les evenements KPI du mois de " + monthName + ".\n\n" +
+      "Cette action est IRREVERSIBLE.\n\n" +
+      "Continuer ?"
+    );
+    
+    if(!confirm1) return;
+    
+    const confirm2 = prompt(
+      "Pour confirmer, tape le mois en cours :\n" + monthName + "\n\n" +
+      "(Ceci est une mesure de securite)"
+    );
+    
+    if(confirm2 !== monthName){
+      alert("Confirmation incorrecte. Suppression annulee.");
+      return;
+    }
+    
+    try {
+      const btn = $("#btnResetMonth");
+      btn.disabled = true;
+      btn.textContent = "Suppression...";
+      
+      const monthStr = year + "-" + String(month).padStart(2, "0");
+      
+      const res = await api("/api/kpi/reset-month", {
+        method: "DELETE",
+        body: JSON.stringify({ month: monthStr })
+      });
+      
+      alert("Suppression terminee !\n\n" + (res.message || res.deleted + " evenements supprimes"));
+      
+      refreshKpiMetier();
+      
+    } catch(e) {
+      alert("Erreur lors de la suppression :\n" + (e?.message || e));
+    } finally {
+      const btn = $("#btnResetMonth");
+      btn.disabled = false;
+      btn.textContent = "Reset mois (tests)";
+    }
+  });
+
+  // ==================== EVENTS BRUTS ====================
+  $("#btnLoadEvents").addEventListener("click", async () => {
+    const limit = Number($("#kpiLimit").value || 200);
+    const eventType = $("#kpiEventType").value;
+    
+    let url = `/api/kpi/events?limit=${limit}`;
+    if(eventType) url += `&event=${encodeURIComponent(eventType)}`;
+    
+    const out = await api(url);
+    const rows = out.rows || [];
+    const div = $("#kpiEvents");
+    
+    div.innerHTML = rows.map(r => {
+      const t = (r.ts_utc||"").replace("T"," ").replace("Z","");
+      const p = JSON.stringify(r.payload||{}, null, 2);
+      return `<div style='padding:10px 0;border-bottom:1px solid rgba(28,31,42,.08)'>
+        <div>
+          <span class='pill' style="font-size:11px">${r.event||""}</span>
+          <span class='muted' style="margin-left:8px">${t}</span>
+          <span class='muted mono' style="margin-left:8px">sid: ${(r.session_id||"").slice(0,8)}...</span>
+        </div>
+        <pre class='muted mono' style='margin:8px 0 0;font-size:11px;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,.02);padding:8px;border-radius:8px'>${p}</pre>
+      </div>`;
+    }).join("") || "<div class='muted'>Aucun event.</div>";
+  });
+
+  // ==================== INIT ====================
+  checkAuth();
+})();
+</script>
+</body>
+</html>
