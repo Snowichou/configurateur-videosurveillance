@@ -1,6 +1,6 @@
 """
 ============================================================
-FastAPI Backend - Configurateur Comelit (Railway Ready)
+FastAPI Backend - Configurateur Comelit (Render Ready)
 ============================================================
 """
 
@@ -13,29 +13,22 @@ import os, secrets, time, json, csv, io, sqlite3, base64, zipfile
 from datetime import datetime, timezone
 
 # ============================================================
-# CONFIGURATION - ADAPTÉE POUR RAILWAY
+# CONFIGURATION - ADAPTÉE POUR RENDER
 # ============================================================
 
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.abspath(os.path.join(APP_ROOT, ".."))
 
-# Frontend buildé (dist/)
+# Frontend buildé - LE CHEMIN CORRECT EST frontend/dist (pas frontend)
 FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
-# Fallback si structure différente
-if not os.path.isdir(FRONTEND_DIST):
-    FRONTEND_DIST = os.path.join(BASE_DIR, "dist")
-if not os.path.isdir(FRONTEND_DIST):
-    FRONTEND_DIST = os.path.join(APP_ROOT, "..", "frontend", "dist")
 
 # Données CSV
 DATA_DIR = os.path.join(BASE_DIR, "data")
-if not os.path.isdir(DATA_DIR):
-    DATA_DIR = os.path.join(APP_ROOT, "..", "data")
 
 # Admin password
 ADMIN_PASSWORD = os.getenv("CONFIG_ADMIN_PASSWORD", "admin")
 if ADMIN_PASSWORD == "admin":
-    print("⚠️  ATTENTION: Mot de passe admin par défaut. Définissez CONFIG_ADMIN_PASSWORD!")
+    print("⚠️  ATTENTION: Mot de passe admin par défaut!")
 
 TOKENS: dict[str, float] = {}
 
@@ -83,7 +76,6 @@ _db().close()
 
 app = FastAPI(
     title="Configurateur Comelit",
-    description="API pour le configurateur vidéosurveillance",
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
@@ -232,10 +224,7 @@ def kpi_summary(authorization: str | None = Header(default=None)):
     total = int(cur.fetchone()[0] or 0)
     cur.execute("SELECT event, COUNT(*) c FROM kpi_events GROUP BY event ORDER BY c DESC LIMIT 20;")
     top = [{"event": e, "count": int(c)} for (e, c) in cur.fetchall()]
-    cur.execute("""
-      SELECT substr(ts_utc,1,10) d, COUNT(*) c
-      FROM kpi_events GROUP BY d ORDER BY d DESC LIMIT 90;
-    """)
+    cur.execute("SELECT substr(ts_utc,1,10) d, COUNT(*) c FROM kpi_events GROUP BY d ORDER BY d DESC LIMIT 90;")
     by_day = [{"date": d, "count": int(c)} for (d, c) in cur.fetchall()][::-1]
     con.close()
     return {"total": total, "top": top, "by_day": by_day}
@@ -247,15 +236,9 @@ def kpi_events(limit: int = 200, event: str = None, authorization: str | None = 
     con = _db()
     cur = con.cursor()
     if event:
-        cur.execute("""
-          SELECT ts_utc, session_id, event, payload_json, path, ip
-          FROM kpi_events WHERE event = ? ORDER BY id DESC LIMIT ?;
-        """, (event, limit))
+        cur.execute("SELECT ts_utc, session_id, event, payload_json, path, ip FROM kpi_events WHERE event = ? ORDER BY id DESC LIMIT ?;", (event, limit))
     else:
-        cur.execute("""
-          SELECT ts_utc, session_id, event, payload_json, path, ip
-          FROM kpi_events ORDER BY id DESC LIMIT ?;
-        """, (limit,))
+        cur.execute("SELECT ts_utc, session_id, event, payload_json, path, ip FROM kpi_events ORDER BY id DESC LIMIT ?;", (limit,))
     rows = []
     for ts, sid, ev, pj, path, ip in cur.fetchall():
         try:
@@ -295,10 +278,8 @@ def kpi_reset_month(data: ResetMonthIn, authorization: str | None = Header(defau
             raise ValueError()
     except:
         raise HTTPException(400, "Format invalide (YYYY-MM)")
-    
     start = f"{year}-{month:02d}-01"
     end = f"{year}-{month+1:02d}-01" if month < 12 else f"{year+1}-01-01"
-    
     con = _db()
     cur = con.cursor()
     cur.execute("SELECT COUNT(*) FROM kpi_events WHERE ts_utc >= ? AND ts_utc < ?", (start, end))
@@ -323,86 +304,99 @@ async def export_localzip(data: ExportZipIn):
         pdf_bytes = base64.b64decode(data.pdf_base64)
     except:
         raise HTTPException(400, "PDF base64 invalide")
-    
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("rapport_configuration.pdf", pdf_bytes)
     zip_buffer.seek(0)
-    
     return Response(content=zip_buffer.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="{data.zip_name}"'})
 
 @app.get("/export/test")
 def export_test():
-    return {"ok": True, "frontend": FRONTEND_DIST, "data": DATA_DIR}
+    return {
+        "ok": True, 
+        "frontend_dist": FRONTEND_DIST, 
+        "frontend_exists": os.path.isdir(FRONTEND_DIST),
+        "data_dir": DATA_DIR,
+        "data_exists": os.path.isdir(DATA_DIR)
+    }
 
 # ============================================================
-# STATIC FILES - FRONTEND
+# STATIC FILES - MOUNT CONDITIONALLY
 # ============================================================
+
+# Log des chemins
+print(f"📁 BASE_DIR: {BASE_DIR}")
+print(f"📁 FRONTEND_DIST: {FRONTEND_DIST} (exists: {os.path.isdir(FRONTEND_DIST)})")
+print(f"📁 DATA_DIR: {DATA_DIR} (exists: {os.path.isdir(DATA_DIR)})")
 
 # Servir les données CSV
 if os.path.isdir(DATA_DIR):
     app.mount("/data", StaticFiles(directory=DATA_DIR), name="data")
-    print(f"✅ Data directory: {DATA_DIR}")
-else:
-    print(f"⚠️  Data directory not found: {DATA_DIR}")
+    print("✅ /data mounted")
 
-# Servir le frontend buildé
+# Servir le frontend buildé (dist/)
 if os.path.isdir(FRONTEND_DIST):
-    # Assets (JS, CSS, images)
+    # Assets JS/CSS
     assets_dir = os.path.join(FRONTEND_DIST, "assets")
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+        print("✅ /assets mounted")
     
-    print(f"✅ Frontend directory: {FRONTEND_DIST}")
-    
-    # Page admin
+    # Page admin (chercher dans plusieurs endroits)
     @app.get("/admin")
     async def admin_page():
-        # Chercher admin.html dans plusieurs endroits
         candidates = [
             os.path.join(FRONTEND_DIST, "admin.html"),
             os.path.join(BASE_DIR, "frontend", "public", "admin.html"),
+            os.path.join(BASE_DIR, "frontend", "dist", "admin.html"),
         ]
         for p in candidates:
             if os.path.isfile(p):
                 return FileResponse(p)
         raise HTTPException(404, "admin.html not found")
     
-    # Catch-all pour SPA - DOIT ÊTRE EN DERNIER
+    # Route racine - servir index.html
+    @app.get("/")
+    async def root():
+        index = os.path.join(FRONTEND_DIST, "index.html")
+        if os.path.isfile(index):
+            return FileResponse(index)
+        raise HTTPException(404, "index.html not found")
+    
+    # Catch-all pour SPA (fichiers statiques ou index.html)
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str):
-        # Ne pas intercepter les routes API
-        if full_path.startswith(("api/", "data/", "export/", "health")):
+        # Ignorer les routes API
+        if full_path.startswith(("api/", "data/", "export/", "health", "assets/")):
             raise HTTPException(404)
         
-        # Fichier spécifique existe ?
+        # Fichier existe dans dist/ ?
         file_path = os.path.join(FRONTEND_DIST, full_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         
-        # Sinon retourner index.html (SPA)
+        # Sinon SPA fallback -> index.html
         index = os.path.join(FRONTEND_DIST, "index.html")
         if os.path.isfile(index):
             return FileResponse(index)
         
-        raise HTTPException(404, "index.html not found")
+        raise HTTPException(404)
+
+    print("✅ Frontend routes configured")
+
 else:
-    print(f"⚠️  Frontend not found: {FRONTEND_DIST}")
+    print(f"⚠️ Frontend dist not found at {FRONTEND_DIST}")
     
     @app.get("/")
     def no_frontend():
         return {"error": "Frontend not built", "expected": FRONTEND_DIST}
 
 # ============================================================
-# STARTUP LOG
+# STARTUP
 # ============================================================
-print(f"""
+print("""
 ============================================================
 🚀 Configurateur Comelit - Ready!
-============================================================
-📁 Frontend: {FRONTEND_DIST} ({'OK' if os.path.isdir(FRONTEND_DIST) else 'MISSING'})
-📁 Data: {DATA_DIR} ({'OK' if os.path.isdir(DATA_DIR) else 'MISSING'})
-🔐 Admin: {'Custom password' if ADMIN_PASSWORD != 'admin' else 'DEFAULT (change it!)'}
 ============================================================
 """)
