@@ -420,3 +420,67 @@ def export_test():
         "data_dir": DATA_DIR,
         "data_dir_exists": os.path.isdir(DATA_DIR),
     }
+
+
+# ============================================================
+# ✅ RESET KPI DU MOIS (POUR TESTS)
+# ============================================================
+class ResetMonthIn(BaseModel):
+    month: str = Field(..., description="Mois au format YYYY-MM", min_length=7, max_length=7)
+
+@app.delete("/api/kpi/reset-month")
+def kpi_reset_month(data: ResetMonthIn, authorization: str | None = Header(default=None)):
+    """
+    Supprime tous les événements KPI d'un mois donné.
+    ⚠️ Action irréversible - Usage: tests uniquement.
+    """
+    require_auth(authorization)
+    
+    # Valider le format du mois (YYYY-MM)
+    try:
+        parts = data.month.split("-")
+        if len(parts) != 2:
+            raise ValueError("Format invalide")
+        year = int(parts[0])
+        month = int(parts[1])
+        if year < 2020 or year > 2100:
+            raise ValueError("Année hors limites")
+        if month < 1 or month > 12:
+            raise ValueError("Mois invalide")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Format de mois invalide (attendu: YYYY-MM): {e}")
+    
+    # Calculer les bornes du mois
+    start_date = f"{year}-{month:02d}-01"
+    if month == 12:
+        end_date = f"{year + 1}-01-01"
+    else:
+        end_date = f"{year}-{month + 1:02d}-01"
+    
+    # Supprimer les événements
+    con = _db()
+    cur = con.cursor()
+    
+    # Compter avant suppression
+    cur.execute(
+        "SELECT COUNT(*) FROM kpi_events WHERE ts_utc >= ? AND ts_utc < ?",
+        (start_date, end_date)
+    )
+    count_before = int(cur.fetchone()[0] or 0)
+    
+    # Supprimer
+    cur.execute(
+        "DELETE FROM kpi_events WHERE ts_utc >= ? AND ts_utc < ?",
+        (start_date, end_date)
+    )
+    
+    con.commit()
+    con.close()
+    
+    return {
+        "success": True,
+        "month": data.month,
+        "deleted": count_before,
+        "message": f"{count_before} événement(s) supprimé(s) pour {data.month}"
+    }
+

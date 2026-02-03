@@ -4,7 +4,6 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Admin — Configurateur Comelit</title>
-  <meta name="robots" content="noindex, nofollow">
   <style>
     :root{
       --cosmos:#1C1F2B;
@@ -18,138 +17,6 @@
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
     body{margin:0;background:var(--bg);color:var(--cosmos);}
-    
-    /* ============================================================
-       LOGIN OVERLAY - BLOQUE TOUT
-       ============================================================ */
-    #loginOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(135deg, #1C1F2B 0%, #2d3348 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: opacity 0.3s ease, visibility 0.3s ease;
-    }
-    #loginOverlay.hidden {
-      opacity: 0;
-      visibility: hidden;
-      pointer-events: none;
-    }
-    .loginBox {
-      background: #fff;
-      border-radius: 24px;
-      padding: 40px;
-      width: 100%;
-      max-width: 400px;
-      box-shadow: 0 25px 80px rgba(0,0,0,0.3);
-      text-align: center;
-    }
-    .loginLogo {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 20px;
-      border-radius: 20px;
-      border: 2px solid var(--line);
-      background: #fff;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-    }
-    .loginLogo img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-    .loginTitle {
-      font-size: 24px;
-      font-weight: 950;
-      color: var(--cosmos);
-      margin-bottom: 8px;
-    }
-    .loginSubtitle {
-      color: var(--muted);
-      font-size: 14px;
-      margin-bottom: 30px;
-    }
-    .loginInput {
-      width: 100%;
-      padding: 14px 18px;
-      border: 2px solid var(--line);
-      border-radius: 14px;
-      font-size: 16px;
-      margin-bottom: 16px;
-      box-sizing: border-box;
-      transition: border-color 0.2s ease;
-    }
-    .loginInput:focus {
-      outline: none;
-      border-color: var(--green);
-    }
-    .loginBtn {
-      width: 100%;
-      padding: 14px 24px;
-      background: var(--green);
-      color: #fff;
-      border: none;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: 900;
-      cursor: pointer;
-      transition: transform 0.1s ease, box-shadow 0.2s ease;
-    }
-    .loginBtn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(0,188,112,0.3);
-    }
-    .loginBtn:active {
-      transform: translateY(0);
-    }
-    .loginBtn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
-    .loginError {
-      color: #DC2626;
-      font-size: 13px;
-      margin-top: 12px;
-      min-height: 20px;
-    }
-    .loginFooter {
-      margin-top: 30px;
-      padding-top: 20px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-    }
-    .securityBadge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
-      background: rgba(0,188,112,0.1);
-      border: 1px solid rgba(0,188,112,0.2);
-      border-radius: 20px;
-      font-size: 11px;
-      color: #065f46;
-    }
-    
-    /* ============================================================
-       ADMIN CONTENT (cache par defaut)
-       ============================================================ */
-    #adminContent {
-      display: none;
-    }
-    #adminContent.visible {
-      display: block;
-    }
-    
     header{
       position:sticky;top:0;z-index:5;
       background:linear-gradient(180deg,#fff,rgba(255,255,255,.92));
@@ -335,274 +202,248 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-
-<!-- ============================================================
-     LOGIN OVERLAY - BLOQUE TOUT LE CONTENU
-     ============================================================ -->
-<div id="loginOverlay">
-  <div class="loginBox">
-    <div class="loginLogo">
-      <img src="/assets/logo.png" onerror="this.parentElement.innerHTML='🔐'" alt="COMELIT">
-    </div>
-    <div class="loginTitle">Administration</div>
-    <div class="loginSubtitle">Configurateur Videosurveillance Comelit</div>
-    
-    <form id="loginForm">
-      <input 
-        type="password" 
-        id="loginPassword" 
-        class="loginInput" 
-        placeholder="Mot de passe administrateur"
-        autocomplete="current-password"
-        required
-      >
-      <button type="submit" id="loginBtn" class="loginBtn">
-        Se connecter
-      </button>
-    </form>
-    
-    <div id="loginError" class="loginError"></div>
-    
-    <div class="loginFooter">
-      <div class="securityBadge">
-        🔒 Connexion securisee
+<header>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo"><img src="/assets/logo.png" onerror="this.style.display='none'" alt="COMELIT"></div>
+        <div>
+          <div class="title">Admin Configurateur</div>
+          <div class="sub">Catalogues + KPI Metier</div>
+        </div>
       </div>
+      <div class="row">
+        <span id="authState" class="pill">Non connecte</span>
+        <button class="btn" id="btnLogout">Deconnexion</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tabBtn on" data-tab="catalog">Catalogues</button>
+      <button class="tabBtn" data-tab="kpi">KPI Metier</button>
+      <button class="tabBtn" data-tab="events">Evenements bruts</button>
     </div>
   </div>
-</div>
+</header>
 
-<!-- ============================================================
-     CONTENU ADMIN (CACHE PAR DEFAUT)
-     ============================================================ -->
-<div id="adminContent">
-  <header>
-    <div class="wrap">
-      <div class="topbar">
-        <div class="brand">
-          <div class="logo"><img src="/assets/logo.png" onerror="this.style.display='none'" alt="COMELIT"></div>
-          <div>
-            <div class="title">Admin Configurateur</div>
-            <div class="sub">Catalogues + KPI Metier</div>
-          </div>
-        </div>
-        <div class="row">
-          <span id="authState" class="pill ok">Connecte</span>
-          <button class="btn" id="btnLogout">Deconnexion</button>
-        </div>
-      </div>
-
-      <div class="tabs">
-        <button class="tabBtn on" data-tab="catalog">Catalogues</button>
-        <button class="tabBtn" data-tab="kpi">KPI Metier</button>
-        <button class="tabBtn" data-tab="events">Evenements bruts</button>
+<main class="wrap">
+  <!-- LOGIN -->
+  <div id="loginCard" class="card">
+    <div class="h">
+      <div>
+        <div class="h1">Connexion</div>
+        <div class="h2">Acces admin requis</div>
       </div>
     </div>
-  </header>
+    <div class="row">
+      <input id="pwd" class="in" type="password" placeholder="Mot de passe admin"/>
+      <button id="btnLogin" class="btn primary">Se connecter</button>
+      <span id="loginMsg" class="muted"></span>
+    </div>
+  </div>
 
-  <main class="wrap">
-    <!-- CATALOG -->
-    <section id="tab_catalog">
-      <div class="grid">
-        <div class="card">
-          <div class="h">
-            <div>
-              <div class="h1">Editeur de catalogues</div>
-              <div class="h2">Modification des donnees produits</div>
-            </div>
-            <div class="row">
-              <select id="catalogKind" class="in">
-                <option value="cameras">cameras</option>
-                <option value="nvrs">nvrs</option>
-                <option value="hdds">hdds</option>
-                <option value="switches">switches</option>
-                <option value="accessories">accessories</option>
-                <option value="screens">screens</option>
-                <option value="enclosures">enclosures</option>
-                <option value="signage">signage</option>
-              </select>
-              <button id="btnLoad" class="btn">Charger</button>
-              <button id="btnAddRow" class="btn">+ Ligne</button>
-              <button id="btnSave" class="btn primary">Enregistrer</button>
-            </div>
-          </div>
-
-          <div id="catMeta" class="muted"></div>
-          <div class="sep"></div>
-
-          <div class="tableWrap">
-            <table id="catTable">
-              <thead><tr id="catHead"></tr></thead>
-              <tbody id="catBody"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="h">
-            <div>
-              <div class="h1">Guide</div>
-              <div class="h2">Conseils d'utilisation</div>
-            </div>
-          </div>
-          <ul class="list">
-            <li><span>Cameras</span><span class="pill">Principal</span></li>
-            <li><span>NVRs</span><span class="pill">Enregistreurs</span></li>
-            <li><span>HDDs</span><span class="pill">Stockage</span></li>
-            <li><span>Switches</span><span class="pill">Reseau</span></li>
-            <li><span>Accessories</span><span class="pill">Supports</span></li>
-          </ul>
-          <div class="sep"></div>
-          <div class="muted">
-            Modifiez les donnees puis cliquez sur "Enregistrer". Les modifications sont immediates.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- KPI METIER -->
-    <section id="tab_kpi" class="hidden">
-      <!-- Selecteur de mois -->
-      <div class="row" style="margin-bottom:14px;justify-content:space-between">
-        <div class="monthSelector">
-          <button id="btnPrevMonth">&larr;</button>
-          <span id="currentMonth">Janvier 2025</span>
-          <button id="btnNextMonth">&rarr;</button>
-        </div>
-        <div class="row">
-          <button id="btnRefreshKpi" class="btn">Rafraichir</button>
-          <button id="btnExportKpi" class="btn primary">Exporter CSV</button>
-          <button id="btnResetMonth" class="btn danger">Reset mois (tests)</button>
-        </div>
-      </div>
-
-      <!-- KPIs principaux -->
-      <div class="kpiGrid" style="margin-bottom:14px">
-        <div class="kpiTile">
-          <div class="kpiLabel">Configurations generees</div>
-          <div id="kpiConfigs" class="kpiVal">--</div>
-          <div id="kpiConfigsTrend" class="kpiTrend"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiLabel">Cameras configurees</div>
-          <div id="kpiCameras" class="kpiVal">--</div>
-          <div id="kpiCamerasTrend" class="kpiTrend"></div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiLabel">Camera moyenne/config</div>
-          <div id="kpiAvgCam" class="kpiVal">--</div>
-        </div>
-        <div class="kpiTile">
-          <div class="kpiLabel">Sessions uniques</div>
-          <div id="kpiSessions" class="kpiVal">--</div>
-        </div>
-      </div>
-
-      <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
-        <!-- Graphique evolution mensuelle -->
-        <div class="card">
-          <div class="chartTitle">Evolution des configurations (12 derniers mois)</div>
-          <div style="height:250px">
-            <canvas id="chartConfigs"></canvas>
-          </div>
-        </div>
-
-        <!-- Graphique cameras par type -->
-        <div class="card">
-          <div class="chartTitle">Repartition par type de site</div>
-          <div style="height:250px">
-            <canvas id="chartSiteTypes"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <!-- Top cameras -->
-        <div class="card">
-          <div class="h">
-            <div>
-              <div class="h1">Top 10 Cameras</div>
-              <div class="h2">References les plus configurees</div>
-            </div>
-          </div>
-          <ul id="topCameras" class="list"></ul>
-        </div>
-
-        <!-- Top NVR -->
-        <div class="card">
-          <div class="h">
-            <div>
-              <div class="h1">Top NVR</div>
-              <div class="h2">Enregistreurs recommandes</div>
-            </div>
-          </div>
-          <ul id="topNvrs" class="list"></ul>
-        </div>
-
-        <!-- Repartition gammes -->
-        <div class="card">
-          <div class="h">
-            <div>
-              <div class="h1">Gammes produits</div>
-              <div class="h2">Repartition des ventes</div>
-            </div>
-          </div>
-          <ul id="topRanges" class="list"></ul>
-        </div>
-      </div>
-
-      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
-        <!-- Configs par jour de semaine -->
-        <div class="card">
-          <div class="chartTitle">Activite par jour de la semaine</div>
-          <div style="height:200px">
-            <canvas id="chartWeekday"></canvas>
-          </div>
-        </div>
-
-        <!-- Objectifs DORI -->
-        <div class="card">
-          <div class="h">
-            <div>
-              <div class="h1">Objectifs DORI</div>
-              <div class="h2">Repartition des besoins</div>
-            </div>
-          </div>
-          <ul id="topObjectives" class="list"></ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- EVENTS BRUTS -->
-    <section id="tab_events" class="hidden">
+  <!-- CATALOG -->
+  <section id="tab_catalog">
+    <div class="grid">
       <div class="card">
         <div class="h">
           <div>
-            <div class="h1">Evenements bruts</div>
-            <div class="h2">Debug et analyse detaillee</div>
+            <div class="h1">Editeur de catalogues</div>
+            <div class="h2">Modification des donnees produits</div>
           </div>
           <div class="row">
-            <select id="kpiLimit" class="in">
-              <option value="50">50</option>
-              <option value="200" selected>200</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
+            <select id="catalogKind" class="in">
+              <option value="cameras">cameras</option>
+              <option value="nvrs">nvrs</option>
+              <option value="hdds">hdds</option>
+              <option value="switches">switches</option>
+              <option value="accessories">accessories</option>
+              <option value="screens">screens</option>
+              <option value="enclosures">enclosures</option>
+              <option value="signage">signage</option>
             </select>
-            <select id="kpiEventType" class="in">
-              <option value="">Tous les events</option>
-              <option value="compute_project">compute_project</option>
-              <option value="validate_camera">validate_camera</option>
-              <option value="nav_next">nav_next</option>
-              <option value="export_pdf">export_pdf</option>
-            </select>
-            <button id="btnLoadEvents" class="btn">Charger</button>
+            <button id="btnLoad" class="btn">Charger</button>
+            <button id="btnAddRow" class="btn">+ Ligne</button>
+            <button id="btnSave" class="btn primary">Enregistrer</button>
           </div>
         </div>
+
+        <div id="catMeta" class="muted"></div>
         <div class="sep"></div>
-        <div id="kpiEvents" class="muted" style="max-height:500px;overflow:auto"></div>
+
+        <div class="tableWrap">
+          <table id="catTable">
+            <thead><tr id="catHead"></tr></thead>
+            <tbody id="catBody"></tbody>
+          </table>
+        </div>
       </div>
-    </section>
-  </main>
-</div>
+
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Guide</div>
+            <div class="h2">Conseils d'utilisation</div>
+          </div>
+        </div>
+        <ul class="list">
+          <li><span>Cameras</span><span class="pill">Principal</span></li>
+          <li><span>NVRs</span><span class="pill">Enregistreurs</span></li>
+          <li><span>HDDs</span><span class="pill">Stockage</span></li>
+          <li><span>Switches</span><span class="pill">Reseau</span></li>
+          <li><span>Accessories</span><span class="pill">Supports</span></li>
+        </ul>
+        <div class="sep"></div>
+        <div class="muted">
+          Modifiez les donnees puis cliquez sur "Enregistrer". Les modifications sont immediates.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI METIER -->
+  <section id="tab_kpi" class="hidden">
+    <!-- Selecteur de mois -->
+    <div class="row" style="margin-bottom:14px;justify-content:space-between">
+      <div class="monthSelector">
+        <button id="btnPrevMonth">&larr;</button>
+        <span id="currentMonth">Janvier 2025</span>
+        <button id="btnNextMonth">&rarr;</button>
+      </div>
+      <div class="row">
+        <button id="btnRefreshKpi" class="btn">Rafraichir</button>
+        <button id="btnExportKpi" class="btn primary">Exporter CSV</button>
+        <button id="btnResetMonth" class="btn danger">Reset mois (tests)</button>
+      </div>
+    </div>
+
+    <!-- KPIs principaux -->
+    <div class="kpiGrid" style="margin-bottom:14px">
+      <div class="kpiTile">
+        <div class="kpiLabel">Configurations generees</div>
+        <div id="kpiConfigs" class="kpiVal">--</div>
+        <div id="kpiConfigsTrend" class="kpiTrend"></div>
+      </div>
+      <div class="kpiTile">
+        <div class="kpiLabel">Cameras configurees</div>
+        <div id="kpiCameras" class="kpiVal">--</div>
+        <div id="kpiCamerasTrend" class="kpiTrend"></div>
+      </div>
+      <div class="kpiTile">
+        <div class="kpiLabel">Camera moyenne/config</div>
+        <div id="kpiAvgCam" class="kpiVal">--</div>
+      </div>
+      <div class="kpiTile">
+        <div class="kpiLabel">Sessions uniques</div>
+        <div id="kpiSessions" class="kpiVal">--</div>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+      <!-- Graphique evolution mensuelle -->
+      <div class="card">
+        <div class="chartTitle">Evolution des configurations (12 derniers mois)</div>
+        <div style="height:250px">
+          <canvas id="chartConfigs"></canvas>
+        </div>
+      </div>
+
+      <!-- Graphique cameras par type -->
+      <div class="card">
+        <div class="chartTitle">Repartition par type de site</div>
+        <div style="height:250px">
+          <canvas id="chartSiteTypes"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+      <!-- Top cameras -->
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Top 10 Cameras</div>
+            <div class="h2">References les plus configurees</div>
+          </div>
+        </div>
+        <ul id="topCameras" class="list"></ul>
+      </div>
+
+      <!-- Top NVR -->
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Top NVR</div>
+            <div class="h2">Enregistreurs recommandes</div>
+          </div>
+        </div>
+        <ul id="topNvrs" class="list"></ul>
+      </div>
+
+      <!-- Repartition gammes -->
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Gammes produits</div>
+            <div class="h2">Repartition des ventes</div>
+          </div>
+        </div>
+        <ul id="topRanges" class="list"></ul>
+      </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
+      <!-- Configs par jour de semaine -->
+      <div class="card">
+        <div class="chartTitle">Activite par jour de la semaine</div>
+        <div style="height:200px">
+          <canvas id="chartWeekday"></canvas>
+        </div>
+      </div>
+
+      <!-- Objectifs DORI -->
+      <div class="card">
+        <div class="h">
+          <div>
+            <div class="h1">Objectifs DORI</div>
+            <div class="h2">Repartition des besoins</div>
+          </div>
+        </div>
+        <ul id="topObjectives" class="list"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVENTS BRUTS -->
+  <section id="tab_events" class="hidden">
+    <div class="card">
+      <div class="h">
+        <div>
+          <div class="h1">Evenements bruts</div>
+          <div class="h2">Debug et analyse detaillee</div>
+        </div>
+        <div class="row">
+          <select id="kpiLimit" class="in">
+            <option value="50">50</option>
+            <option value="200" selected>200</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+          </select>
+          <select id="kpiEventType" class="in">
+            <option value="">Tous les events</option>
+            <option value="compute_project">compute_project</option>
+            <option value="validate_camera">validate_camera</option>
+            <option value="nav_next">nav_next</option>
+            <option value="export_pdf">export_pdf</option>
+          </select>
+          <button id="btnLoadEvents" class="btn">Charger</button>
+        </div>
+      </div>
+      <div class="sep"></div>
+      <div id="kpiEvents" class="muted" style="max-height:500px;overflow:auto"></div>
+    </div>
+  </section>
+</main>
 
 <script>
 (() => {
@@ -622,32 +463,16 @@
   let chartWeekday = null;
 
   // ==================== AUTH ====================
-  function showAdmin() {
-    $("#loginOverlay").classList.add("hidden");
-    $("#adminContent").classList.add("visible");
-  }
-  
-  function hideAdmin() {
-    $("#loginOverlay").classList.remove("hidden");
-    $("#adminContent").classList.remove("visible");
-  }
-  
-  function checkAuth() {
-    if (token) {
-      // Verifier que le token est encore valide avec un appel API
-      api("/api/kpi/summary")
-        .then(() => {
-          showAdmin();
-          initAdminContent();
-        })
-        .catch(() => {
-          // Token invalide ou expire
-          token = "";
-          localStorage.removeItem(LS_TOKEN);
-          hideAdmin();
-        });
+  function setAuthUI(){
+    const st = $("#authState");
+    if(token){
+      st.textContent = "Connecte";
+      st.classList.add("ok");
+      $("#loginCard").classList.add("hidden");
     } else {
-      hideAdmin();
+      st.textContent = "Non connecte";
+      st.classList.remove("ok");
+      $("#loginCard").classList.remove("hidden");
     }
   }
 
@@ -664,58 +489,6 @@
     return await res.text();
   }
 
-  // ==================== LOGIN FORM ====================
-  $("#loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    
-    const btn = $("#loginBtn");
-    const errorDiv = $("#loginError");
-    const pwd = $("#loginPassword").value;
-    
-    errorDiv.textContent = "";
-    btn.disabled = true;
-    btn.textContent = "Connexion...";
-    
-    try {
-      const out = await api("/api/login", {
-        method: "POST", 
-        body: JSON.stringify({password: pwd}),
-        headers: {}
-      });
-      
-      token = out.token;
-      localStorage.setItem(LS_TOKEN, token);
-      
-      showAdmin();
-      initAdminContent();
-      
-    } catch(e) {
-      errorDiv.textContent = "Mot de passe incorrect";
-      $("#loginPassword").value = "";
-      $("#loginPassword").focus();
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "Se connecter";
-    }
-  });
-
-  // ==================== LOGOUT ====================
-  $("#btnLogout").addEventListener("click", () => {
-    token = "";
-    localStorage.removeItem(LS_TOKEN);
-    hideAdmin();
-    $("#loginPassword").value = "";
-  });
-
-  // ==================== INIT ADMIN CONTENT ====================
-  function initAdminContent() {
-    // Charger le premier catalogue
-    $("#btnLoad").click();
-    // Rafraichir les KPIs
-    updateMonthDisplay();
-    refreshKpiMetier();
-  }
-
   // ==================== TABS ====================
   $$(".tabBtn").forEach(b => b.addEventListener("click", () => {
     $$(".tabBtn").forEach(x => x.classList.remove("on"));
@@ -727,6 +500,26 @@
     
     if(tab === "kpi") refreshKpiMetier();
   }));
+
+  // ==================== LOGIN ====================
+  $("#btnLogin").addEventListener("click", async () => {
+    $("#loginMsg").textContent = "";
+    try{
+      const pwd = $("#pwd").value || "";
+      const out = await api("/api/login", {method:"POST", body: JSON.stringify({password: pwd}) , headers:{}});
+      token = out.token;
+      localStorage.setItem(LS_TOKEN, token);
+      setAuthUI();
+    }catch(e){
+      $("#loginMsg").textContent = "Erreur: " + (e?.message || e);
+    }
+  });
+
+  $("#btnLogout").addEventListener("click", () => {
+    token = "";
+    localStorage.removeItem(LS_TOKEN);
+    setAuthUI();
+  });
 
   // ==================== CATALOG ====================
   function renderTable(){
@@ -831,23 +624,28 @@
 
   async function refreshKpiMetier(){
     try {
+      // Recuperer les donnees KPI
       const year = currentMonth.getFullYear();
       const month = currentMonth.getMonth() + 1;
       
       const summary = await api("/api/kpi/summary");
       const events = await api(`/api/kpi/events?limit=5000`);
       
+      // Filtrer par mois
       const monthStr = `${year}-${String(month).padStart(2,'0')}`;
       const monthEvents = (events.rows || []).filter(e => 
         (e.ts_utc || "").startsWith(monthStr)
       );
       
+      // Calculer les KPIs
       const computeEvents = monthEvents.filter(e => e.event === "compute_project");
       const validateEvents = monthEvents.filter(e => e.event === "validate_camera");
       
+      // Nombre de configurations
       const nbConfigs = computeEvents.length;
       $("#kpiConfigs").textContent = nbConfigs;
       
+      // Nombre total de cameras
       let totalCameras = 0;
       const cameraCount = {};
       const nvrCount = {};
@@ -860,21 +658,26 @@
         const p = e.payload || {};
         sessions.add(p.sid || e.session_id);
         
+        // Cameras
         const camQty = Number(p.cam_total_qty) || 0;
         totalCameras += camQty;
         
+        // Type de site
         const siteType = p.config_type || "Autre";
         siteTypeCount[siteType] = (siteTypeCount[siteType] || 0) + 1;
         
+        // NVR
         if(p.nvr_id){
           nvrCount[p.nvr_id] = (nvrCount[p.nvr_id] || 0) + 1;
         }
         
+        // Cameras detail
         (p.cameras || []).forEach(cam => {
           const id = cam.id || "?";
           const qty = Number(cam.qty) || 1;
           cameraCount[id] = (cameraCount[id] || 0) + qty;
           
+          // Extraire la gamme du nom/id
           const range = id.includes("NEXT") ? "NEXT" : 
                         id.includes("ADVANCE") ? "ADVANCE" : 
                         id.includes("EASY") ? "EASY" : "Autre";
@@ -882,15 +685,31 @@
         });
       });
       
+      // Objectifs depuis validate_camera
+      validateEvents.forEach(e => {
+        const p = e.payload || {};
+        (p.cameras || []).forEach(cam => {
+          // On essaie de trouver l'objectif dans les donnees
+        });
+      });
+      
       $("#kpiCameras").textContent = totalCameras;
       $("#kpiAvgCam").innerHTML = nbConfigs > 0 ? (totalCameras / nbConfigs).toFixed(1) + "<small> cam/config</small>" : "--";
       $("#kpiSessions").textContent = sessions.size;
       
+      // Top cameras
       renderTopList("#topCameras", cameraCount, 10);
+      
+      // Top NVR
       renderTopList("#topNvrs", nvrCount, 5);
+      
+      // Gammes
       renderTopList("#topRanges", rangeCount, 5);
+      
+      // Objectifs
       renderTopList("#topObjectives", objectiveCount, 5);
       
+      // Graphiques
       renderCharts(summary, siteTypeCount, monthEvents);
       
     } catch(e) {
@@ -923,6 +742,7 @@
   }
 
   function renderCharts(summary, siteTypeCount, monthEvents){
+    // Chart 1: Evolution mensuelle
     const byDay = summary.by_day || [];
     const last12Months = {};
     const now = new Date();
@@ -966,6 +786,7 @@
       }
     });
     
+    // Chart 2: Types de site
     const siteLabels = Object.keys(siteTypeCount);
     const siteData = Object.values(siteTypeCount);
     
@@ -988,7 +809,8 @@
       });
     }
     
-    const weekdayCount = [0,0,0,0,0,0,0];
+    // Chart 3: Jours de la semaine
+    const weekdayCount = [0,0,0,0,0,0,0]; // Dim-Sam
     monthEvents.forEach(e => {
       const d = new Date(e.ts_utc);
       if(!isNaN(d)) weekdayCount[d.getDay()]++;
@@ -1018,6 +840,7 @@
   $("#btnRefreshKpi").addEventListener("click", () => refreshKpiMetier());
 
   $("#btnExportKpi").addEventListener("click", async () => {
+    if(!token){ alert("Connecte-toi d'abord"); return; }
     try{
       const res = await fetch("/api/kpi/export.csv", {headers: {"Authorization":"Bearer "+token}});
       if(!res.ok) throw new Error("HTTP " + res.status);
@@ -1029,57 +852,6 @@
       setTimeout(()=>URL.revokeObjectURL(url), 2500);
     }catch(e){
       alert("Export error: " + (e?.message||e));
-    }
-  });
-
-  // ==================== RESET MOIS ====================
-  $("#btnResetMonth").addEventListener("click", async () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth() + 1;
-    const monthNames = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
-    const monthName = monthNames[month - 1] + " " + year;
-    
-    const confirm1 = confirm(
-      "ATTENTION - SUPPRESSION DEFINITIVE\n\n" +
-      "Tu vas supprimer TOUS les evenements KPI du mois de " + monthName + ".\n\n" +
-      "Cette action est IRREVERSIBLE.\n\n" +
-      "Continuer ?"
-    );
-    
-    if(!confirm1) return;
-    
-    const confirm2 = prompt(
-      "Pour confirmer, tape le mois en cours :\n" + monthName + "\n\n" +
-      "(Ceci est une mesure de securite)"
-    );
-    
-    if(confirm2 !== monthName){
-      alert("Confirmation incorrecte. Suppression annulee.");
-      return;
-    }
-    
-    try {
-      const btn = $("#btnResetMonth");
-      btn.disabled = true;
-      btn.textContent = "Suppression...";
-      
-      const monthStr = year + "-" + String(month).padStart(2, "0");
-      
-      const res = await api("/api/kpi/reset-month", {
-        method: "DELETE",
-        body: JSON.stringify({ month: monthStr })
-      });
-      
-      alert("Suppression terminee !\n\n" + (res.message || res.deleted + " evenements supprimes"));
-      
-      refreshKpiMetier();
-      
-    } catch(e) {
-      alert("Erreur lors de la suppression :\n" + (e?.message || e));
-    } finally {
-      const btn = $("#btnResetMonth");
-      btn.disabled = false;
-      btn.textContent = "Reset mois (tests)";
     }
   });
 
@@ -1109,8 +881,73 @@
     }).join("") || "<div class='muted'>Aucun event.</div>";
   });
 
+  // ==================== RESET MOIS (TESTS) ====================
+  $("#btnResetMonth").addEventListener("click", async () => {
+    if(!token){ 
+      alert("Connecte-toi d'abord"); 
+      return; 
+    }
+    
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth() + 1;
+    const monthNames = ["Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet","Aout","Septembre","Octobre","Novembre","Decembre"];
+    const monthName = monthNames[month - 1] + " " + year;
+    
+    // Double confirmation
+    const confirm1 = confirm(
+      "ATTENTION - SUPPRESSION DEFINITIVE\\n\\n" +
+      "Tu vas supprimer TOUS les evenements KPI du mois de " + monthName + ".\\n\\n" +
+      "Cette action est IRREVERSIBLE.\\n\\n" +
+      "Continuer ?"
+    );
+    
+    if(!confirm1) return;
+    
+    const confirm2 = prompt(
+      "Pour confirmer, tape le mois en cours :\\n" + monthName + "\\n\\n" +
+      "(Ceci est une mesure de securite)"
+    );
+    
+    if(confirm2 !== monthName){
+      alert("Confirmation incorrecte. Suppression annulee.");
+      return;
+    }
+    
+    try {
+      const btn = $("#btnResetMonth");
+      btn.disabled = true;
+      btn.textContent = "Suppression...";
+      
+      // Appel API pour supprimer les events du mois
+      const monthStr = year + "-" + String(month).padStart(2, "0");
+      
+      const res = await api("/api/kpi/reset-month", {
+        method: "DELETE",
+        body: JSON.stringify({ month: monthStr })
+      });
+      
+      alert("Suppression terminee !\\n\\n" + (res.message || res.deleted + " evenements supprimes"));
+      
+      // Rafraichir les KPIs
+      refreshKpiMetier();
+      
+    } catch(e) {
+      alert("Erreur lors de la suppression :\\n" + (e?.message || e));
+    } finally {
+      const btn = $("#btnResetMonth");
+      btn.disabled = false;
+      btn.textContent = "Reset mois (tests)";
+    }
+  });
+
   // ==================== INIT ====================
-  checkAuth();
+  setAuthUI();
+  updateMonthDisplay();
+
+  if(token){
+    $("#btnLoad").click();
+    refreshKpiMetier();
+  }
 })();
 </script>
 </body>

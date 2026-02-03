@@ -4716,7 +4716,14 @@ function camPickCardHTML(blk, cam, label) {
   const ir = cam.ir_range_m || "—";
   const ip = cam.ip ? `IP${cam.ip}` : "";
   const ik = cam.ik ? `IK${cam.ik}` : "";
-  const hasAI = cam.ai_features || cam.analytics_level;
+  const getAILabel = (cam) => {
+    if (!cam.ai_features && !cam.analytics_level) return null;
+    const range = String(cam.brand_range || "").toUpperCase();
+    if (range.includes("NEXT")) return "IA Intrusion";
+    if (range.includes("ADVANCE")) return "IA Avancée";
+    return "IA";
+  };
+  const aiLabel = getAILabel(cam);
 
   // Message court et clair
   const shortMessage = interp.level === "ok" 
@@ -4761,8 +4768,7 @@ function camPickCardHTML(blk, cam, label) {
             <span class="badgePill">IR ${ir}m</span>
             ${ip ? `<span class="badgePill">${ip}</span>` : ""}
             ${ik ? `<span class="badgePill">${ik}</span>` : ""}
-            ${hasAI ? `<span class="badgePill" style="background:rgba(0,188,112,.1);border-color:rgba(0,188,112,.3)">🤖 IA</span>` : ""}
-            ${isValidated ? `<span class="badgePill" style="background:rgba(0,188,112,.15);border-color:rgba(0,188,112,.4);color:#065f46">✓ Sélectionnée</span>` : ""}
+            ${aiLabel ? `<span class="badgePill" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);color:#4338ca">🤖 ${aiLabel}</span>` : ""}            ${isValidated ? `<span class="badgePill" style="background:rgba(0,188,112,.15);border-color:rgba(0,188,112,.4);color:#065f46">✓ Sélectionnée</span>` : ""}
           </div>
 
           <!-- Actions -->
@@ -4861,63 +4867,80 @@ function camPickCardHTML(blk, cam, label) {
 
           <div class="kv" style="margin-top:12px">
             <div>
-              <strong>Emplacement <span style="color:#DC2626">*</span></strong>
-              <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="emplacement"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.emplacement ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
-                <option value="">— choisir —</option>
-                <option value="interieur" ${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>Intérieur</option>
-                <option value="exterieur" ${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>Extérieur</option>
+              <strong title="L'emplacement de votre ou vos caméras (Intérieur ou Extérieur)">
+                📍 Emplacement <span style="color:#DC2626">*</span>
+              </strong>
+              <select data-action="changeBlockField" data-bid="\${safeHtml(blk.id)}" data-field="emplacement"
+                title="Choisissez si la caméra sera installée en intérieur ou en extérieur"
+                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid \${ans.emplacement ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
+                <option value="">— Choisir l'emplacement —</option>
+                <option value="interieur" \${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>🏠 Intérieur</option>
+                <option value="exterieur" \${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>🌳 Extérieur</option>
               </select>
             </div>
 
             <div>
-              <strong>Objectif <span style="color:#DC2626">*</span></strong>
-              <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="objective"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.objective ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
-                <option value="">— choisir —</option>
-                <option value="dissuasion" ${ans.objective === "dissuasion" ? "selected" : ""}>Dissuasion</option>
-                <option value="detection" ${ans.objective === "detection" ? "selected" : ""}>Détection</option>
-                <option value="identification" ${ans.objective === "identification" ? "selected" : ""}>Identification</option>
+              <strong title="L'objectif de surveillance selon la norme DORI : que doit faire la caméra ? (Dissuader, Détecter ou Identifier)">
+                🎯 Objectif DORI <span style="color:#DC2626">*</span>
+              </strong>
+              <select data-action="changeBlockField" data-bid="\${safeHtml(blk.id)}" data-field="objective"
+                title="Dissuasion = voir qu'il y a quelqu'un | Détection = voir une silhouette | Identification = reconnaître un visage"
+                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid \${ans.objective ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
+                <option value="">— Choisir l'objectif —</option>
+                <option value="dissuasion" \${ans.objective === "dissuasion" ? "selected" : ""}>👁️ Dissuasion (voir une présence)</option>
+                <option value="detection" \${ans.objective === "detection" ? "selected" : ""}>🚶 Détection (voir une silhouette)</option>
+                <option value="identification" \${ans.objective === "identification" ? "selected" : ""}>🔍 Identification (reconnaître un visage)</option>
               </select>
             </div>
 
             <div>
-              <strong>Distance max (m) <span style="color:#DC2626">*</span></strong>
-              <input data-action="inputBlockField" data-bid="${safeHtml(blk.id)}" data-field="distance_m" type="number" min="1" max="999"
-                value="${safeHtml(ans.distance_m ?? "")}" placeholder="ex: 23"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.distance_m ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)" />
+              <strong title="Distance maximale entre la caméra et la zone à surveiller (en mètres)">
+                📏 Distance maximale (m) <span style="color:#DC2626">*</span>
+              </strong>
+              <input data-action="inputBlockField" data-bid="\${safeHtml(blk.id)}" data-field="distance_m" type="number" min="1" max="999"
+                value="\${safeHtml(ans.distance_m ?? "")}" placeholder="Ex: 15"
+                title="Indiquez la distance en mètres entre la caméra et le point le plus éloigné à surveiller"
+                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid \${ans.distance_m ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)" />
               <div class="muted" style="margin-top:6px">
-                DORI : ${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
+                Norme DORI : \${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
               </div>
             </div>
 
             <div>
-              <strong>Type de pose</strong>
-              <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="mounting"
+              <strong title="Comment la caméra sera-t-elle fixée ?">
+                🔧 Type de pose
+              </strong>
+              <select data-action="changeBlockField" data-bid="\${safeHtml(blk.id)}" data-field="mounting"
+                title="Mur = fixation murale | Plafond = fixation au plafond"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-                <option value="wall" ${ans.mounting === "wall" ? "selected" : ""}>Mur</option>
-                <option value="ceiling" ${ans.mounting === "ceiling" ? "selected" : ""}>Plafond</option>
+                <option value="wall" \${ans.mounting === "wall" ? "selected" : ""}>🧱 Mur</option>
+                <option value="ceiling" \${ans.mounting === "ceiling" ? "selected" : ""}>⬆️ Plafond</option>
               </select>
             </div>
 
             <div>
-              <strong>Quantité</strong>
-              <input data-action="inputBlockQty" data-bid="${safeHtml(blk.id)}" type="number" min="1" max="999"
-                value="${safeHtml(blk.qty ?? 1)}"
+              <strong title="Nombre de caméras identiques pour cette zone">
+                🔢 Quantité
+              </strong>
+              <input data-action="inputBlockQty" data-bid="\${safeHtml(blk.id)}" type="number" min="1" max="999"
+                value="\${safeHtml(blk.qty ?? 1)}"
+                title="Combien de caméras identiques souhaitez-vous pour cette configuration ?"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)" />
             </div>
 
             <div>
-              <strong>Qualité</strong>
-              <select data-action="changeBlockQuality" data-bid="${safeHtml(blk.id)}"
+              <strong title="Plus la qualité est élevée, plus l'image est nette mais plus l'espace de stockage nécessaire est important">
+                ⭐ Qualité d'image
+              </strong>
+              <select data-action="changeBlockQuality" data-bid="\${safeHtml(blk.id)}"
+                title="Économique = moins de stockage | Standard = bon compromis | Haute = meilleure qualité mais plus de stockage"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-                <option value="low" ${blk.quality === "low" ? "selected" : ""}>Low (éco)</option>
-                <option value="standard" ${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>Standard</option>
-                <option value="high" ${blk.quality === "high" ? "selected" : ""}>High (détails)</option>
+                <option value="low" \${blk.quality === "low" ? "selected" : ""}>💚 Économique</option>
+                <option value="standard" \${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>💛 Standard (recommandé)</option>
+                <option value="high" \${blk.quality === "high" ? "selected" : ""}>🔴 Haute définition</option>
               </select>
             </div>
           </div>
-
           <div class="reasons" style="margin-top:12px">
             ${
               canRecommendBlock(blk)
@@ -5459,58 +5482,80 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     
     return `
     <div style="margin-top:10px">
+    <div style="margin-top:10px">
       <div class="kv">
         <div>
-          <strong>Jours rétention</strong>
-          <input data-action="recDays" type="number" min="1" max="365" value="${rec.daysRetention}"
+          <strong title="Durée de conservation des enregistrements avant suppression automatique. La loi limite généralement à 30 jours maximum.">
+            📅 Jours de conservation
+          </strong>
+          <input data-action="recDays" type="number" min="1" max="30" value="\${rec.daysRetention}"
+            title="⚠️ La loi interdit généralement le stockage au-delà de 30 jours"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
+          <div class="muted" style="margin-top:4px;font-size:11px">⚖️ Maximum légal : 30 jours</div>
         </div>
+        
         <div>
-          <strong>Heures/jour</strong>
-          <input data-action="recHours" type="number" min="1" max="24" value="${rec.hoursPerDay}"
+          <strong title="Nombre d'heures d'enregistrement par jour. 24h = enregistrement permanent.">
+            ⏰ Heures par jour
+          </strong>
+          <input data-action="recHours" type="number" min="1" max="24" value="\${rec.hoursPerDay}"
+            title="24h = enregistrement en continu | Moins = économie de stockage"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
+          <div class="muted" style="margin-top:4px;font-size:11px">Par défaut : 24h</div>
         </div>
+        
         <div>
-          <strong>FPS</strong>
+          <strong title="Images par seconde. Plus le FPS est élevé, plus l'image est fluide mais plus le stockage nécessaire est important.">
+            🎬 Images/seconde (FPS)
+          </strong>
           <select data-action="recFps"
+            title="15 FPS = standard | 25 FPS = fluide (plus de stockage)"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            ${[10, 12, 15, 20, 25].map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v}</option>`).join("")}
+            \${[10, 12, 15, 20, 25].map((v) => \`<option value="\${v}" \${rec.fps === v ? "selected" : ""}>\${v} FPS\${v === 15 ? " (recommandé)" : ""}</option>\`).join("")}
           </select>
+          <div class="muted" style="margin-top:4px;font-size:11px">+ de FPS = + fluide = + de stockage</div>
         </div>
+        
         <div>
-          <strong>Codec</strong>
+          <strong title="Algorithme de compression vidéo. H.265 est plus efficace et économise ~40% de stockage par rapport à H.264.">
+            🗜️ Codec vidéo
+          </strong>
           <select data-action="recCodec"
+            title="H.265 = moderne, économise 40% de stockage | H.264 = compatible avec anciens équipements"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>H.265</option>
-            <option value="h264" ${rec.codec === "h264" ? "selected" : ""}>H.264</option>
+            <option value="h265" \${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé, -40% stockage)</option>
+            <option value="h264" \${rec.codec === "h264" ? "selected" : ""}>H.264 (compatible ancien)</option>
           </select>
         </div>
+        
         <div>
-          <strong>Mode</strong>
+          <strong title="Mode d'enregistrement : continu (permanent) ou sur détection de mouvement (économise le stockage).">
+            ⏺️ Mode d'enregistrement
+          </strong>
           <select data-action="recMode"
+            title="Continu = enregistre en permanence | Détection = enregistre uniquement quand il y a du mouvement"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            <option value="continuous" ${rec.mode === "continuous" ? "selected" : ""}>Continu</option>
-            <option value="motion" ${rec.mode === "motion" ? "selected" : ""}>Détection (approx.)</option>
+            <option value="continuous" \${rec.mode === "continuous" ? "selected" : ""}>⏺️ Continu (permanent)</option>
+            <option value="motion" \${rec.mode === "motion" ? "selected" : ""}>👁️ Sur détection (économique)</option>
           </select>
+          <div class="muted" style="margin-top:4px;font-size:11px">Détection ≈ -50% de stockage</div>
         </div>
+        
         <div>
-          <strong>Marge (%)</strong>
-          <input data-action="recOver" type="number" min="0" max="100" value="${rec.overheadPct}"
+          <strong title="Pourcentage de sécurité ajouté au calcul de stockage pour anticiper les imprévus.">
+            📊 Marge de sécurité (%)
+          </strong>
+          <input data-action="recOver" type="number" min="0" max="50" value="\${rec.overheadPct}"
+            title="Recommandé : 20% de marge pour anticiper les pics d'activité"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
+          <div class="muted" style="margin-top:4px;font-size:11px">Recommandé : 20%</div>
         </div>
       </div>
-      <div class="help" style="margin-top:10px">Les calculs se mettent à jour quand tu changes ces paramètres.</div>
+      
+      <div class="help" style="margin-top:12px;padding:10px;background:rgba(59,130,246,.05);border-radius:10px;border:1px solid rgba(59,130,246,.2)">
+        💡 <strong>Astuce :</strong> Passez la souris sur les titres pour plus d'explications.
+      </div>
     </div>
-
-    <div class="recoCard" style="margin-top:10px">
-      <div class="recoHeader">
-        <div>
-          <div class="recoName">Stockage calculé</div>
-          <div class="muted">${proj.totalCameras} caméras • ${proj.totalInMbps.toFixed(1)} Mbps</div>
-        </div>
-        <div class="score">HDD</div>
-      </div>
-
       <div class="kv">
         <div><strong>Stockage requis :</strong> ~${proj.requiredTB.toFixed(1)} TB</div>
         <div><strong>NVR :</strong> ${nvr ? safeHtml(`${nvr.id} — ${nvr.name}`) : "—"}</div>
@@ -5689,6 +5734,10 @@ function render() {
   bindSummaryButtons();
 
   syncResultsUI?.();
+  
+  // ✅ Mettre à jour les boutons de navigation (Précédent/Suivant)
+  updateNavButtons();
+  updateProgress();
 }
 
 // ==========================================================
@@ -7008,17 +7057,16 @@ bind(DOM.btnCompute, "click", () => {
 });
 
 // ✅ Bouton Précédent
-const btnPrevEl = document.getElementById("btnPrev");
-if (btnPrevEl) {
-  btnPrevEl.addEventListener("click", () => {
+    const btnPrevEl = document.getElementById("btnPrev");
+    if (btnPrevEl) {
+    btnPrevEl.addEventListener("click", () => {
     if (MODEL.stepIndex > 0) {
-      MODEL.stepIndex--;
-      render();
-      updateNavButtons();
-      try { KPI?.sendNowait?.("nav_prev", { step: STEPS[MODEL.stepIndex]?.id }); } catch {}
+    MODEL.stepIndex--;
+    render();
+    updateNavButtons();
     }
-  });
-}
+    });
+    }
 
 bind(DOM.btnReset, "click", () => {
   MODEL.cameraBlocks = [createEmptyCameraBlock()];

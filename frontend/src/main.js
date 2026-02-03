@@ -20,14 +20,14 @@ window.jsPDF = jsPDF;
     link.href = '/assets/logosmall.png';
     document.head.appendChild(link);
   }
-  document.title = 'Configurateur Vidéosurveillance - Comelit';
+  document.title = 'Configurateur Videosurveillance - Comelit';
 })();
 
 document.querySelector("#app").innerHTML = `
   <header class="appHeader appHeaderCentered">
     <div class="brandCenter" aria-label="COMELIT">
       <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
-      <div class="brandTitle">Configurateur Vidéosurveillance</div>
+      <div class="brandTitle">Configurateur Videosurveillance</div>
       <div class="brandTagline">With you always</div>
     </div>
 
@@ -40,9 +40,9 @@ document.querySelector("#app").innerHTML = `
 
     <div class="headerActions">
       <div class="headerActionsRight actions">
-        <button id="btnPrev" class="btn" type="button" title="Revenir à l'étape précédente" style="display:none">← Précédent</button>
+        <button id="btnPrev" class="btn" type="button" title="Revenir a l etape precedente" style="display:none">Precedent</button>
         <button id="btnReset" class="btn" type="button">Reset</button>
-        <button id="btnDemo" class="btn" type="button">Démo</button>
+        <button id="btnDemo" class="btn" type="button">Demo</button>
         <button id="btnCompute" class="btn primary" type="button">Suivant</button>
       </div>
     </div>
@@ -50,18 +50,18 @@ document.querySelector("#app").innerHTML = `
 
   <main class="appMain">
     <div id="mainGrid" class="appGrid">
-      <section class="card" aria-label="Étapes">
+      <section class="card" aria-label="Etapes">
         <div class="cardHeader">
-          <div class="cardTitle">Étapes</div>
+          <div class="cardTitle">Etapes</div>
           <div class="cardSubtitle">Choisis, valide, avance. Simple.</div>
         </div>
         <div id="steps" class="steps"></div>
       </section>
 
-      <aside id="resultCard" class="card hiddenCard" aria-label="Résultats">
+      <aside id="resultCard" class="card hiddenCard" aria-label="Resultats">
         <div class="cardHeader">
-          <div class="cardTitle">Résultats</div>
-          <div class="cardSubtitle">Visible à la fin (ou via "Afficher résultats").</div>
+          <div class="cardTitle">Resultats</div>
+          <div class="cardSubtitle">Visible a la fin (ou via Afficher resultats).</div>
         </div>
 
         <div class="resultsBody">
@@ -70,8 +70,8 @@ document.querySelector("#app").innerHTML = `
           </div>
 
           <div id="resultsEmpty" class="emptyState">
-            <div class="emptyTitle">Pas encore finalisé</div>
-            <div class="muted">Avance jusqu'à la dernière étape, puis "Finaliser".</div>
+            <div class="emptyTitle">Pas encore finalise</div>
+            <div class="muted">Avance jusqu a la derniere etape, puis Finaliser.</div>
           </div>
 
           <div id="results" class="hidden">
