@@ -20,48 +20,85 @@ window.jsPDF = jsPDF;
     link.href = '/assets/logosmall.png';
     document.head.appendChild(link);
   }
-  document.title = 'Configurateur Videosurveillance - Comelit';
+  document.title = 'Configurateur Vidéosurveillance - Comelit';
 })();
 
 document.querySelector("#app").innerHTML = `
   <header class="appHeader appHeaderCentered">
+    <!-- Logo et tagline -->
     <div class="brandCenter" aria-label="COMELIT">
       <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
-      <div class="brandTitle">Configurateur Videosurveillance</div>
+      <div class="brandTitle">Configurateur Vidéosurveillance</div>
       <div class="brandTagline">With you always</div>
     </div>
 
-    <div class="progressWrap" id="progressWrap" aria-label="Progression">
-      <div class="progressOuter" id="progressBarOuter">
-        <div class="progressBar" id="progressBar"></div>
-      </div>
-      <div class="progressText" id="progressText"></div>
-    </div>
-
+    <!-- Boutons d'action -->
     <div class="headerActions">
       <div class="headerActionsRight actions">
-        <button id="btnPrev" class="btn" type="button" title="Revenir a l etape precedente" style="display:none">Precedent</button>
-        <button id="btnReset" class="btn" type="button">Reset</button>
-        <button id="btnDemo" class="btn" type="button">Demo</button>
-        <button id="btnCompute" class="btn primary" type="button">Suivant</button>
+        <button id="btnPrev" class="btn btnSecondary" type="button" title="Revenir à l'étape précédente" style="display:none">
+          <span class="btnIcon">←</span>
+          <span class="btnLabel">Précédent</span>
+        </button>
+        <button id="btnReset" class="btn btnGhost" type="button">Réinitialiser</button>
+        <button id="btnDemo" class="btn btnGhost" type="button">Démo</button>
+        <button id="btnCompute" class="btn primary" type="button">
+          <span class="btnLabel">Suivant</span>
+          <span class="btnIcon">→</span>
+        </button>
       </div>
     </div>
   </header>
 
+  <!-- ✅ NOUVEAU : Bloc Stepper séparé avec titre -->
+  <div class="stepperSection">
+    <div class="stepperTitle" id="stepperTitle">Configuration</div>
+    <div class="stepperSubtitle" id="stepperSubtitle">Nom du projet (optionnel) + contexte.</div>
+    
+    <div class="stepperWrap" id="stepperWrap" aria-label="Progression">
+      <div class="stepper" id="stepper">
+        <div class="stepperStep" data-step="0">
+          <div class="stepperDot"><span>1</span></div>
+          <div class="stepperLabel">Projet</div>
+        </div>
+        <div class="stepperLine"></div>
+        <div class="stepperStep" data-step="1">
+          <div class="stepperDot"><span>2</span></div>
+          <div class="stepperLabel">Caméras</div>
+        </div>
+        <div class="stepperLine"></div>
+        <div class="stepperStep" data-step="2">
+          <div class="stepperDot"><span>3</span></div>
+          <div class="stepperLabel">Supports</div>
+        </div>
+        <div class="stepperLine"></div>
+        <div class="stepperStep" data-step="3">
+          <div class="stepperDot"><span>4</span></div>
+          <div class="stepperLabel">NVR</div>
+        </div>
+        <div class="stepperLine"></div>
+        <div class="stepperStep" data-step="4">
+          <div class="stepperDot"><span>5</span></div>
+          <div class="stepperLabel">Stockage</div>
+        </div>
+        <div class="stepperLine"></div>
+        <div class="stepperStep" data-step="5">
+          <div class="stepperDot"><span>6</span></div>
+          <div class="stepperLabel">Résumé</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <main class="appMain">
     <div id="mainGrid" class="appGrid">
-      <section class="card" aria-label="Etapes">
-        <div class="cardHeader">
-          <div class="cardTitle">Etapes</div>
-          <div class="cardSubtitle">Choisis, valide, avance. Simple.</div>
-        </div>
+      <section class="card cardMain" aria-label="Étapes">
         <div id="steps" class="steps"></div>
       </section>
 
-      <aside id="resultCard" class="card hiddenCard" aria-label="Resultats">
+      <aside id="resultCard" class="card hiddenCard" aria-label="Résultats">
         <div class="cardHeader">
-          <div class="cardTitle">Resultats</div>
-          <div class="cardSubtitle">Visible a la fin (ou via Afficher resultats).</div>
+          <div class="cardTitle">Résultats</div>
+          <div class="cardSubtitle">Visible à la fin (ou via Afficher résultats).</div>
         </div>
 
         <div class="resultsBody">
@@ -70,8 +107,8 @@ document.querySelector("#app").innerHTML = `
           </div>
 
           <div id="resultsEmpty" class="emptyState">
-            <div class="emptyTitle">Pas encore finalise</div>
-            <div class="muted">Avance jusqu a la derniere etape, puis Finaliser.</div>
+            <div class="emptyTitle">Pas encore finalisé</div>
+            <div class="muted">Avance jusqu'à la dernière étape, puis Finaliser.</div>
           </div>
 
           <div id="results" class="hidden">
@@ -82,6 +119,10 @@ document.querySelector("#app").innerHTML = `
       </aside>
     </div>
   </main>
+
+  <!-- Éléments cachés pour compatibilité -->
+  <div id="progressBar" style="display:none"></div>
+  <div id="progressText" style="display:none"></div>
 `;
 
 import("./app.js");
