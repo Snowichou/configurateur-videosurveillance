@@ -1089,9 +1089,9 @@ function buildPdfRootForExport(proj) {
   NVRS: [],
   HDDS: [],
   SWITCHES: [],
-  SCREENS: [],        // ✅ ajouté
-  ENCLOSURES: [],     // ✅ ajouté
-  SIGNAGE: [],        // ✅ panneaux de signalisation
+  SCREENS: [],        
+  ENCLOSURES: [],     
+  SIGNAGE: [],   
   ACCESSORIES_MAP: new Map(), // key = camera_id, value = mapping row
   };
 
@@ -1104,9 +1104,9 @@ function buildPdfRootForExport(proj) {
   accessoryLines: [],
 
   recording: {
-    daysRetention: 14,
+    daysRetention: 15,
     hoursPerDay: 24,
-    fps: 15,
+    fps: 25,
     codec: "h265",
     mode: "continuous",
     overheadPct: 20,
@@ -2673,7 +2673,7 @@ function getSelectedOrRecommendedEnclosure(proj) {
 
   const thumb = (imgUrl, alt) => {
     if (imgUrl) {
-      return `<div class="sumThumb"><img class="sumThumbImg" src="${safe(imgUrl)}" alt="${safe(alt || "")}"></div>`;
+      return `<div class="sumThumb"><img class="sumThumbImg" src="${safe(imgUrl)}" alt="${safe(alt || "")}" loading="lazy"></div>`;
     }
     return `<div class="sumThumb sumThumbPh">—</div>`;
   };
@@ -3103,7 +3103,7 @@ function imgTag(family, ref) {
 const headerHtml = (subtitle) => `
   <div class="pdfHeader">
     <div class="headerGrid">
-      <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit">
+      <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit" loading="lazy">
 
       <div class="headerTitles">
         <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
@@ -3784,7 +3784,7 @@ const buildSynopticHtml = (proj) => {
           <div class="synIcon">
             ${
               hasImg
-                ? `<img class="synImg" src="${imgSrc}" alt="">`
+                ? `<img class="synImg" src="${imgSrc}" alt="" loading="lazy">`
                 : `<div class="synImgPh"></div>`
             }
           </div>
@@ -3851,7 +3851,7 @@ const buildSynopticHtml = (proj) => {
       <div class="synBar" style="background:${COMELIT_BLUE}"></div>
       <div class="synInner synInnerNvr">
         <div class="synIcon synIconBig">
-          ${nvrImg ? `<img class="synImg" src="${nvrImg}" alt="">` : `<div class="synImgPh"></div>`}
+          ${nvrImg ? `<img class="synImg" src="${nvrImg}" alt="" loading="lazy">` : `<div class="synImgPh"></div>`}
         </div>
         <div class="synTxt">
           <div class="synT">NVR</div>
@@ -3861,7 +3861,7 @@ const buildSynopticHtml = (proj) => {
 
           <div class="synHddMini">
             <div class="synHddIcon">
-              ${hddImg ? `<img class="synImgMini" src="${hddImg}" alt="">` : `<div class="synImgPhMini"></div>`}
+              ${hddImg ? `<img class="synImgMini" src="${hddImg}" alt="" loading="lazy">` : `<div class="synImgPhMini"></div>`}
             </div>
             <div class="synHddTxt">${safe(hddLabel)}</div>
           </div>
@@ -3880,7 +3880,7 @@ const buildSynopticHtml = (proj) => {
         <div class="synCard" style="left:${pctX(screenX)}; top:${pctY(screenY)}; width:${pctW(320)}; height:${pctH(110)};">
           <div class="synInner">
             <div class="synIcon">
-              ${scrImg ? `<img class="synImg" src="${scrImg}" alt="">` : `<div class="synImgPh"></div>`}
+              ${scrImg ? `<img class="synImg" src="${scrImg}" alt="" loading="lazy">` : `<div class="synImgPh"></div>`}
             </div>
             <div class="synTxt">
               <div class="synT">Écran</div>
@@ -4870,12 +4870,12 @@ function camPickCardHTML(blk, cam, label) {
               <strong title="L'emplacement de votre ou vos caméras (Intérieur ou Extérieur)">
                 📍 Emplacement <span style="color:#DC2626">*</span>
               </strong>
-              <select data-action="changeBlockField" data-bid="\${safeHtml(blk.id)}" data-field="emplacement"
+              <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="emplacement"
                 title="Choisissez si la caméra sera installée en intérieur ou en extérieur"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid \${ans.emplacement ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
+                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.emplacement ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
                 <option value="">— Choisir l'emplacement —</option>
-                <option value="interieur" \${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>🏠 Intérieur</option>
-                <option value="exterieur" \${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>🌳 Extérieur</option>
+                <option value="interieur" ${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>🏠 Intérieur</option>
+                <option value="exterieur" ${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>🌳 Extérieur</option>
               </select>
             </div>
 
@@ -4883,13 +4883,13 @@ function camPickCardHTML(blk, cam, label) {
               <strong title="L'objectif de surveillance selon la norme DORI : que doit faire la caméra ? (Dissuader, Détecter ou Identifier)">
                 🎯 Objectif DORI <span style="color:#DC2626">*</span>
               </strong>
-              <select data-action="changeBlockField" data-bid="\${safeHtml(blk.id)}" data-field="objective"
+              <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="objective"
                 title="Dissuasion = voir qu'il y a quelqu'un | Détection = voir une silhouette | Identification = reconnaître un visage"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid \${ans.objective ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
+                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.objective ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
                 <option value="">— Choisir l'objectif —</option>
-                <option value="dissuasion" \${ans.objective === "dissuasion" ? "selected" : ""}>👁️ Dissuasion (voir une présence)</option>
-                <option value="detection" \${ans.objective === "detection" ? "selected" : ""}>🚶 Détection (voir une silhouette)</option>
-                <option value="identification" \${ans.objective === "identification" ? "selected" : ""}>🔍 Identification (reconnaître un visage)</option>
+                <option value="dissuasion" ${ans.objective === "dissuasion" ? "selected" : ""}>👁️ Dissuasion (voir une présence)</option>
+                <option value="detection" ${ans.objective === "detection" ? "selected" : ""}>🚶 Détection (voir une silhouette)</option>
+                <option value="identification" ${ans.objective === "identification" ? "selected" : ""}>🔍 Identification (reconnaître un visage)</option>
               </select>
             </div>
 
@@ -4897,12 +4897,12 @@ function camPickCardHTML(blk, cam, label) {
               <strong title="Distance maximale entre la caméra et la zone à surveiller (en mètres)">
                 📏 Distance maximale (m) <span style="color:#DC2626">*</span>
               </strong>
-              <input data-action="inputBlockField" data-bid="\${safeHtml(blk.id)}" data-field="distance_m" type="number" min="1" max="999"
-                value="\${safeHtml(ans.distance_m ?? "")}" placeholder="Ex: 15"
+              <input data-action="inputBlockField" data-bid="${safeHtml(blk.id)}" data-field="distance_m" type="number" min="1" max="999"
+                value="${safeHtml(ans.distance_m ?? "")}" placeholder="Ex: 15"
                 title="Indiquez la distance en mètres entre la caméra et le point le plus éloigné à surveiller"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid \${ans.distance_m ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)" />
+                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.distance_m ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)" />
               <div class="muted" style="margin-top:6px">
-                Norme DORI : \${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
+                Norme DORI : ${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
               </div>
             </div>
 
@@ -4910,11 +4910,11 @@ function camPickCardHTML(blk, cam, label) {
               <strong title="Comment la caméra sera-t-elle fixée ?">
                 🔧 Type de pose
               </strong>
-              <select data-action="changeBlockField" data-bid="\${safeHtml(blk.id)}" data-field="mounting"
+              <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="mounting"
                 title="Mur = fixation murale | Plafond = fixation au plafond"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-                <option value="wall" \${ans.mounting === "wall" ? "selected" : ""}>🧱 Mur</option>
-                <option value="ceiling" \${ans.mounting === "ceiling" ? "selected" : ""}>⬆️ Plafond</option>
+                <option value="wall" ${ans.mounting === "wall" ? "selected" : ""}>🧱 Mur</option>
+                <option value="ceiling" ${ans.mounting === "ceiling" ? "selected" : ""}>⬆️ Plafond</option>
               </select>
             </div>
 
@@ -4922,8 +4922,8 @@ function camPickCardHTML(blk, cam, label) {
               <strong title="Nombre de caméras identiques pour cette zone">
                 🔢 Quantité
               </strong>
-              <input data-action="inputBlockQty" data-bid="\${safeHtml(blk.id)}" type="number" min="1" max="999"
-                value="\${safeHtml(blk.qty ?? 1)}"
+              <input data-action="inputBlockQty" data-bid="${safeHtml(blk.id)}" type="number" min="1" max="999"
+                value="${safeHtml(blk.qty ?? 1)}"
                 title="Combien de caméras identiques souhaitez-vous pour cette configuration ?"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)" />
             </div>
@@ -4932,12 +4932,12 @@ function camPickCardHTML(blk, cam, label) {
               <strong title="Plus la qualité est élevée, plus l'image est nette mais plus l'espace de stockage nécessaire est important">
                 ⭐ Qualité d'image
               </strong>
-              <select data-action="changeBlockQuality" data-bid="\${safeHtml(blk.id)}"
+              <select data-action="changeBlockQuality" data-bid="${safeHtml(blk.id)}"
                 title="Économique = moins de stockage | Standard = bon compromis | Haute = meilleure qualité mais plus de stockage"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-                <option value="low" \${blk.quality === "low" ? "selected" : ""}>💚 Économique</option>
-                <option value="standard" \${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>💛 Standard (recommandé)</option>
-                <option value="high" \${blk.quality === "high" ? "selected" : ""}>🔴 Haute définition</option>
+                <option value="low" ${blk.quality === "low" ? "selected" : ""}>💚 Économique</option>
+                <option value="standard" ${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>💛 Standard (recommandé)</option>
+                <option value="high" ${blk.quality === "high" ? "selected" : ""}>🔴 Haute définition</option>
               </select>
             </div>
           </div>
@@ -5267,7 +5267,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
                   </div>
                 </div>
 
-                ${acc.image_url ? `<img src="${acc.image_url}" alt="" style="width:100px;height:80px;object-fit:cover;border-radius:12px;border:1px solid var(--line)">` : ""}
+                ${acc.image_url ? `<img src="${acc.image_url}" alt="" style="width:100px;height:80px;object-fit:cover;border-radius:12px;border:1px solid var(--line)" loading="lazy">` : ""}
               </div>
             </div>
           `
@@ -5488,7 +5488,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <strong title="Durée de conservation des enregistrements avant suppression automatique. La loi limite généralement à 30 jours maximum.">
             📅 Jours de conservation
           </strong>
-          <input data-action="recDays" type="number" min="1" max="30" value="\${rec.daysRetention}"
+          <input data-action="recDays" type="number" min="1" max="30" value="${rec.daysRetention}"
             title="⚠️ La loi interdit généralement le stockage au-delà de 30 jours"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
           <div class="muted" style="margin-top:4px;font-size:11px">⚖️ Maximum légal : 30 jours</div>
@@ -5498,7 +5498,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <strong title="Nombre d'heures d'enregistrement par jour. 24h = enregistrement permanent.">
             ⏰ Heures par jour
           </strong>
-          <input data-action="recHours" type="number" min="1" max="24" value="\${rec.hoursPerDay}"
+          <input data-action="recHours" type="number" min="1" max="24" value="${rec.hoursPerDay}"
             title="24h = enregistrement en continu | Moins = économie de stockage"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
           <div class="muted" style="margin-top:4px;font-size:11px">Par défaut : 24h</div>
@@ -5511,7 +5511,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <select data-action="recFps"
             title="15 FPS = standard | 25 FPS = fluide (plus de stockage)"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            \${[10, 12, 15, 20, 25].map((v) => \`<option value="\${v}" \${rec.fps === v ? "selected" : ""}>\${v} FPS\${v === 15 ? " (recommandé)" : ""}</option>\`).join("")}
+            ${[10, 12, 15, 20, 25].map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " (recommandé)" : ""}</option>`).join("")}
           </select>
           <div class="muted" style="margin-top:4px;font-size:11px">+ de FPS = + fluide = + de stockage</div>
         </div>
@@ -5523,8 +5523,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <select data-action="recCodec"
             title="H.265 = moderne, économise 40% de stockage | H.264 = compatible avec anciens équipements"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            <option value="h265" \${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé, -40% stockage)</option>
-            <option value="h264" \${rec.codec === "h264" ? "selected" : ""}>H.264 (compatible ancien)</option>
+            <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé, -40% stockage)</option>
+            <option value="h264" ${rec.codec === "h264" ? "selected" : ""}>H.264 (compatible ancien)</option>
           </select>
         </div>
         
@@ -5535,8 +5535,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <select data-action="recMode"
             title="Continu = enregistre en permanence | Détection = enregistre uniquement quand il y a du mouvement"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            <option value="continuous" \${rec.mode === "continuous" ? "selected" : ""}>⏺️ Continu (permanent)</option>
-            <option value="motion" \${rec.mode === "motion" ? "selected" : ""}>👁️ Sur détection (économique)</option>
+            <option value="continuous" ${rec.mode === "continuous" ? "selected" : ""}>⏺️ Continu (permanent)</option>
+            <option value="motion" ${rec.mode === "motion" ? "selected" : ""}>👁️ Sur détection (économique)</option>
           </select>
           <div class="muted" style="margin-top:4px;font-size:11px">Détection ≈ -50% de stockage</div>
         </div>
@@ -5545,7 +5545,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <strong title="Pourcentage de sécurité ajouté au calcul de stockage pour anticiper les imprévus.">
             📊 Marge de sécurité (%)
           </strong>
-          <input data-action="recOver" type="number" min="0" max="50" value="\${rec.overheadPct}"
+          <input data-action="recOver" type="number" min="0" max="50" value="${rec.overheadPct}"
             title="Recommandé : 20% de marge pour anticiper les pics d'activité"
             style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
           <div class="muted" style="margin-top:4px;font-size:11px">Recommandé : 20%</div>
@@ -5991,7 +5991,7 @@ function renderCameraPickCard(cam, blk, sc, mainReason) {
     <div class="cameraPickCard lvl-${safeHtml(interp.level)}" style="border-left:4px solid ${level.color}">
       <div class="cameraPickTop">
         ${cam.image_url 
-          ? `<img class="cameraPickImg" src="${cam.image_url}" alt="${safeHtml(cam.name)}">`
+          ? `<img class="cameraPickImg" src="${cam.image_url}" alt="${safeHtml(cam.name)}" loading="lazy">`
           : `<div class="cameraPickImg" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">📷</div>`
         }
 
@@ -7111,7 +7111,7 @@ bind(DOM.btnDemo, "click", () => {
   
   const useCases = getAllUseCases();
   const demoUseCase = useCases.find(u => u.toLowerCase().includes("résidentiel") || u.toLowerCase().includes("residential")) 
-    || useCases.find(u => u.toLowerCase().includes("hlm"))
+    || useCases.find(u => u.toLowerCase().includes("résidentiel"))
     || useCases[0] 
     || "Résidentiel";
   
