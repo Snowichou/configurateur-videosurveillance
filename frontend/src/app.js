@@ -1089,9 +1089,9 @@ function buildPdfRootForExport(proj) {
   NVRS: [],
   HDDS: [],
   SWITCHES: [],
-  SCREENS: [],        
-  ENCLOSURES: [],     
-  SIGNAGE: [],   
+  SCREENS: [],        // ✅ ajouté
+  ENCLOSURES: [],     // ✅ ajouté
+  SIGNAGE: [],        // ✅ panneaux de signalisation
   ACCESSORIES_MAP: new Map(), // key = camera_id, value = mapping row
   };
 
@@ -1104,9 +1104,9 @@ function buildPdfRootForExport(proj) {
   accessoryLines: [],
 
   recording: {
-    daysRetention: 15,
+    daysRetention: 14,
     hoursPerDay: 24,
-    fps: 25,
+    fps: 15,
     codec: "h265",
     mode: "continuous",
     overheadPct: 20,
@@ -3100,34 +3100,37 @@ function imgTag(family, ref) {
   };
 
   // ✅ Header commun (V3) : logo | titres | score
-const headerHtml = (subtitle) => `
-  <div class="pdfHeader">
-    <div class="headerGrid">
-      <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit" loading="lazy">
+  const headerHtml = (subtitle) => `
+    <div class="pdfHeader">
+      <div class="headerGrid">
+        <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit" loading="lazy">
 
-      <div class="headerTitles">
-        <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
-        <div class="metaLine">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
+        <div class="headerTitles">
+          <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
+          <div class="metaLine">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
+        </div>
+
+        <div class="scorePill">
+          <span class="scoreLabel">Score</span>
+          <span class="scoreValue">${projectScore != null ? `${safe(projectScore)}/100` : "—"}</span>
+        </div>
       </div>
 
-      <div class="scorePill">
-        <span class="scoreLabel">Score</span>
-        <span class="scoreValue">${projectScore != null ? `${safe(projectScore)}/100` : "—"}</span>
+      <div class="headerSubWrap">
+        <div class="headerSubLine">
+          <span class="headerSubDot"></span>
+          <span class="headerSubText">${safe(subtitle)}</span>
+        </div>
       </div>
     </div>
+  `;
 
-    <div class="headerSubWrap">
-      <div class="headerSubLine">
-        <span class="headerSubDot"></span>
-        <span class="headerSubText">${safe(subtitle)}</span>
-      </div>
-    </div>
-  </div>
-`;
+  // =========================================================================
+  // EXTRACTION DES DONNÉES (ordre important !)
+  // =========================================================================
 
-
-  // Extraction produits
-  const camsRows = (MODEL.cameraLines || [])
+  // 1) Extraction produits en ARRAY (pour pagination)
+  const camsRowsArray = (MODEL.cameraLines || [])
     .map((l) => {
       const cam = typeof getCameraById === "function" ? getCameraById(l.cameraId) : null;
       if (!cam) return "";
@@ -3135,14 +3138,13 @@ const headerHtml = (subtitle) => `
       const label = blk?.label ? `${blk.label} — ` : "";
       return row4(l.qty || 0, cam.id, `${label}${cam.name || ""}`, "cameras");
     })
-    .filter(Boolean)
-    .join("");
+    .filter(Boolean);
 
-  const accRows = (MODEL.accessoryLines || [])
+  const accRowsArray = (MODEL.accessoryLines || [])
     .map((a) => row4(a.qty || 0, a.accessoryId || "—", a.name || a.accessoryId || "", "accessories"))
-    .filter(Boolean)
-    .join("");
+    .filter(Boolean);
 
+  // 2) Autres produits
   const nvr = proj?.nvrPick?.nvr || null;
   const nvrRows = nvr ? row4(1, nvr.id, nvr.name, "nvrs") : "";
 
@@ -3183,11 +3185,11 @@ const headerHtml = (subtitle) => `
     .filter(Boolean)
     .join("");
 
-  // KPI
+  // 3) KPI (AVANT buildCamAccPages !)
   const totalMbps = Number(proj?.totalInMbps ?? 0);
   const requiredTB = Number(proj?.requiredTB ?? 0);
 
-  // Paramètres enregistrement
+  // 4) Paramètres enregistrement
   const sp = proj?.storageParams || {};
   const daysRetention = sp.daysRetention ?? MODEL?.recording?.daysRetention ?? 14;
   const hoursPerDay = sp.hoursPerDay ?? MODEL?.recording?.hoursPerDay ?? 24;
@@ -3196,7 +3198,175 @@ const headerHtml = (subtitle) => `
   const ips = sp.ips ?? MODEL?.recording?.fps ?? 12;
   const mode = frMode(sp.mode ?? MODEL?.recording?.mode ?? "Continu");
 
-  // Annexe : débit par caméra
+  // =========================================================================
+  // =========================================================================
+  // PAGINATION PAR BLOC : Caméras + Accessoires groupés par zone
+  // =========================================================================
+  
+  // Construire les données groupées par bloc
+  const blockGroups = [];
+  for (const blk of (MODEL.cameraBlocks || [])) {
+    if (!blk.validated) continue;
+    
+    const blockLabel = blk.label || `Bloc ${String(blk.id).slice(0, 6)}`;
+    
+    // Caméras de ce bloc
+    const camLine = (MODEL.cameraLines || []).find((l) => l.fromBlockId === blk.id);
+    const cam = camLine && typeof getCameraById === "function" ? getCameraById(camLine.cameraId) : null;
+    
+    // Accessoires de ce bloc
+    const blockAccs = (MODEL.accessoryLines || []).filter((a) => a.fromBlockId === blk.id);
+    
+    blockGroups.push({
+      blockId: blk.id,
+      label: blockLabel,
+      camera: cam ? { qty: camLine.qty || 0, id: cam.id, name: cam.name } : null,
+      accessories: blockAccs.map((a) => ({ qty: a.qty || 0, id: a.accessoryId, name: a.name || a.accessoryId }))
+    });
+  }
+
+  // Constantes de pagination
+  const MAX_ROWS_FIRST_PAGE = 8;  // Lignes max sur page 1 (avec KPI)
+  const MAX_ROWS_PER_PAGE = 10;   // Lignes max sur pages suivantes
+
+  // Fonction pour construire les pages
+  const buildCamAccPages = () => {
+    let pages = [];
+    let currentRows = [];  // Buffer des lignes en cours
+    let isFirstPage = true;
+    let pageSubtitle = "Caméras & accessoires caméras";
+
+    // Fonction pour créer une page
+    const flushPage = (isContinuation = false) => {
+      if (currentRows.length === 0) return;
+      
+      const subtitle = isContinuation ? "Caméras & accessoires (suite)" : pageSubtitle;
+      
+      if (isFirstPage) {
+        // Première page avec KPI
+        pages.push(`
+  <div class="pdfPage">
+    ${headerHtml(subtitle)}
+
+    <div class="kpiRow">
+      <div class="kpiBox">
+        <div class="kpiLabel">Débit total estimé</div>
+        <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
+        <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
+      </div>
+      <div class="kpiBox">
+        <div class="kpiLabel">Stockage requis</div>
+        <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
+        <div class="muted">Détail dans l'Annexe 1.</div>
+      </div>
+      <div class="kpiBox">
+        <div class="kpiLabel">Paramètres d'enregistrement</div>
+        <div class="kpiValue">${safe(daysRetention)} jours</div>
+        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Détail par zone</div>
+      ${table4(currentRows.join(""))}
+    </div>
+
+    <div class="footerLine">Comelit — With you always</div>
+  </div>`);
+        isFirstPage = false;
+      } else {
+        // Pages suivantes sans KPI
+        pages.push(`
+  <div class="pdfPage">
+    ${headerHtml(subtitle)}
+    <div class="section">
+      <div class="sectionTitle">Détail par zone (suite)</div>
+      ${table4(currentRows.join(""))}
+    </div>
+    <div class="footerLine">Comelit — With you always</div>
+  </div>`);
+      }
+      currentRows = [];
+    };
+
+    // Fonction pour ajouter une ligne avec gestion de pagination
+    const addRow = (rowHtml) => {
+      const maxRows = isFirstPage ? MAX_ROWS_FIRST_PAGE : MAX_ROWS_PER_PAGE;
+      if (currentRows.length >= maxRows) {
+        flushPage(true);
+      }
+      currentRows.push(rowHtml);
+    };
+
+    // Fonction pour créer une ligne de séparation de bloc
+    const blockSeparatorRow = (label) => `
+      <tr class="blockSeparator">
+        <td colspan="4" style="background: #f0f9f4; font-weight: 900; color: #1C1F2A; padding: 10px; border-left: 4px solid #00BC70;">
+          📍 ${safe(label)}
+        </td>
+      </tr>
+    `;
+
+    // Parcourir tous les blocs
+    for (const group of blockGroups) {
+      // Ajouter le séparateur de bloc
+      addRow(blockSeparatorRow(group.label));
+      
+      // Ajouter la caméra du bloc
+      if (group.camera) {
+        addRow(row4(group.camera.qty, group.camera.id, group.camera.name, "cameras"));
+      }
+      
+      // Ajouter les accessoires du bloc
+      for (const acc of group.accessories) {
+        addRow(row4(acc.qty, acc.id, acc.name, "accessories"));
+      }
+    }
+
+    // Flush la dernière page
+    flushPage(pages.length > 0);
+
+    // Si aucun bloc, créer une page vide
+    if (pages.length === 0) {
+      pages.push(`
+  <div class="pdfPage">
+    ${headerHtml("Caméras & accessoires caméras")}
+
+    <div class="kpiRow">
+      <div class="kpiBox">
+        <div class="kpiLabel">Débit total estimé</div>
+        <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
+        <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
+      </div>
+      <div class="kpiBox">
+        <div class="kpiLabel">Stockage requis</div>
+        <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
+        <div class="muted">Détail dans l'Annexe 1.</div>
+      </div>
+      <div class="kpiBox">
+        <div class="kpiLabel">Paramètres d'enregistrement</div>
+        <div class="kpiValue">${safe(daysRetention)} jours</div>
+        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="sectionTitle">Détail par zone</div>
+      <div class="muted">Aucune caméra configurée</div>
+    </div>
+
+    <div class="footerLine">Comelit — With you always</div>
+  </div>`);
+    }
+
+    return pages.join("");
+  };
+
+  // Appel de la fonction APRÈS la définition des KPI
+  const camAccPagesHtml = buildCamAccPages();
+  // =========================================================================
+  // ANNEXE 1 : Débit par caméra
+  // =========================================================================
   const MAX_ANNEX_ROWS = 22;
   const perCam = Array.isArray(proj?.perCamera) ? proj.perCamera : [];
   const perCamShown = perCam.slice(0, MAX_ANNEX_ROWS);
@@ -3216,12 +3386,9 @@ const headerHtml = (subtitle) => `
     )
     .join("");
 
-  // =====================================================================
-  // ✅ ANNEXE 2 — SYNOPTIQUE (FIT AUTO + MARGES + IMAGES DATA)
-  // Objectif : "tout tient sur 1 page", moins collé, et plus il y a de cam,
-  // plus ça rétrécit automatiquement.
-  // =====================================================================
-
+  // =========================================================================
+  // ANNEXE 2 : SYNOPTIQUE
+  // =========================================================================
 const buildSynopticHtml = (proj) => {
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
   const safe = (v) =>
@@ -3904,7 +4071,7 @@ const buildSynopticHtml = (proj) => {
   `;
 
   const projectNameDisplay = String(MODEL?.project?.name || proj?.projectName || "—");
-  const headerHtml = `
+  const synHeaderHtml = `
     <div class="synHeader">
       <div class="synH1">Synoptique — Installation & câblage</div>
       <div class="synMeta">Projet : ${safe(projectNameDisplay)}</div>
@@ -3929,7 +4096,7 @@ const buildSynopticHtml = (proj) => {
       <div class="synCanvas" data-syn-fit="1">
         <div class="synStage" data-density-scale="${densityScale}">
 
-          ${headerHtml}
+          ${synHeaderHtml}
           ${legendHtml}
           ${cablesSvg}
           ${camCards}
@@ -4403,42 +4570,9 @@ const buildSynopticHtml = (proj) => {
     <div class="footerLine">Comelit — With you always</div>
   </div>
 
-  <!-- ✅ PAGE 1 -->
-  <div class="pdfPage">
-    ${headerHtml("Caméras & accessoires caméras")}
 
-    <div class="kpiRow">
-      <div class="kpiBox">
-        <div class="kpiLabel">Débit total estimé</div>
-        <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
-        <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
-      </div>
-
-      <div class="kpiBox">
-        <div class="kpiLabel">Stockage requis</div>
-        <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
-        <div class="muted">Détail dans l’Annexe 1.</div>
-      </div>
-
-      <div class="kpiBox">
-        <div class="kpiLabel">Paramètres d’enregistrement</div>
-        <div class="kpiValue">${safe(daysRetention)} jours</div>
-        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">Caméras</div>
-      ${table4(camsRows)}
-    </div>
-
-    <div class="section">
-      <div class="sectionTitle">Accessoires caméras</div>
-      ${table4(accRows)}
-    </div>
-
-    <div class="footerLine">Comelit — With you always</div>
-  </div>
+  <!-- ✅ PAGE(S) CAMÉRAS & ACCESSOIRES (pagination automatique) -->
+  ${camAccPagesHtml}
 
   <!-- ✅ PAGE 2 -->
   <div class="pdfPage">
@@ -7111,7 +7245,7 @@ bind(DOM.btnDemo, "click", () => {
   
   const useCases = getAllUseCases();
   const demoUseCase = useCases.find(u => u.toLowerCase().includes("résidentiel") || u.toLowerCase().includes("residential")) 
-    || useCases.find(u => u.toLowerCase().includes("résidentiel"))
+    || useCases.find(u => u.toLowerCase().includes("hlm"))
     || useCases[0] 
     || "Résidentiel";
   
