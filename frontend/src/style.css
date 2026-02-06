@@ -3092,94 +3092,79 @@ select.field-valid {
 }
 
 /* ============================================================
-   STEPPER VISUEL V4 - Header agrandi + stepTitle supprimé
-   À ajouter à la fin de style.css
+   STEPPER VISUEL V5 - Boutons dans stepperSection
+   Structure: Header (logo) → StepperSection (titre + stepper + boutons)
    ============================================================ */
 
 /* ============================================================
-   HEADER CENTRÉ FIXE - AGRANDI
+   HEADER SIMPLIFIÉ - Logo uniquement
    ============================================================ */
 
 .appHeader.appHeaderCentered {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 24px 28px 30px;
-  gap: 16px;
-  min-height: 180px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 0;
-  background: #fff;
-}
-
-/* Zone gauche vide (pour équilibrer) */
-.appHeader.appHeaderCentered::before {
-  content: "";
-  grid-column: 1;
-}
-
-/* Brand TOUJOURS au centre */
-.appHeader.appHeaderCentered .brandCenter {
-  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  justify-self: center;
-  padding: 10px 0;
+  justify-content: center;
+  padding: 24px 20px 20px;
+  min-height: auto;
+  border-bottom: none;
+  background: #fff;
 }
 
-/* Boutons à droite */
-.appHeader.appHeaderCentered .headerActions {
-  grid-column: 3;
-  justify-self: end;
+.appHeader.appHeaderCentered .brandCenter {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
   align-items: center;
+  gap: 8px;
 }
 
-/* LOGO PLUS GRAND */
+/* Cacher les anciens headerActions dans le header */
+.appHeader.appHeaderCentered .headerActions {
+  display: none;
+}
+
+/* LOGO */
 .brandLogoImg {
-  height: 80px;
+  height: 70px;
   width: auto;
   object-fit: contain;
-  margin-bottom: 4px;
 }
 
-/* TITRE PLUS GRAND */
+/* TITRE */
 .brandTitle {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 900;
   color: var(--cosmos);
   letter-spacing: 0.3px;
   text-align: center;
   line-height: 1.2;
+  margin-top: 4px;
 }
 
-/* TAGLINE AVEC ESPACE */
+/* TAGLINE */
 .brandTagline {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   opacity: 0.6;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 6px;
+  margin-top: 2px;
 }
 
 
 /* ============================================================
-   SECTION STEPPER (titre + barre)
+   SECTION STEPPER (titre + barre + boutons)
    ============================================================ */
 
 .stepperSection {
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
-  padding: 20px 20px 20px;
-  margin-top: 8px;
+  padding: 16px 20px 20px;
   text-align: center;
-  background: linear-gradient(180deg, rgba(248,250,252,0.8) 0%, rgba(255,255,255,0) 100%);
+  background: linear-gradient(180deg, rgba(248,250,252,0.9) 0%, rgba(255,255,255,0) 100%);
+  border-top: 1px solid var(--line);
 }
 
 /* Titre du bloc */
@@ -3202,9 +3187,9 @@ select.field-valid {
 /* Container du stepper */
 .stepperWrap {
   width: 100%;
-  max-width: 800px;
+  max-width: 750px;
   margin: 0 auto;
-  padding: 8px 0;
+  padding: 8px 0 16px;
 }
 
 .stepper {
@@ -3234,8 +3219,8 @@ select.field-valid {
 
 /* Le rond avec le numéro */
 .stepperDot {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: #fff;
   border: 3px solid var(--line);
@@ -3243,7 +3228,7 @@ select.field-valid {
   align-items: center;
   justify-content: center;
   font-weight: 900;
-  font-size: 18px;
+  font-size: 17px;
   color: var(--muted);
   transition: all 0.3s ease;
   position: relative;
@@ -3257,7 +3242,7 @@ select.field-valid {
 
 /* Label sous le rond */
 .stepperLabel {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   color: var(--muted);
   text-align: center;
@@ -3270,14 +3255,63 @@ select.field-valid {
   flex: 1;
   height: 4px;
   background: var(--line);
-  margin: 0 -8px;
-  margin-top: 22px;
+  margin: 0 -6px;
+  margin-top: 21px;
   position: relative;
   z-index: 1;
-  min-width: 40px;
-  max-width: 80px;
+  min-width: 35px;
+  max-width: 70px;
   border-radius: 2px;
   transition: background 0.4s ease;
+}
+
+
+/* ============================================================
+   BOUTONS DE NAVIGATION (dans stepperSection)
+   ============================================================ */
+
+.navActions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.navActions .btn {
+  min-width: 100px;
+}
+
+.navActions .btn .btnIcon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.navActions .btn .btnLabel {
+  line-height: 1;
+}
+
+#btnPrev {
+  gap: 6px;
+  background: var(--panel2);
+  border-color: var(--line);
+}
+
+#btnPrev:hover {
+  background: var(--panel3);
+  border-color: rgba(28,31,42,0.3);
+}
+
+#btnCompute {
+  gap: 6px;
+  padding: 12px 24px;
+  font-size: 14px;
+}
+
+#btnReset, #btnDemo {
+  font-size: 13px;
+  padding: 10px 16px;
 }
 
 
@@ -3296,7 +3330,7 @@ select.field-valid {
 .stepperStep.completed .stepperDot span::after {
   content: "✓";
   position: absolute;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .stepperStep.completed .stepperDot span {
@@ -3319,20 +3353,20 @@ select.field-valid {
   border-color: var(--comelit-green);
   border-width: 4px;
   color: var(--comelit-green);
-  box-shadow: 0 0 0 6px rgba(0, 188, 112, 0.12), 0 6px 20px rgba(0, 188, 112, 0.25);
-  transform: scale(1.1);
+  box-shadow: 0 0 0 5px rgba(0, 188, 112, 0.12), 0 4px 16px rgba(0, 188, 112, 0.25);
+  transform: scale(1.08);
 }
 
 .stepperStep.active .stepperLabel {
   color: var(--cosmos);
   font-weight: 900;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 /* Animation pulse sur l'étape active */
 @keyframes stepperPulse {
-  0%, 100% { box-shadow: 0 0 0 6px rgba(0, 188, 112, 0.12), 0 6px 20px rgba(0, 188, 112, 0.25); }
-  50% { box-shadow: 0 0 0 10px rgba(0, 188, 112, 0.08), 0 6px 20px rgba(0, 188, 112, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 5px rgba(0, 188, 112, 0.12), 0 4px 16px rgba(0, 188, 112, 0.25); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 188, 112, 0.08), 0 4px 16px rgba(0, 188, 112, 0.3); }
 }
 
 .stepperStep.active .stepperDot {
@@ -3354,16 +3388,11 @@ select.field-valid {
 
 
 /* ============================================================
-   SUPPRESSION DU STEPTITLEROW (redondant avec stepper)
+   SUPPRESSION DU STEPTITLEROW (redondant)
    ============================================================ */
 
 .stepTitleRow {
   display: none !important;
-}
-
-/* Alternative : si on veut garder un style plus léger */
-.step .stepTitle:not(.stepTitleRow .stepTitle) {
-  display: none;
 }
 
 .step .stepBadge {
@@ -3385,7 +3414,7 @@ select.field-valid {
 
 
 /* ============================================================
-   STEP SUMMARY - Style amélioré sans header
+   STEP SUMMARY - Style amélioré
    ============================================================ */
 
 .stepSummary {
@@ -3421,7 +3450,6 @@ select.field-valid {
   color: #92400e;
 }
 
-/* Boutons export centrés */
 .exportRowSummary {
   display: flex;
   justify-content: center;
@@ -3432,60 +3460,16 @@ select.field-valid {
 
 
 /* ============================================================
-   BOUTONS AMÉLIORÉS
-   ============================================================ */
-
-.btn .btnIcon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.btn .btnLabel {
-  line-height: 1;
-}
-
-#btnPrev {
-  gap: 6px;
-  background: var(--panel2);
-  border-color: var(--line);
-}
-
-#btnPrev:hover {
-  background: var(--panel3);
-  border-color: rgba(28,31,42,0.3);
-}
-
-#btnCompute {
-  gap: 6px;
-  padding: 12px 20px;
-  font-size: 14px;
-}
-
-#btnReset, #btnDemo {
-  font-size: 13px;
-  padding: 10px 14px;
-}
-
-
-/* ============================================================
    RESPONSIVE - TABLETTE (< 900px)
    ============================================================ */
 
 @media (max-width: 900px) {
   .appHeader.appHeaderCentered {
-    grid-template-columns: 1fr auto 1fr;
-    padding: 20px 20px 24px;
-    gap: 12px;
-    min-height: 150px;
-  }
-  
-  .appHeader.appHeaderCentered .brandCenter {
-    flex-direction: column;
-    gap: 8px;
+    padding: 20px 16px 16px;
   }
   
   .brandLogoImg {
-    height: 60px;
+    height: 55px;
   }
   
   .brandTitle {
@@ -3494,11 +3478,10 @@ select.field-valid {
   
   .brandTagline {
     font-size: 11px;
-    margin-top: 4px;
   }
   
   .stepperSection {
-    padding: 10px 16px 16px;
+    padding: 14px 16px 18px;
   }
   
   .stepperTitle {
@@ -3513,6 +3496,7 @@ select.field-valid {
   .stepperWrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    padding: 8px 0 12px;
   }
   
   .stepper {
@@ -3521,23 +3505,36 @@ select.field-valid {
   }
   
   .stepperDot {
-    width: 42px;
-    height: 42px;
-    font-size: 16px;
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
   }
   
   .stepperLabel {
-    font-size: 12px;
+    font-size: 11px;
   }
   
   .stepperLine {
-    min-width: 30px;
-    max-width: 50px;
-    margin-top: 19px;
+    min-width: 28px;
+    max-width: 45px;
+    margin-top: 18px;
   }
   
   .stepperStep {
-    min-width: 60px;
+    min-width: 55px;
+  }
+  
+  .navActions {
+    gap: 10px;
+  }
+  
+  #btnCompute {
+    padding: 10px 18px;
+  }
+  
+  #btnReset, #btnDemo {
+    padding: 8px 12px;
+    font-size: 12px;
   }
 }
 
@@ -3548,51 +3545,27 @@ select.field-valid {
 
 @media (max-width: 600px) {
   .appHeader.appHeaderCentered {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto;
-    padding: 18px 16px 22px;
-    gap: 14px;
-    min-height: auto;
-  }
-  
-  .appHeader.appHeaderCentered::before {
-    display: none;
+    padding: 16px 14px 14px;
   }
   
   .appHeader.appHeaderCentered .brandCenter {
-    grid-column: 1;
-    grid-row: 1;
-    justify-self: center;
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .appHeader.appHeaderCentered .headerActions {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: center;
-    width: 100%;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
   }
   
   .brandLogoImg {
-    height: 55px;
+    height: 50px;
   }
   
   .brandTitle {
-    font-size: 18px;
+    font-size: 17px;
   }
   
   .brandTagline {
-    display: block;
     font-size: 10px;
-    margin-top: 2px;
   }
   
   .stepperSection {
-    padding: 10px 12px 14px;
+    padding: 12px 10px 16px;
   }
   
   .stepperTitle {
@@ -3607,6 +3580,7 @@ select.field-valid {
   .stepperWrap {
     scrollbar-width: none;
     -ms-overflow-style: none;
+    padding: 6px 0 10px;
   }
   
   .stepperWrap::-webkit-scrollbar {
@@ -3614,56 +3588,74 @@ select.field-valid {
   }
   
   .stepperDot {
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
     border-width: 2px;
   }
   
   .stepperStep.active .stepperDot {
     border-width: 3px;
+    transform: scale(1.05);
   }
   
   .stepperLabel {
-    font-size: 10px;
+    font-size: 9px;
   }
   
   .stepperLine {
-    min-width: 20px;
-    max-width: 35px;
+    min-width: 18px;
+    max-width: 30px;
     height: 3px;
-    margin-top: 16px;
+    margin-top: 15px;
   }
   
   .stepperStep {
-    min-width: 50px;
+    min-width: 45px;
+    gap: 6px;
+  }
+  
+  /* Boutons en colonne sur mobile */
+  .navActions {
+    flex-direction: column;
     gap: 8px;
+    width: 100%;
+    padding: 0 10px;
   }
   
-  /* Boutons compacts */
-  .headerActions .btn {
-    padding: 8px 12px;
-    font-size: 12px;
+  .navActions .btn {
+    width: 100%;
+    justify-content: center;
   }
   
-  #btnPrev .btnLabel,
-  #btnCompute .btnLabel {
-    display: none;
+  /* Ordre des boutons sur mobile */
+  #btnCompute {
+    order: 1;
+    padding: 14px 20px;
+    font-size: 15px;
   }
   
-  #btnPrev .btnIcon,
-  #btnCompute .btnIcon {
-    font-size: 18px;
+  #btnPrev {
+    order: 2;
+    padding: 12px 16px;
+  }
+  
+  #btnReset {
+    order: 3;
+  }
+  
+  #btnDemo {
+    order: 4;
   }
   
   #btnReset, #btnDemo {
-    padding: 8px 10px;
-    font-size: 11px;
+    padding: 10px 14px;
+    font-size: 12px;
   }
   
   /* Layout principal */
   .appMain {
-    padding: 12px;
+    padding: 12px 10px;
   }
   
   .appGrid {
@@ -3671,11 +3663,11 @@ select.field-valid {
   }
   
   .card {
-    border-radius: 18px;
+    border-radius: 16px;
   }
   
   .steps {
-    padding: 14px;
+    padding: 12px;
   }
   
   /* Export buttons */
@@ -3692,20 +3684,20 @@ select.field-valid {
 
 
 /* ============================================================
-   TRÈS PETIT ÉCRAN (< 380px)
+   TRÈS PETIT ÉCRAN (< 400px)
    ============================================================ */
 
-@media (max-width: 380px) {
+@media (max-width: 400px) {
   .appHeader.appHeaderCentered {
-    padding: 12px 12px 14px;
+    padding: 14px 12px 12px;
   }
   
   .brandLogoImg {
-    height: 38px;
+    height: 42px;
   }
   
   .brandTitle {
-    font-size: 13px;
+    font-size: 15px;
   }
   
   .brandTagline {
@@ -3713,7 +3705,7 @@ select.field-valid {
   }
   
   .stepperSection {
-    padding: 8px 8px 12px;
+    padding: 10px 8px 14px;
   }
   
   .stepperTitle {
@@ -3726,32 +3718,37 @@ select.field-valid {
   }
   
   .stepperDot {
-    width: 30px;
-    height: 30px;
-    font-size: 12px;
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
   }
   
   .stepperLabel {
-    font-size: 9px;
+    font-size: 8px;
   }
   
   .stepperLine {
-    min-width: 14px;
-    max-width: 24px;
-    margin-top: 13px;
+    min-width: 12px;
+    max-width: 22px;
+    margin-top: 12px;
   }
   
   .stepperStep {
-    min-width: 40px;
-    gap: 6px;
+    min-width: 38px;
+    gap: 5px;
   }
   
+  /* Cacher Reset et Demo sur très petit écran */
   #btnReset, #btnDemo {
     display: none;
   }
   
   .appMain {
     padding: 8px;
+  }
+  
+  .steps {
+    padding: 10px;
   }
 }
 
@@ -3772,7 +3769,7 @@ select.field-valid {
   }
 }
 
-/* Transition douce sur tout */
+/* Transition douce */
 .stepperStep, .stepperDot, .stepperLabel, .stepperLine {
   transition: all 0.3s ease;
 }
