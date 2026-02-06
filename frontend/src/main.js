@@ -24,32 +24,16 @@ window.jsPDF = jsPDF;
 })();
 
 document.querySelector("#app").innerHTML = `
+  <!-- HEADER : Logo + Titre uniquement -->
   <header class="appHeader appHeaderCentered">
-    <!-- Logo et tagline -->
     <div class="brandCenter" aria-label="COMELIT">
       <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
       <div class="brandTitle">Configurateur Vidéosurveillance</div>
       <div class="brandTagline">With you always</div>
     </div>
-
-    <!-- Boutons d'action -->
-    <div class="headerActions">
-      <div class="headerActionsRight actions">
-        <button id="btnPrev" class="btn btnSecondary" type="button" title="Revenir à l'étape précédente" style="display:none">
-          <span class="btnIcon">←</span>
-          <span class="btnLabel">Précédent</span>
-        </button>
-        <button id="btnReset" class="btn btnGhost" type="button">Réinitialiser</button>
-        <button id="btnDemo" class="btn btnGhost" type="button">Démo</button>
-        <button id="btnCompute" class="btn primary" type="button">
-          <span class="btnLabel">Suivant</span>
-          <span class="btnIcon">→</span>
-        </button>
-      </div>
-    </div>
   </header>
 
-  <!-- ✅ NOUVEAU : Bloc Stepper séparé avec titre -->
+  <!-- SECTION STEPPER : Titre étape + Stepper + Boutons -->
   <div class="stepperSection">
     <div class="stepperTitle" id="stepperTitle">Configuration</div>
     <div class="stepperSubtitle" id="stepperSubtitle">Nom du projet (optionnel) + contexte.</div>
@@ -87,6 +71,20 @@ document.querySelector("#app").innerHTML = `
         </div>
       </div>
     </div>
+
+    <!-- Boutons de navigation dans la section stepper -->
+    <div class="navActions" id="navActions">
+      <button id="btnPrev" class="btn btnSecondary" type="button" title="Revenir à l'étape précédente" style="display:none">
+        <span class="btnIcon">←</span>
+        <span class="btnLabel">Précédent</span>
+      </button>
+      <button id="btnReset" class="btn btnGhost" type="button">Réinitialiser</button>
+      <button id="btnDemo" class="btn btnGhost" type="button">Démo</button>
+      <button id="btnCompute" class="btn primary" type="button">
+        <span class="btnLabel">Suivant</span>
+        <span class="btnIcon">→</span>
+      </button>
+    </div>
   </div>
 
   <main class="appMain">
@@ -123,6 +121,7 @@ document.querySelector("#app").innerHTML = `
   <!-- Éléments cachés pour compatibilité -->
   <div id="progressBar" style="display:none"></div>
   <div id="progressText" style="display:none"></div>
+  <div class="headerActions" style="display:none"></div>
 `;
 
 import("./app.js");
