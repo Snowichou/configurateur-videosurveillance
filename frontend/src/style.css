@@ -3092,69 +3092,96 @@ select.field-valid {
 }
 
 /* ============================================================
-   STEPPER VISUEL V5 - Boutons dans stepperSection
-   Structure: Header (logo) → StepperSection (titre + stepper + boutons)
+   PATCH HEADER CENTRÉ - OVERRIDE COMPLET
+   Ce bloc doit être À LA FIN du fichier CSS
    ============================================================ */
 
-/* ============================================================
-   HEADER SIMPLIFIÉ - Logo uniquement
-   ============================================================ */
-
-.appHeader.appHeaderCentered {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 20px 20px;
-  min-height: auto;
-  border-bottom: none;
-  background: #fff;
+/* Reset complet du header */
+.appHeader,
+.appHeader.appHeaderCentered,
+header.appHeader,
+header.appHeader.appHeaderCentered {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  grid-template-columns: unset !important;
+  grid-template-rows: unset !important;
+  padding: 20px 20px 12px !important;
+  gap: 8px !important;
+  text-align: center !important;
+  position: relative !important;
 }
 
-.appHeader.appHeaderCentered .brandCenter {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
+/* Supprimer le pseudo-element ::before qui crée la colonne vide */
+.appHeader.appHeaderCentered::before,
+header.appHeader.appHeaderCentered::before {
+  display: none !important;
+  content: none !important;
 }
 
-/* Cacher les anciens headerActions dans le header */
-.appHeader.appHeaderCentered .headerActions {
-  display: none;
+/* Brand centré */
+.appHeader .brandCenter,
+.appHeader.appHeaderCentered .brandCenter,
+header .brandCenter,
+.brandCenter {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  max-width: none !important;
+  grid-column: unset !important;
+  grid-row: unset !important;
+  margin: 0 auto !important;
 }
 
-/* LOGO */
+/* Cacher headerActions et progressWrap dans le header */
+.appHeader .headerActions,
+.appHeader.appHeaderCentered .headerActions,
+.appHeader .progressWrap,
+.appHeader.appHeaderCentered .progressWrap {
+  display: none !important;
+}
+
+/* Logo centré */
 .brandLogoImg {
-  height: 70px;
-  width: auto;
-  object-fit: contain;
+  height: 65px !important;
+  width: auto !important;
+  max-width: none !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 0 auto !important;
 }
 
-/* TITRE */
+/* Titre centré */
 .brandTitle {
-  font-size: 24px;
-  font-weight: 900;
-  color: var(--cosmos);
-  letter-spacing: 0.3px;
-  text-align: center;
-  line-height: 1.2;
-  margin-top: 4px;
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  color: var(--cosmos) !important;
+  text-align: center !important;
+  width: 100% !important;
+  letter-spacing: 0.2px !important;
+  margin: 0 !important;
 }
 
-/* TAGLINE */
+/* Tagline centré */
 .brandTagline {
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 0.6;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 2px;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  opacity: 0.6 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+  margin: 0 !important;
 }
 
 
 /* ============================================================
-   SECTION STEPPER (titre + barre + boutons)
+   STEPPER SECTION
    ============================================================ */
 
 .stepperSection {
@@ -3163,33 +3190,29 @@ select.field-valid {
   margin: 0 auto;
   padding: 16px 20px 20px;
   text-align: center;
-  background: linear-gradient(180deg, rgba(248,250,252,0.9) 0%, rgba(255,255,255,0) 100%);
+  background: linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(255,255,255,0) 100%);
   border-top: 1px solid var(--line);
 }
 
-/* Titre du bloc */
 .stepperTitle {
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 900;
   color: var(--cosmos);
-  margin-bottom: 4px;
-  letter-spacing: -0.2px;
+  margin-bottom: 6px;
 }
 
 .stepperSubtitle {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--muted);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-/* Container du stepper */
 .stepperWrap {
   width: 100%;
   max-width: 750px;
   margin: 0 auto;
-  padding: 8px 0 16px;
+  padding: 8px 0 20px;
 }
 
 .stepper {
@@ -3200,7 +3223,6 @@ select.field-valid {
   width: 100%;
 }
 
-/* Chaque étape */
 .stepperStep {
   display: flex;
   flex-direction: column;
@@ -3217,7 +3239,6 @@ select.field-valid {
   transform: translateY(-3px);
 }
 
-/* Le rond avec le numéro */
 .stepperDot {
   width: 46px;
   height: 46px;
@@ -3240,7 +3261,6 @@ select.field-valid {
   z-index: 1;
 }
 
-/* Label sous le rond */
 .stepperLabel {
   font-size: 12px;
   font-weight: 800;
@@ -3250,7 +3270,6 @@ select.field-valid {
   transition: all 0.25s ease;
 }
 
-/* Ligne entre les étapes */
 .stepperLine {
   flex: 1;
   height: 4px;
@@ -3267,59 +3286,9 @@ select.field-valid {
 
 
 /* ============================================================
-   BOUTONS DE NAVIGATION (dans stepperSection)
-   ============================================================ */
-
-.navActions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.navActions .btn {
-  min-width: 100px;
-}
-
-.navActions .btn .btnIcon {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.navActions .btn .btnLabel {
-  line-height: 1;
-}
-
-#btnPrev {
-  gap: 6px;
-  background: var(--panel2);
-  border-color: var(--line);
-}
-
-#btnPrev:hover {
-  background: var(--panel3);
-  border-color: rgba(28,31,42,0.3);
-}
-
-#btnCompute {
-  gap: 6px;
-  padding: 12px 24px;
-  font-size: 14px;
-}
-
-#btnReset, #btnDemo {
-  font-size: 13px;
-  padding: 10px 16px;
-}
-
-
-/* ============================================================
    ÉTATS DU STEPPER
    ============================================================ */
 
-/* Étape complétée */
 .stepperStep.completed .stepperDot {
   background: var(--comelit-green);
   border-color: var(--comelit-green);
@@ -3342,12 +3311,10 @@ select.field-valid {
   font-weight: 900;
 }
 
-/* Ligne complétée */
 .stepperLine.completed {
   background: var(--comelit-green);
 }
 
-/* Étape active (en cours) */
 .stepperStep.active .stepperDot {
   background: #fff;
   border-color: var(--comelit-green);
@@ -3363,7 +3330,6 @@ select.field-valid {
   font-size: 13px;
 }
 
-/* Animation pulse sur l'étape active */
 @keyframes stepperPulse {
   0%, 100% { box-shadow: 0 0 0 5px rgba(0, 188, 112, 0.12), 0 4px 16px rgba(0, 188, 112, 0.25); }
   50% { box-shadow: 0 0 0 8px rgba(0, 188, 112, 0.08), 0 4px 16px rgba(0, 188, 112, 0.3); }
@@ -3373,7 +3339,6 @@ select.field-valid {
   animation: stepperPulse 2.5s ease-in-out infinite;
 }
 
-/* Étape future */
 .stepperStep.future .stepperDot {
   background: var(--panel3);
   border-color: var(--line);
@@ -3388,7 +3353,25 @@ select.field-valid {
 
 
 /* ============================================================
-   SUPPRESSION DU STEPTITLEROW (redondant)
+   NAVIGATION BUTTONS
+   ============================================================ */
+
+.navActions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.navActions .btn {
+  min-width: 100px;
+}
+
+
+/* ============================================================
+   CACHER STEPTITLEROW
    ============================================================ */
 
 .stepTitleRow {
@@ -3396,88 +3379,34 @@ select.field-valid {
 }
 
 .step .stepBadge {
-  display: none;
-}
-
-
-/* ============================================================
-   CARD PRINCIPALE
-   ============================================================ */
-
-.card.cardMain {
-  border-radius: var(--r20);
+  display: none !important;
 }
 
 .card.cardMain .cardHeader {
-  display: none;
+  display: none !important;
 }
 
 
 /* ============================================================
-   STEP SUMMARY - Style amélioré
-   ============================================================ */
-
-.stepSummary {
-  padding-top: 8px;
-}
-
-.stepSummary .stepHelp {
-  text-align: center;
-  font-size: 14px;
-  color: var(--muted);
-  margin-bottom: 16px;
-  line-height: 1.5;
-}
-
-.stepSummary .summaryHint {
-  text-align: center;
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-weight: 800;
-  font-size: 14px;
-  margin-bottom: 16px;
-}
-
-.stepSummary .summaryHint.ok {
-  background: rgba(0, 188, 112, 0.1);
-  border: 1px solid rgba(0, 188, 112, 0.3);
-  color: #065f46;
-}
-
-.stepSummary .summaryHint.warn {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  color: #92400e;
-}
-
-.exportRowSummary {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-
-
-/* ============================================================
-   RESPONSIVE - TABLETTE (< 900px)
+   RESPONSIVE - TABLETTE
    ============================================================ */
 
 @media (max-width: 900px) {
+  .appHeader,
   .appHeader.appHeaderCentered {
-    padding: 20px 16px 16px;
+    padding: 16px 16px 10px !important;
   }
   
   .brandLogoImg {
-    height: 55px;
+    height: 55px !important;
   }
   
   .brandTitle {
-    font-size: 20px;
+    font-size: 18px !important;
   }
   
   .brandTagline {
-    font-size: 11px;
+    font-size: 10px !important;
   }
   
   .stepperSection {
@@ -3485,18 +3414,12 @@ select.field-valid {
   }
   
   .stepperTitle {
-    font-size: 20px;
-  }
-  
-  .stepperSubtitle {
-    font-size: 12px;
-    margin-bottom: 12px;
+    font-size: 22px;
   }
   
   .stepperWrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 8px 0 12px;
   }
   
   .stepper {
@@ -3523,45 +3446,29 @@ select.field-valid {
   .stepperStep {
     min-width: 55px;
   }
-  
-  .navActions {
-    gap: 10px;
-  }
-  
-  #btnCompute {
-    padding: 10px 18px;
-  }
-  
-  #btnReset, #btnDemo {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
 }
 
 
 /* ============================================================
-   RESPONSIVE - MOBILE (< 600px)
+   RESPONSIVE - MOBILE
    ============================================================ */
 
 @media (max-width: 600px) {
+  .appHeader,
   .appHeader.appHeaderCentered {
-    padding: 16px 14px 14px;
-  }
-  
-  .appHeader.appHeaderCentered .brandCenter {
-    gap: 6px;
+    padding: 14px 12px 8px !important;
   }
   
   .brandLogoImg {
-    height: 50px;
+    height: 45px !important;
   }
   
   .brandTitle {
-    font-size: 17px;
+    font-size: 16px !important;
   }
   
   .brandTagline {
-    font-size: 10px;
+    font-size: 9px !important;
   }
   
   .stepperSection {
@@ -3574,17 +3481,7 @@ select.field-valid {
   
   .stepperSubtitle {
     font-size: 11px;
-    margin-bottom: 10px;
-  }
-  
-  .stepperWrap {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    padding: 6px 0 10px;
-  }
-  
-  .stepperWrap::-webkit-scrollbar {
-    display: none;
+    margin-bottom: 12px;
   }
   
   .stepperDot {
@@ -3592,11 +3489,6 @@ select.field-valid {
     height: 34px;
     font-size: 13px;
     border-width: 2px;
-  }
-  
-  .stepperStep.active .stepperDot {
-    border-width: 3px;
-    transform: scale(1.05);
   }
   
   .stepperLabel {
@@ -3615,7 +3507,6 @@ select.field-valid {
     gap: 6px;
   }
   
-  /* Boutons en colonne sur mobile */
   .navActions {
     flex-direction: column;
     gap: 8px;
@@ -3628,93 +3519,53 @@ select.field-valid {
     justify-content: center;
   }
   
-  /* Ordre des boutons sur mobile */
-  #btnCompute {
-    order: 1;
-    padding: 14px 20px;
-    font-size: 15px;
-  }
+  #btnCompute { order: 1; }
+  #btnPrev { order: 2; }
+  #btnReset { order: 3; }
+  #btnDemo { order: 4; }
   
-  #btnPrev {
-    order: 2;
-    padding: 12px 16px;
-  }
-  
-  #btnReset {
-    order: 3;
-  }
-  
-  #btnDemo {
-    order: 4;
-  }
-  
-  #btnReset, #btnDemo {
-    padding: 10px 14px;
-    font-size: 12px;
-  }
-  
-  /* Layout principal */
-  .appMain {
-    padding: 12px 10px;
-  }
-  
-  .appGrid {
-    gap: 12px;
-  }
-  
-  .card {
-    border-radius: 16px;
-  }
-  
-  .steps {
+  /* Cartes caméras compactes */
+  .cameraPickCard {
     padding: 12px;
   }
   
-  /* Export buttons */
-  .exportRowSummary {
-    flex-direction: column;
-    align-items: stretch;
+  .cameraPickTop {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
   }
   
-  .exportRowSummary .btn,
-  .exportRowSummary .btnGhost {
+  .cameraPickImg {
+    width: 80px !important;
+    height: 80px !important;
+    min-width: 80px;
+    border-radius: 12px;
+  }
+  
+  .cameraPickActions {
+    flex-direction: column;
+  }
+  
+  .cameraPickActions .btn,
+  .cameraPickActions .btnPrimary,
+  .cameraPickActions .btnDatasheet {
     width: 100%;
+    min-width: unset !important;
   }
 }
 
 
 /* ============================================================
-   TRÈS PETIT ÉCRAN (< 400px)
+   TRÈS PETIT ÉCRAN
    ============================================================ */
 
 @media (max-width: 400px) {
-  .appHeader.appHeaderCentered {
-    padding: 14px 12px 12px;
-  }
-  
   .brandLogoImg {
-    height: 42px;
+    height: 40px !important;
   }
   
   .brandTitle {
-    font-size: 15px;
-  }
-  
-  .brandTagline {
-    font-size: 9px;
-  }
-  
-  .stepperSection {
-    padding: 10px 8px 14px;
-  }
-  
-  .stepperTitle {
-    font-size: 16px;
-  }
-  
-  .stepperSubtitle {
-    font-size: 10px;
-    margin-bottom: 8px;
+    font-size: 14px !important;
   }
   
   .stepperDot {
@@ -3730,46 +3581,19 @@ select.field-valid {
   .stepperLine {
     min-width: 12px;
     max-width: 22px;
-    margin-top: 12px;
   }
   
   .stepperStep {
     min-width: 38px;
-    gap: 5px;
   }
   
-  /* Cacher Reset et Demo sur très petit écran */
   #btnReset, #btnDemo {
     display: none;
   }
   
-  .appMain {
-    padding: 8px;
+  .cameraPickImg {
+    width: 65px !important;
+    height: 65px !important;
+    min-width: 65px;
   }
-  
-  .steps {
-    padding: 10px;
-  }
-}
-
-
-/* ============================================================
-   AMÉLIORATIONS GLOBALES
-   ============================================================ */
-
-/* Inputs plus grands pour touch */
-@media (max-width: 600px) {
-  input, select, textarea {
-    font-size: 16px !important;
-    min-height: 48px;
-  }
-  
-  .btn, .btnGhost, .btnPrimary, .pillBtn {
-    min-height: 44px;
-  }
-}
-
-/* Transition douce */
-.stepperStep, .stepperDot, .stepperLabel, .stepperLine {
-  transition: all 0.3s ease;
 }
