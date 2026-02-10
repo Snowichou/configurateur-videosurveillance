@@ -1,4 +1,9 @@
 import "./style.css";
+import "./floating-recap.css";
+import "./stepper-transitions.css";
+import "./compare-mobile.css"; 
+import "./step-validation.css";
+import "./floating-recap.css";
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -124,4 +129,10 @@ document.querySelector("#app").innerHTML = `
   <div class="headerActions" style="display:none"></div>
 `;
 
-import("./app.js");
+import("./app.js").then(() => {
+  // Modules chargés APRÈS app.js (ils dépendent de MODEL/STEPS/CATALOG)
+  import("./floating-recap.js");
+  import("./stepper-transitions.js");
+  import("./compare-mobile.js");
+  import("./step-validation.js");
+});

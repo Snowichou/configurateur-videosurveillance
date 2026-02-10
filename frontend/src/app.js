@@ -1094,7 +1094,7 @@ function buildPdfRootForExport(proj) {
   SIGNAGE: [],        // ✅ panneaux de signalisation
   ACCESSORIES_MAP: new Map(), // key = camera_id, value = mapping row
   };
-
+  window._CATALOG = CATALOG;
   // ==========================================================
   // 2) MODEL (state)
   // ==========================================================
@@ -1138,6 +1138,9 @@ function buildPdfRootForExport(proj) {
 
   stepIndex: 0,
 };
+
+// ✅ Expose MODEL pour le récap flottant
+window._MODEL = MODEL;
 
 const KPI = (() => {
   const SESSION_KEY = "cfg_session_id";
@@ -1277,10 +1280,8 @@ const KPI = (() => {
     { id: "summary", title: "Résumé", badge: "6/6", help: "Résumé final + exports." },
   ];
 
-
-
-
-
+// ✅ Expose STEPS pour le récap flottant
+window._STEPS = STEPS;
 
 
 // ==========================================================
@@ -1610,6 +1611,7 @@ function parsePipeList(v) {
   // 5) LOOKUPS
   // ==========================================================
   const getCameraById = (id) => CATALOG.CAMERAS.find((c) => c.id === id) || null;
+  window._getCameraById = getCameraById;
 
   function getAllUseCases() {
     const set = new Set();

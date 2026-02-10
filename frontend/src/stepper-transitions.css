@@ -1,0 +1,265 @@
+/* ============================================================
+   STEPPER TRANSITIONS + UNDO/REDO UI
+   Configurateur Vidéosurveillance — COMELIT
+   ============================================================ */
+
+
+/* ============================================================
+   1. STEP SLIDE ANIMATIONS
+   ============================================================ */
+
+@keyframes slideInFromRight {
+  0% {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  0% {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+#steps.stepSlideInNext {
+  animation: slideInFromRight 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#steps.stepSlideInPrev {
+  animation: slideInFromLeft 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#steps.stepFadeIn {
+  animation: fadeIn 0.25s ease both;
+}
+
+/* Smooth transition sur le conteneur steps */
+#steps {
+  will-change: transform, opacity;
+}
+
+
+/* ============================================================
+   2. UNDO/REDO BUTTONS
+   ============================================================ */
+
+.undoRedoGroup {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--panel2, #F3F4F6);
+  border-radius: 10px;
+  padding: 2px;
+  border: 1px solid var(--line, #E5E7EB);
+}
+
+.undoRedoBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
+  min-width: unset !important;
+  border-radius: 8px;
+  border: none !important;
+  background: transparent;
+  color: var(--cosmos, #1C1F2A);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.undoRedoBtn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.undoRedoBtn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.undoRedoBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.undoRedoIcon {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+
+/* ============================================================
+   3. UNDO MINI TOAST
+   ============================================================ */
+
+.undoToast {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-10px);
+  z-index: 1200;
+  padding: 8px 18px;
+  border-radius: 10px;
+  background: var(--cosmos, #1C1F2A);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+}
+
+.undoToast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+
+/* ============================================================
+   4. STEPPER DOT — Transition améliorée
+   ============================================================ */
+
+/* Animer le changement de couleur/taille des dots */
+.stepperDot {
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+.stepperLabel {
+  transition: all 0.3s ease !important;
+}
+
+.stepperLine {
+  transition: background 0.4s ease, width 0.3s ease !important;
+}
+
+/* Quand un step passe à completed : scale bounce */
+@keyframes dotCompleted {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.stepperStep.completed .stepperDot {
+  animation: dotCompleted 0.35s ease;
+}
+
+
+/* ============================================================
+   5. SWIPE INDICATOR (feedback visuel subtil)
+   ============================================================ */
+
+#steps.swipeHintLeft {
+  transform: translateX(-8px);
+  opacity: 0.9;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+#steps.swipeHintRight {
+  transform: translateX(8px);
+  opacity: 0.9;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+
+/* ============================================================
+   6. RESPONSIVE — TABLETTE
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .undoRedoGroup {
+    padding: 1px;
+  }
+
+  .undoRedoBtn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .undoRedoIcon {
+    font-size: 14px;
+  }
+}
+
+
+/* ============================================================
+   7. RESPONSIVE — MOBILE
+   ============================================================ */
+
+@media (max-width: 600px) {
+  .undoRedoGroup {
+    order: 5; /* Après les boutons principaux */
+    padding: 1px;
+  }
+
+  .undoRedoBtn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .undoToast {
+    top: auto;
+    bottom: 130px; /* Au-dessus du récap flottant */
+    font-size: 12px;
+  }
+
+  /* Réduire la durée des animations sur mobile */
+  #steps.stepSlideInNext,
+  #steps.stepSlideInPrev {
+    animation-duration: 0.2s;
+  }
+}
+
+
+/* ============================================================
+   8. REDUCED MOTION — Accessibilité
+   ============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  #steps.stepSlideInNext,
+  #steps.stepSlideInPrev,
+  #steps.stepFadeIn {
+    animation: none !important;
+  }
+
+  .stepperDot,
+  .stepperLabel,
+  .stepperLine {
+    transition-duration: 0.01s !important;
+  }
+
+  .stepperStep.completed .stepperDot {
+    animation: none !important;
+  }
+
+  .undoRedoBtn:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+
+/* ============================================================
+   9. PRINT — Masquer
+   ============================================================ */
+
+@media print {
+  .undoRedoGroup,
+  .undoToast {
+    display: none !important;
+  }
+}
