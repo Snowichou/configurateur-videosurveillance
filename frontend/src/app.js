@@ -5920,8 +5920,8 @@ function render() {
   updateNavButtons();
   updateProgress();
 }
-// ✅ Expose render() pour les modules d'optimisation
-window.render = render;
+
+
 
 // ==========================================================
 // PDF BLOB (PRO) — même rendu que exportProjectPdfPro()
