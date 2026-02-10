@@ -1622,7 +1622,7 @@ function parsePipeList(v) {
     }
     return [...set].sort((a, b) => a.localeCompare(b, "fr"));
   }
-
+window._getCameraById = getCameraById;
   // ==========================================================
   // 6) ENGINE - RECO CAMERA
   // ==========================================================
@@ -5920,6 +5920,8 @@ function render() {
   updateNavButtons();
   updateProgress();
 }
+// ✅ Expose render() pour les modules d'optimisation
+window.render = render;
 
 // ==========================================================
 // PDF BLOB (PRO) — même rendu que exportProjectPdfPro()
