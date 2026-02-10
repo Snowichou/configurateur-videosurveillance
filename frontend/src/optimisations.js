@@ -1,24 +1,3 @@
-/* ============================================================
-   OPTIMISATIONS CONFIGURATEUR — COMELIT  (V6)
-   
-   ✅ MutationObserver (aucun hook render)
-   ✅ Compare 100% DOM, responsive, instantané
-   ✅ Cartes caméra scroll horizontal mobile
-   ✅ Animations slide entre étapes
-   ✅ Undo/Redo clavier (Ctrl+Z/Y)
-   ✅ Swipe tactile navigation
-   ✅ 💾 Sauvegarder + 🔗 Partager dans le Résumé
-   ✅ 📂 Charger une config sur la page d'accueil
-   ✅ Save/Load/Share localStorage + URL
-   ❌ Plus de barre flottante
-   ❌ Plus de bannière de validation
-   
-   📌 DANS app.js (déjà en place) :
-     window._MODEL = MODEL;
-     window._STEPS = STEPS;
-     window._CATALOG = CATALOG;
-     window._getCameraById = getCameraById;
-   ============================================================ */
 
 (() => {
   "use strict";
