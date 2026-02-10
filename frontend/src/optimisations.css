@@ -1,353 +1,256 @@
 /* ============================================================
-   OPTIMISATIONS CONFIGURATEUR — COMELIT
-   CSS unique pour tous les modules
+   OPTIMISATIONS CONFIGURATEUR — COMELIT (V6)
+   Sans barre flottante, compare responsive
    ============================================================ */
 
 
 /* ============================================================
-   A. STEP SLIDE ANIMATIONS
+   A. STEP TRANSITIONS
    ============================================================ */
 
-@keyframes slideInFromRight {
-  from { opacity: 0; transform: translateX(40px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes slideInFromLeft {
-  from { opacity: 0; transform: translateX(-40px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
+@keyframes slideInRight { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
+@keyframes slideInLeft  { from{opacity:0;transform:translateX(-40px)} to{opacity:1;transform:translateX(0)} }
 
 #steps { will-change: transform, opacity; }
-#steps.stepSlideInNext { animation: slideInFromRight 0.3s cubic-bezier(0.22,1,0.36,1) both; }
-#steps.stepSlideInPrev { animation: slideInFromLeft 0.3s cubic-bezier(0.22,1,0.36,1) both; }
-
-.stepperDot { transition: all 0.35s cubic-bezier(0.22,1,0.36,1) !important; }
-.stepperLabel { transition: all 0.3s ease !important; }
-.stepperLine { transition: background 0.4s ease !important; }
-
-@keyframes dotCompleted { 0%{transform:scale(1)} 40%{transform:scale(1.2)} 100%{transform:scale(1)} }
-.stepperStep.completed .stepperDot { animation: dotCompleted 0.35s ease; }
+#steps.stepSlideInNext { animation: slideInRight 0.3s cubic-bezier(0.22,1,0.36,1) both; }
+#steps.stepSlideInPrev { animation: slideInLeft 0.3s cubic-bezier(0.22,1,0.36,1) both; }
 
 
 /* ============================================================
-   B. FLOATING RECAP BAR
+   B. COMPARE PANEL — Responsive
    ============================================================ */
 
-.floatingRecap {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
-  background: var(--cosmos, #1C1F2A); color: #fff;
-  box-shadow: 0 -4px 24px rgba(0,0,0,0.25);
-  transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.22,1,0.36,1);
-}
-.floatingRecap.visible { transform: translateY(0); }
-
-.floatingRecap__inner {
-  max-width: 1200px; margin: 0 auto; padding: 12px 20px;
-  display: flex; align-items: center; gap: 16px;
-}
-
-.floatingRecap__stats { display: flex; align-items: center; gap: 10px; flex: 1; flex-wrap: wrap; }
-.floatingRecap__pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; border-radius: 20px;
-  background: rgba(255,255,255,0.1);
-  font-size: 13px; font-weight: 700; white-space: nowrap;
-  transition: background 0.2s;
-}
-.floatingRecap__pill:hover { background: rgba(255,255,255,0.18); }
-.pillIcon { font-size: 15px; }
-.pillValue { color: var(--comelit-green, #00BC70); font-weight: 900; }
-.pillLabel { opacity: 0.7; font-weight: 600; }
-
-.floatingRecap__step {
-  padding: 4px 10px; border-radius: 8px;
-  background: rgba(0,188,112,0.15);
-  font-size: 12px; font-weight: 800;
-  color: var(--comelit-green, #00BC70); white-space: nowrap;
-}
-
-.floatingRecap__divider { width: 1px; height: 28px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
-
-.floatingRecap__actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-
-.floatingRecap__btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: all 0.2s; white-space: nowrap;
-}
-.floatingRecap__btn--save { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
-.floatingRecap__btn--save:hover { background: rgba(255,255,255,0.22); }
-.floatingRecap__btn--load { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.1); }
-.floatingRecap__btn--load:hover { background: rgba(255,255,255,0.16); color: #fff; }
-.floatingRecap__btn--share { background: var(--comelit-green, #00BC70); color: #0b1220; }
-.floatingRecap__btn--share:hover { filter: brightness(1.1); }
-
-.floatingRecap__saveBadge {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--comelit-green, #00BC70); color: #0b1220;
-  font-size: 10px; font-weight: 900;
-}
-
-@keyframes recapPulse { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
-.floatingRecap__pill.pulse .pillValue { animation: recapPulse 0.4s ease; }
-
-body.hasFloatingRecap { padding-bottom: 70px; }
-
-
-/* ============================================================
-   C. VALIDATION BANNER
-   ============================================================ */
-
-.stepValidation { max-width: 900px; margin: 0 auto; padding: 0 20px; }
-.stepValidation__inner {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 16px; border-radius: 10px;
-  font-size: 13px; font-weight: 600;
-  transition: all 0.25s; margin-bottom: 8px;
-}
-.stepValidation.valid .stepValidation__inner {
-  background: rgba(0,188,112,0.08); border: 1px solid rgba(0,188,112,0.2); color: #065f46;
-}
-.stepValidation.invalid .stepValidation__inner {
-  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); color: #92400e;
-}
-
-
-/* ============================================================
-   D. COMPARE ENRICHI
-   ============================================================ */
-
-.enhancedCompare {
-  background: #fff; border-radius: 16px;
+.cmpPanel {
+  background: #fff;
+  border-radius: 14px;
   border: 1px solid var(--line, #E5E7EB);
-  box-shadow: var(--shadow2, 0 8px 18px rgba(2,6,23,.08));
-  overflow: hidden; margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.06);
+  overflow: hidden;
+  margin-bottom: 12px;
 }
-.cmpHeader {
+
+.cmpHead {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 16px; background: var(--panel3, #FAFAFB);
-  border-bottom: 1px solid var(--line, #E5E7EB);
+  padding: 10px 14px;
+  background: var(--panel3, #FAFAFB);
+  border-bottom: 1px solid var(--line);
 }
-.cmpTitle { font-size: 15px; font-weight: 900; color: var(--cosmos, #1C1F2A); }
-
-.cmpGrid { display: grid; grid-template-columns: minmax(110px,1fr) 1fr 1fr; font-size: 13px; }
-
-.cmpCorner { background: var(--panel3); border-bottom: 2px solid var(--line); border-right: 1px solid var(--line); }
-.cmpCamHead { padding: 14px 12px; text-align: center; background: var(--panel3); border-bottom: 2px solid var(--line); }
-.cmpCamHead + .cmpCamHead { border-left: 1px solid var(--line); }
-.cmpCamImg { width: 60px; height: 60px; object-fit: contain; border-radius: 10px; margin-bottom: 8px; background: #fff; border: 1px solid var(--line); }
-.cmpCamName { font-size: 13px; font-weight: 900; color: var(--cosmos); }
-.cmpCamSub { font-size: 11px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.cmpRowLabel {
-  padding: 10px 12px; font-weight: 700; color: var(--muted);
-  border-right: 1px solid var(--line); border-bottom: 1px solid rgba(0,0,0,0.04);
-  white-space: nowrap; font-size: 12px;
+.cmpHeadTitle { font-size: 14px; font-weight: 800; }
+.cmpHeadClose {
+  background: none; border: 1px solid var(--line); border-radius: 8px;
+  padding: 4px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+  color: var(--muted); transition: all 0.15s;
 }
-.cmpRowVal {
-  padding: 10px 12px; text-align: center; font-weight: 600;
-  color: var(--cosmos); border-bottom: 1px solid rgba(0,0,0,0.04); transition: background 0.2s;
-}
-.cmpRowVal + .cmpRowVal { border-left: 1px solid var(--line); }
-.cmpRowVal.cmpBetter { background: rgba(0,188,112,0.08); color: #065f46; font-weight: 900; }
-.cmpRowVal.cmpWorse { background: rgba(220,38,38,0.04); color: rgba(15,23,42,0.5); }
+.cmpHeadClose:hover { border-color: #DC2626; color: #DC2626; }
 
-.cmpLegend { display: flex; justify-content: center; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--panel3); }
-.cmpLegendItem { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: var(--muted); }
-.cmpDotBetter { width: 10px; height: 10px; border-radius: 3px; background: rgba(0,188,112,0.3); border: 1px solid rgba(0,188,112,0.6); }
-.cmpDotWorse { width: 10px; height: 10px; border-radius: 3px; background: rgba(220,38,38,0.1); border: 1px solid rgba(220,38,38,0.3); }
+/* Grille 3 colonnes */
+.cmpTable {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  font-size: 13px;
+}
+
+.cmpCell { padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,.04); }
+
+.cmpCorner { background: var(--panel3); border-right: 1px solid var(--line); border-bottom: 2px solid var(--line); }
+
+.cmpColHead {
+  padding: 10px 8px;
+  text-align: center;
+  background: var(--panel3);
+  border-bottom: 2px solid var(--line);
+}
+.cmpColHead + .cmpColHead { border-left: 1px solid var(--line); }
+
+.cmpImg {
+  width: 48px; height: 48px; object-fit: contain;
+  border-radius: 8px; margin: 0 auto 6px;
+  display: block; background: #fff; border: 1px solid var(--line);
+}
+.cmpId { font-size: 12px; font-weight: 900; color: var(--cosmos); }
+.cmpName { font-size: 10px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; margin-inline: auto; }
+
+.cmpLabel {
+  font-weight: 600; color: var(--muted); font-size: 12px;
+  border-right: 1px solid var(--line); white-space: nowrap;
+}
+
+.cmpVal { text-align: center; font-weight: 600; color: var(--cosmos); }
+.cmpVal + .cmpVal { border-left: 1px solid var(--line); }
+
+.cmpVal.cmpBetter { background: rgba(0,188,112,.07); color: #065f46; font-weight: 800; }
+.cmpVal.cmpWorse  { background: rgba(220,38,38,.03); color: rgba(15,23,42,.45); }
+
+/* Alternance */
+.cmpLabel:nth-child(6n+4),
+.cmpLabel:nth-child(6n+4) + .cmpVal,
+.cmpLabel:nth-child(6n+4) + .cmpVal + .cmpVal { background-color: rgba(0,0,0,.015); }
+
+.cmpFoot {
+  display: flex; justify-content: center; gap: 14px;
+  padding: 8px 12px; border-top: 1px solid var(--line);
+  background: var(--panel3); font-size: 11px; color: var(--muted);
+}
+.cmpLeg { display: flex; align-items: center; gap: 4px; font-weight: 600; }
+.cmpDot { width: 8px; height: 8px; border-radius: 2px; }
+.cmpDotG { background: rgba(0,188,112,.35); border: 1px solid rgba(0,188,112,.6); }
+.cmpDotR { background: rgba(220,38,38,.15); border: 1px solid rgba(220,38,38,.3); }
 
 
 /* ============================================================
-   E. BOUTON COMPARER SUR CARTES
+   C. BOUTON COMPARER SUR LES CARTES
    ============================================================ */
 
 .btnCompare {
-  padding: 6px 12px !important; font-size: 12px !important;
+  padding: 5px 10px !important; font-size: 12px !important;
   border-radius: 8px; border: 1px solid var(--line) !important;
   background: transparent; color: var(--muted); cursor: pointer;
   transition: all 0.15s; white-space: nowrap;
 }
-.btnCompare:hover { border-color: var(--comelit-green) !important; color: var(--comelit-green); background: rgba(0,188,112,0.04); }
-.btnCompare.active { border-color: var(--comelit-green) !important; background: rgba(0,188,112,0.1); color: #065f46; font-weight: 800; }
+.btnCompare:hover { border-color: var(--comelit-green) !important; color: var(--comelit-green); }
+.btnCompare.active { border-color: var(--comelit-green) !important; background: rgba(0,188,112,.08); color: #065f46; font-weight: 700; }
 
 
 /* ============================================================
-   F. CARTES CAMÉRA SCROLL HORIZONTAL MOBILE
+   D. CARTES SCROLL HORIZONTAL MOBILE
    ============================================================ */
 
 @media (max-width: 768px) {
   .cameraCards--swipeable {
     display: flex !important; flex-direction: row !important;
-    overflow-x: auto; overflow-y: hidden;
-    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
-    gap: 12px; padding: 4px 4px 12px; margin: 0 -4px;
-    scrollbar-width: none; -ms-overflow-style: none;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px; padding: 4px 4px 10px; margin: 0 -4px;
+    scrollbar-width: none;
   }
   .cameraCards--swipeable::-webkit-scrollbar { display: none; }
   .cameraCards--swipeable > .cameraPickCard {
     flex: 0 0 85vw; max-width: 85vw;
-    scroll-snap-align: center; scroll-snap-stop: always;
+    scroll-snap-align: center;
   }
 }
 
 .scrollIndicator { display: none; }
 @media (max-width: 768px) {
-  .scrollIndicator { display: flex; justify-content: center; gap: 6px; padding: 8px 0 4px; }
+  .scrollIndicator { display: flex; justify-content: center; gap: 6px; padding: 6px 0; }
 }
-.scrollDot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.25s; }
-.scrollDot.active { background: var(--comelit-green); transform: scale(1.3); box-shadow: 0 0 6px rgba(0,188,112,0.4); }
+.scrollDot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); cursor: pointer; transition: all 0.2s; }
+.scrollDot.active { background: var(--comelit-green); transform: scale(1.3); }
 
 
 /* ============================================================
-   G. MODAL CHARGER CONFIG
+   E. MODAL CHARGER CONFIG
    ============================================================ */
 
 .cfgModal__overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+  background: rgba(0,0,0,.45); backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 .cfgModal__overlay.open { opacity: 1; pointer-events: auto; }
 
 .cfgModal {
-  background: #fff; border-radius: 20px; box-shadow: 0 24px 60px rgba(0,0,0,0.2);
-  width: 90%; max-width: 480px; max-height: 80vh; overflow-y: auto; padding: 24px;
-  transform: translateY(20px); transition: transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  background: #fff; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.18);
+  width: 90%; max-width: 440px; max-height: 75vh; overflow-y: auto; padding: 20px;
 }
 .cfgModal__overlay.open .cfgModal { transform: translateY(0); }
-.cfgModal__title { font-size: 18px; font-weight: 900; color: var(--cosmos); margin-bottom: 6px; }
-.cfgModal__subtitle { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
-.cfgModal__list { display: flex; flex-direction: column; gap: 8px; }
+.cfgModal__title { font-size: 16px; font-weight: 900; margin-bottom: 14px; }
+.cfgModal__list { display: flex; flex-direction: column; gap: 6px; }
 .cfgModal__item {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; border-radius: 12px;
-  border: 1px solid var(--line); background: var(--panel3);
-  cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); cursor: pointer; transition: all .12s;
 }
-.cfgModal__item:hover { border-color: var(--comelit-green); background: rgba(0,188,112,0.04); }
+.cfgModal__item:hover { border-color: var(--comelit-green); background: rgba(0,188,112,.03); }
 .cfgModal__itemInfo { flex: 1; min-width: 0; }
-.cfgModal__itemName { font-size: 14px; font-weight: 800; color: var(--cosmos); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfgModal__itemName { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cfgModal__itemMeta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .cfgModal__itemDelete {
-  width: 32px; height: 32px; border: none; border-radius: 8px;
-  background: rgba(220,38,38,0.08); color: #DC2626; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0;
+  width: 28px; height: 28px; border: none; border-radius: 6px;
+  background: rgba(220,38,38,.06); color: #DC2626; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
 }
-.cfgModal__itemDelete:hover { background: rgba(220,38,38,0.18); }
-.cfgModal__empty { text-align: center; padding: 24px 12px; color: var(--muted); font-size: 13px; }
-.cfgModal__footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
-.cfgModal__btnClose { padding: 8px 18px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--cosmos); font-size: 13px; font-weight: 700; cursor: pointer; }
+.cfgModal__itemDelete:hover { background: rgba(220,38,38,.15); }
+.cfgModal__empty { text-align: center; padding: 20px; color: var(--muted); font-size: 13px; }
+.cfgModal__footer { display: flex; justify-content: flex-end; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.cfgModal__btnClose { padding: 7px 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
 
 
 /* ============================================================
-   H. TOAST
+   F. TOAST
    ============================================================ */
 
 .cfgToast {
-  position: fixed; bottom: 80px; left: 50%; z-index: 1100;
-  transform: translateX(-50%) translateY(20px);
-  padding: 10px 20px; border-radius: 12px;
+  position: fixed; bottom: 24px; left: 50%; z-index: 1100;
+  transform: translateX(-50%) translateY(16px);
+  padding: 9px 18px; border-radius: 10px;
+  background: var(--cosmos, #1C1F2A); color: #fff;
   font-size: 13px; font-weight: 700;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  opacity: 0; pointer-events: none; transition: all 0.3s; white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(0,0,0,.18);
+  opacity: 0; pointer-events: none; transition: all .25s; white-space: nowrap;
 }
-.cfgToast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-.cfgToast--success { background: var(--comelit-green); color: #0b1220; }
-.cfgToast--info { background: var(--cosmos); color: #fff; }
-.cfgToast--warn { background: var(--warn, #F59E0B); color: #0b1220; }
-
-/* Undo toast */
-.undoToast {
-  position: fixed; top: 20px; left: 50%; z-index: 1200;
-  transform: translateX(-50%) translateY(-10px);
-  padding: 8px 18px; border-radius: 10px;
-  background: var(--cosmos); color: #fff;
-  font-size: 13px; font-weight: 700; box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  opacity: 0; pointer-events: none; transition: all 0.25s; white-space: nowrap;
-}
-.undoToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.cfgToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 
 /* ============================================================
-   R1. RESPONSIVE — TABLETTE (≤900px)
+   R1. RESPONSIVE TABLETTE (≤900px)
    ============================================================ */
 
 @media (max-width: 900px) {
-  .floatingRecap__inner { padding: 10px 14px; gap: 10px; }
-  .floatingRecap__pill { padding: 5px 10px; font-size: 12px; }
-  .floatingRecap__btn { padding: 7px 12px; font-size: 12px; }
-  .floatingRecap__btn .btnText { display: none; }
-  .floatingRecap__divider, .floatingRecap__step { display: none; }
-
-  .stepValidation { padding: 0 16px; }
-  .stepValidation__inner { font-size: 12px; padding: 6px 12px; }
-
-  .cmpGrid { font-size: 11px; grid-template-columns: minmax(85px,auto) 1fr 1fr; }
-  .cmpCamImg { width: 45px; height: 45px; }
-  .cmpRowLabel { padding: 8px; font-size: 10px; }
-  .cmpRowVal { padding: 8px; font-size: 11px; }
+  .cmpTable { font-size: 11px; }
+  .cmpCell { padding: 6px 8px; }
+  .cmpImg { width: 36px; height: 36px; }
+  .cmpId { font-size: 11px; }
+  .cmpName { font-size: 9px; max-width: 100px; }
+  .cmpLabel { font-size: 10px; }
 }
 
 
 /* ============================================================
-   R2. RESPONSIVE — MOBILE (≤600px)
+   R2. RESPONSIVE MOBILE (≤600px)
    ============================================================ */
 
 @media (max-width: 600px) {
-  .floatingRecap__inner { flex-wrap: wrap; padding: 10px 12px; gap: 8px; }
-  .floatingRecap__stats { width: 100%; justify-content: center; gap: 6px; }
-  .floatingRecap__pill { padding: 5px 8px; font-size: 11px; gap: 4px; border-radius: 16px; }
-  .pillLabel { display: none; }
-  .floatingRecap__actions { width: 100%; justify-content: center; }
-  .floatingRecap__btn { flex: 1; justify-content: center; padding: 10px 8px; font-size: 12px; }
-  body.hasFloatingRecap { padding-bottom: 100px; }
-  .cfgToast { bottom: 115px; font-size: 12px; }
-
-  .stepValidation { padding: 0 10px; }
-  .stepValidation__inner { font-size: 11px; padding: 6px 10px; border-radius: 8px; }
+  .cmpPanel { border-radius: 10px; margin: 0 -2px 10px; }
+  .cmpHead { padding: 8px 10px; }
+  .cmpHeadTitle { font-size: 13px; }
+  .cmpTable { font-size: 10px; grid-template-columns: auto 1fr 1fr; }
+  .cmpCell { padding: 5px 6px; }
+  .cmpImg { width: 30px; height: 30px; margin-bottom: 4px; }
+  .cmpId { font-size: 10px; }
+  .cmpName { font-size: 8px; max-width: 70px; }
+  .cmpLabel { font-size: 9px; }
+  .cmpVal { font-size: 10px; }
+  .cmpFoot { padding: 6px 8px; font-size: 10px; gap: 10px; }
 
   #steps.stepSlideInNext, #steps.stepSlideInPrev { animation-duration: 0.2s; }
 
-  .cfgModal { width: 100%; max-width: 100%; border-radius: 16px 16px 0 0; }
+  .cfgModal { width: 100%; max-width: 100%; border-radius: 14px 14px 0 0; }
   .cfgModal__overlay { align-items: flex-end; }
-
-  .cmpGrid { grid-template-columns: minmax(70px,auto) 1fr 1fr; }
-  .cmpCamImg { width: 35px; height: 35px; }
-  .cmpRowLabel { padding: 6px; font-size: 9px; }
-  .cmpRowVal { padding: 6px; font-size: 10px; }
 }
 
 @media (max-width: 400px) {
-  .floatingRecap__pill { padding: 4px 6px; font-size: 10px; }
-  .floatingRecap__btn { font-size: 11px; padding: 9px 6px; }
+  .cmpTable { grid-template-columns: auto 1fr 1fr; }
+  .cmpCell { padding: 4px 5px; }
+  .cmpLabel { font-size: 8px; }
+  .cmpVal { font-size: 9px; }
+  .cmpImg { width: 24px; height: 24px; }
+  .cmpName { max-width: 55px; }
   .cameraCards--swipeable > .cameraPickCard { flex: 0 0 92vw; max-width: 92vw; }
 }
 
 
 /* ============================================================
-   R3. REDUCED MOTION
+   R3. REDUCED MOTION + PRINT
    ============================================================ */
 
 @media (prefers-reduced-motion: reduce) {
   #steps.stepSlideInNext, #steps.stepSlideInPrev { animation: none !important; }
-  .stepperDot, .stepperLabel, .stepperLine { transition-duration: 0.01s !important; }
-  .stepperStep.completed .stepperDot { animation: none !important; }
 }
 
-
-/* ============================================================
-   R4. PRINT
-   ============================================================ */
-
 @media print {
-  .floatingRecap, .cfgToast, .undoToast, .cfgModal__overlay,
-  .stepValidation, .scrollIndicator, .btnCompare { display: none !important; }
-  body.hasFloatingRecap { padding-bottom: 0; }
+  .cfgToast, .cfgModal__overlay, .scrollIndicator, .btnCompare, .cmpPanel { display: none !important; }
   .cameraCards--swipeable { display: flex !important; flex-wrap: wrap !important; overflow: visible !important; }
   .cameraCards--swipeable > .cameraPickCard { flex: 0 0 48% !important; max-width: 48% !important; }
 }

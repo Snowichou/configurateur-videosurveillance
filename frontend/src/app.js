@@ -1624,8 +1624,66 @@ function parsePipeList(v) {
   }
 window._getCameraById = getCameraById;
   // ==========================================================
-  // 6) ENGINE - RECO CAMERA
+  // 6) ENGINE - RECO CAMERA (V2 — profils métier)
   // ==========================================================
+
+  /**
+   * Profils métier par use_case + emplacement
+   * preferred : types favorisés (+bonus)
+   * penalized : types pénalisés (-malus)
+   * ptzMinDistance : distance min pour PTZ justifiée
+   */
+  const CAMERA_PROFILES = {
+    "Tertiaire|interieur": {
+      preferred: ["turret", "dome", "fish-eye"],
+      penalized: ["ptz", "bullet", "lpr"],
+      ptzMinDistance: 50,
+    },
+    "Tertiaire|exterieur": {
+      preferred: ["bullet", "dome", "turret"],
+      penalized: ["fish-eye", "lpr"],
+      ptzMinDistance: 40,
+    },
+    "Résidentiel|interieur": {
+      preferred: ["turret", "dome"],
+      penalized: ["ptz", "bullet", "lpr"],
+      ptzMinDistance: 999,
+    },
+    "Résidentiel|exterieur": {
+      preferred: ["turret", "bullet"],
+      penalized: ["ptz", "lpr", "fish-eye"],
+      ptzMinDistance: 60,
+    },
+    "Logement collectif|interieur": {
+      preferred: ["dome", "turret"],
+      penalized: ["ptz", "bullet", "lpr"],
+      ptzMinDistance: 999,
+    },
+    "Logement collectif|exterieur": {
+      preferred: ["dome", "bullet"],
+      penalized: ["ptz", "lpr", "fish-eye"],
+      ptzMinDistance: 60,
+    },
+    "Parking|interieur": {
+      preferred: ["dome", "turret", "lpr"],
+      penalized: ["ptz", "fish-eye"],
+      ptzMinDistance: 80,
+    },
+    "Parking|exterieur": {
+      preferred: ["bullet", "dome", "lpr", "ptz"],
+      penalized: ["fish-eye"],
+      ptzMinDistance: 30,
+    },
+  };
+
+  function getCameraProfile(useCase, emplacement) {
+    const key = `${useCase}|${emplacement}`;
+    if (CAMERA_PROFILES[key]) return CAMERA_PROFILES[key];
+    if (emplacement === "interieur") return { preferred: ["turret","dome"], penalized: ["ptz","lpr"], ptzMinDistance: 50 };
+    if (emplacement === "exterieur") return { preferred: ["bullet","dome","turret"], penalized: [], ptzMinDistance: 40 };
+    return { preferred: [], penalized: [], ptzMinDistance: 40 };
+  }
+
   function recommendCameraForAnswers(ans) {
     let pool = [...CATALOG.CAMERAS];
 
@@ -1633,94 +1691,128 @@ window._getCameraById = getCameraById;
     const emplacement = normalizeEmplacement(ans.emplacement);
     const objective = String(ans.objective || "").trim();
     const distance = toNum(ans.distance_m);
+    const profile = getCameraProfile(useCase, emplacement);
 
+    // Filtres de base
     if (useCase) pool = pool.filter((c) => (c.use_cases || []).some((u) => u === useCase));
-
     if (emplacement === "interieur") pool = pool.filter((c) => c.emplacement_interieur === true);
     else if (emplacement === "exterieur") pool = pool.filter((c) => c.emplacement_exterieur === true);
 
     const doriKey = objectiveToDoriKey(objective || "identification");
+    // Filtre DORI souple (80% du besoin) pour plus de choix
     if (Number.isFinite(distance) && distance > 0) {
-      pool = pool.filter((c) => (c[doriKey] ?? 0) >= distance);
+      pool = pool.filter((c) => (c[doriKey] ?? 0) >= distance * 0.8);
     }
 
     if (!pool.length) {
       return {
-        primary: null,
-        alternatives: [],
-        reasons: [
-          "Aucune caméra ne match avec ces critères. Essaie :",
-          "• baisser la distance",
-          "• changer l’objectif ou le use case",
-          "• vérifier Emplacement_Interieur/Exterieur dans cameras.csv",
-          "• vérifier use_cases_01/02/03 (pas de 'false' à la place d’un vrai libellé)",
-        ],
+        primary: null, alternatives: [],
+        reasons: ["Aucune caméra ne correspond. Essaie de baisser la distance ou changer l'objectif."],
       };
     }
 
+    // ── Scoring V2 ──
     const scored = pool.map((c) => {
       let score = 0;
       const reasons = [];
+      const camType = String(c.type || "").toLowerCase().trim();
+      const doriCam = c[doriKey] ?? 0;
 
+      // 1) DORI vs distance — favoriser le "juste bien" pas le surdimensionné
       if (Number.isFinite(distance) && distance > 0) {
-        const margin = (c[doriKey] ?? 0) - distance;
-        if (margin >= 20) {
-          score += 4;
-          reasons.push("Très bonne marge DORI");
-        } else if (margin >= 10) {
-          score += 3;
-          reasons.push("Bonne marge DORI");
-        } else if (margin >= 3) {
-          score += 2;
-          reasons.push("Marge DORI correcte");
-        } else {
-          score += 1;
-          reasons.push("DORI juste suffisant");
-        }
+        const ratio = doriCam / distance;
+        if (ratio >= 1.0 && ratio <= 1.5)       { score += 4; reasons.push("DORI optimal"); }
+        else if (ratio > 1.5 && ratio <= 2.5)    { score += 3; reasons.push("Bonne marge DORI"); }
+        else if (ratio > 2.5 && ratio <= 4.0)    { score += 2; reasons.push("DORI surdimensionné"); }
+        else if (ratio > 4.0)                     { score += 1; reasons.push("DORI très surdimensionné"); }
+        else if (ratio >= 0.8)                    { score += 2; reasons.push("DORI limite"); }
+        else                                      { score += 0; reasons.push("DORI insuffisant"); }
+        // Pénalité surdimensionnement
+        if (ratio > 5.0) { score -= 2; reasons.push("Surdimensionné (" + Math.round(ratio) + "x)"); }
+        else if (ratio > 3.0) { score -= 1; }
       } else {
         score += 1;
-        reasons.push("Distance non renseignée (reco basée sur use case + emplacement)");
       }
 
-      if ((c.resolution_mp ?? 0) >= 8) {
-        score += 1;
-        reasons.push("Résolution élevée");
-      }
-      if (c.low_light) {
-        score += 1;
-        reasons.push("Mode faible luminosité");
-      }
-      if ((c.ik ?? 0) >= 10) {
-        score += 1;
-        reasons.push("IK10 (robuste)");
-      }
-      if ((c.ip ?? 0) >= 67) {
-        score += 1;
-        reasons.push("IP67 (extérieur)");
-      }
-      if (c.microphone) {
-        score += 1;
-        reasons.push("Micro intégré");
+      // 2) Résolution
+      const mp = c.resolution_mp ?? 0;
+      if (mp >= 8) { score += 1.5; reasons.push("8MP+"); }
+      else if (mp >= 4) { score += 1; }
+
+      // 3) IR
+      const ir = c.ir_range_m ?? 0;
+      if (emplacement === "exterieur" && ir >= 30) { score += 1; reasons.push("Bon IR"); }
+      else if (ir >= 20) { score += 0.5; }
+
+      // 4) Low light
+      if (c.low_light) { score += 0.5; }
+
+      // 5) Cohérence type / profil métier (GROS IMPACT)
+      if (profile.preferred.includes(camType)) {
+        score += 3;
+        reasons.push("Type recommandé (" + camType + ")");
+      } else if (profile.penalized.includes(camType)) {
+        score -= 3;
+        reasons.push("Type inadapté (" + camType + ")");
       }
 
+      // Pénalité PTZ si distance insuffisante
+      if (camType === "ptz") {
+        const minDist = profile.ptzMinDistance || 40;
+        if (!Number.isFinite(distance) || distance < minDist) {
+          score -= 4;
+          reasons.push("PTZ injustifiée (< " + minDist + "m)");
+        } else {
+          score += 1;
+          reasons.push("PTZ justifiée (" + distance + "m)");
+        }
+      }
+
+      // Pénalité LPR hors parking
+      if (camType === "lpr" && useCase !== "Parking") {
+        score -= 3;
+        reasons.push("LPR hors contexte");
+      }
+
+      // 6) Pénalité PoE excessif
+      const poe = c.poe_w ?? 0;
+      if (poe > 30) { score -= 1.5; }
+      else if (poe > 15) { score -= 0.5; }
+      else if (poe <= 8 && poe > 0) { score += 0.5; reasons.push("PoE économe"); }
+
+      // 7) Bonus contextuels
+      if ((c.ik ?? 0) >= 10 && (emplacement === "exterieur" || useCase === "Logement collectif" || useCase === "Parking")) {
+        score += 1; reasons.push("IK10");
+      }
+      if ((c.ip ?? 0) >= 67 && emplacement === "exterieur") { score += 0.5; }
+      if (c.microphone && emplacement === "interieur") { score += 0.5; }
+
+      // 8) Focale adaptée
       const f = c.focal_min_mm ?? 0;
-      if (objective === "dissuasion") {
-        if (f > 0 && f <= 2.8) {
-          score += 1;
-          reasons.push("Grand angle (couverture)");
-        }
-      } else if (objective === "identification") {
-        if (f >= 4.0) {
-          score += 1;
-          reasons.push("Focale serrée (détails)");
-        }
-      }
+      if (objective === "dissuasion" && f > 0 && f <= 2.8) { score += 1; reasons.push("Grand angle"); }
+      else if (objective === "identification" && f >= 4.0 && camType !== "ptz") { score += 0.5; }
 
-      return { camera: c, score, reasons };
+      return { camera: c, score, reasons, camType };
     });
 
     scored.sort((a, b) => b.score - a.score);
-    return { primary: scored[0], alternatives: scored.slice(1, 3), reasons: scored[0].reasons };
+
+    // Diversité : alternatives de types différents
+    const primary = scored[0];
+    const primaryType = primary?.camType || "";
+    const alternatives = [];
+    // D'abord un type différent
+    for (const s of scored.slice(1)) {
+      if (alternatives.length >= 2) break;
+      if (s.camType !== primaryType && !alternatives.some(a => a.camType === s.camType)) alternatives.push(s);
+    }
+    // Compléter
+    for (const s of scored.slice(1)) {
+      if (alternatives.length >= 2) break;
+      if (!alternatives.includes(s)) alternatives.push(s);
+    }
+
+    return { primary, alternatives, reasons: primary?.reasons || [] };
   }
 
   // ==========================================================
