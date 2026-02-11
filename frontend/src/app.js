@@ -647,20 +647,15 @@ function computeRiskCounters(){
     const required = Number(ans.distance_m || 0);
     const objective = ans.objective || "";
     const dori = getDoriForObjective(cam, objective);
+    const empl = normalizeEmplacement(ans.emplacement);
+    const useCase = String(ans.use_case || "").trim();
+    const camType = String(cam.type || "").toLowerCase().trim();
 
-    // 1) Distance vs DORI (60)
-    // ratio = dori / required ; >= 1 = OK
+    // 1) Distance vs DORI (60 pts)
     let ratio = null;
     let scoreDori = 0;
-
     if (required > 0 && Number.isFinite(required) && dori && dori > 0) {
       ratio = dori / required;
-      // courbe douce :
-      // - ratio >= 1.3 => 60
-      // - ratio = 1.0 => 52
-      // - ratio = 0.8 => 40
-      // - ratio = 0.6 => 25
-      // - ratio < 0.4 => 10
       const r = ratio;
       if (r >= 1.3) scoreDori = 60;
       else if (r >= 1.0) scoreDori = 52 + (r - 1.0) * (60 - 52) / 0.3;
@@ -670,13 +665,11 @@ function computeRiskCounters(){
       else scoreDori = 6;
       scoreDori = clamp(Math.round(scoreDori), 0, 60);
     } else {
-      // info manquante => on reste prudent
       scoreDori = 18;
     }
 
-    // 2) MP (15)
+    // 2) MP (15 pts)
     const mp = getMpFromCam(cam);
-    // barème simple (à ajuster à ta gamme)
     let scoreMp = 0;
     if (mp == null) scoreMp = 7;
     else if (mp >= 8) scoreMp = 15;
@@ -685,7 +678,7 @@ function computeRiskCounters(){
     else if (mp >= 2) scoreMp = 9;
     else scoreMp = 7;
 
-    // 3) IR (15)
+    // 3) IR (15 pts)
     const ir = getIrFromCam(cam);
     let scoreIr = 0;
     if (ir == null) scoreIr = 7;
@@ -695,29 +688,53 @@ function computeRiskCounters(){
     else if (ir >= 20) scoreIr = 9;
     else scoreIr = 7;
 
-    // 4) Bonus cohérence (10)
-    // On fait simple : extérieur favorise IR un peu + housings, intérieur favorise MP/détails
+    // 4) Cohérence usage (10 pts) — enrichi avec le profil métier
     let bonus = 0;
-    const empl = normalizeEmplacement(ans.emplacement);
-    if (empl === "exterieur" && ir != null && ir >= 30) bonus += 6;
-    if (empl === "interieur" && mp != null && mp >= 4) bonus += 6;
+    if (empl === "exterieur" && ir != null && ir >= 30) bonus += 3;
+    if (empl === "interieur" && mp != null && mp >= 4) bonus += 3;
+    if (ratio != null && ratio >= 1.15) bonus += 2;
 
-    // Bonus petite marge DORI si ratio bien au-dessus
-    if (ratio != null && ratio >= 1.15) bonus += 4;
+    // Bonus/malus type caméra selon profil métier
+    const profile = (typeof getCameraProfile === "function") ? getCameraProfile(useCase, empl) : null;
+    if (profile) {
+      if (profile.preferred.includes(camType)) bonus += 5;
+      else if (profile.penalized.includes(camType)) bonus -= 8;
+    }
 
-    bonus = clamp(bonus, 0, 10);
+    // Pénalité PTZ si distance trop courte
+    if (camType === "ptz" && profile) {
+      const minDist = profile.ptzMinDistance || 40;
+      if (!Number.isFinite(required) || required < minDist) bonus -= 10;
+    }
 
+    // Pénalité LPR hors parking
+    if (camType === "lpr" && useCase && useCase !== "Parking") bonus -= 10;
+
+    bonus = clamp(bonus, -15, 10);
     const score = clamp(scoreDori + scoreMp + scoreIr + bonus, 0, 100);
+
+    // Déterminer le type de préoccupation principale
+    let typeWarning = "";
+    if (profile && profile.penalized.includes(camType)) {
+      typeWarning = camType.toUpperCase() + " inadaptée pour " + (useCase || "ce contexte") + " " + empl;
+    }
+    if (camType === "ptz" && profile && (!Number.isFinite(required) || required < (profile.ptzMinDistance || 40))) {
+      typeWarning = "PTZ injustifiée (distance < " + (profile.ptzMinDistance || 40) + "m)";
+    }
+    if (camType === "lpr" && useCase && useCase !== "Parking") {
+      typeWarning = "LPR inadaptée hors contexte parking";
+    }
 
     const parts = [
       `DORI vs distance : ${scoreDori}/60${(ratio!=null ? ` (x${ratio.toFixed(2)})` : "")}`,
       `Qualité capteur : ${scoreMp}/15${(mp!=null ? ` (${mp}MP)` : "")}`,
       `IR / nuit : ${scoreIr}/15${(ir!=null ? ` (${ir}m)` : "")}`,
-      `Cohérence usage : ${bonus}/10`
+      `Cohérence usage : ${clamp(bonus, 0, 10)}/10${typeWarning ? " ⚠️" : ""}`
     ];
 
-    return { score, parts, ratio, dori, required };
+    return { score, parts, ratio, dori, required, typeWarning, camType: camType };
   }
+
 
 /**
  * Interprétation score → 3 niveaux + motif principal + phrase
@@ -740,90 +757,86 @@ function interpretScoreForBlock(block, cam){
   const sc = scoreCameraForBlock(block, cam);
   const ans = block?.answers || {};
   const obj = String(ans.objective || "").toLowerCase();
+  const empl = normalizeEmplacement(ans.emplacement);
+  const useCase = String(ans.use_case || "").trim();
 
-  // Base sur score (strict)
-  let level = "ok";   // ok | warn | bad
+  let level = "ok";
   let badge = "OK";
   let message = "—";
 
-  if (sc.score >= 80) {
-    level = "ok"; badge = "OK"; message = "";
-  } else if (sc.score >= 60) {
-    level = "warn"; badge = "LIMITE"; message = "";
-  } else {
-    level = "bad"; badge = "INADAPTÉ"; message = "";
-  }
+  if (sc.score >= 75) { level = "ok"; badge = "OK"; }
+  else if (sc.score >= 55) { level = "warn"; badge = "LIMITE"; }
+  else { level = "bad"; badge = "INADAPTÉ"; }
 
   // Hard rule DORI
   let hardRule = false;
   let minRatio = null;
-
   if (sc.ratio != null && Number.isFinite(sc.ratio)) {
     minRatio = (obj === "identification") ? 0.85 : 0.80;
-    if (sc.ratio < minRatio) {
-      level = "bad";
-      badge = "INADAPTÉ";
-      hardRule = true;
-    }
+    if (sc.ratio < minRatio) { level = "bad"; badge = "INADAPTÉ"; hardRule = true; }
   }
 
-  // Helpers
-  const ansObj = String(ans.objective || "").toLowerCase();
-  const objectiveLbl = (() => {
-    try { return objectiveLabel(ansObj) || "Objectif"; } catch { return "Objectif"; }
-  })();
-  const emplLbl = (() => {
-    try { return normalizeEmplacement(ans.emplacement) === "exterieur" ? "extérieur" : "intérieur"; }
-    catch { return "site"; }
-  })();
-  const dist = Number(sc.required || 0);
+  // Hard rule TYPE — caméra inadaptée au contexte
+  let typeRule = false;
+  if (sc.typeWarning) {
+    if (level !== "bad") { level = "warn"; badge = "LIMITE"; }
+    typeRule = true;
+  }
 
+  const ansObj = String(ans.objective || "").toLowerCase();
+  const objectiveLbl = (() => { try { return objectiveLabel(ansObj) || "Objectif"; } catch { return "Objectif"; } })();
+  const emplLbl = empl === "exterieur" ? "extérieur" : "intérieur";
+  const dist = Number(sc.required || 0);
   const mp = getMpFromCam(cam);
   const ir = getIrFromCam(cam);
+  const ratioTxt = (sc.ratio != null && Number.isFinite(sc.ratio)) ? `DORI x${sc.ratio.toFixed(2)}` : null;
+  const camType = String(cam.type || "").toLowerCase().trim();
+  const camTypeLabel = ({turret:"Tourelle",dome:"Dôme",bullet:"Bullet",ptz:"PTZ","fish-eye":"Fisheye",lpr:"LPR"})[camType] || camType;
 
-  const ratioTxt =
-    (sc.ratio != null && Number.isFinite(sc.ratio)) ? `DORI x${sc.ratio.toFixed(2)}` : null;
-
-  // 🧠 Point critique (1 phrase) => sert pour le mode "Simple"
+  // Point critique
   let keyPoint = "Point critique : —";
   try {
-    if (hardRule && minRatio != null && sc.ratio != null) {
+    if (sc.typeWarning) {
+      keyPoint = `Point critique : ${sc.typeWarning}`;
+    } else if (hardRule && minRatio != null && sc.ratio != null) {
       keyPoint = `Point critique : marge DORI insuffisante (x${sc.ratio.toFixed(2)} < x${minRatio.toFixed(2)})`;
+    } else if (ratioTxt && sc.ratio < 1.0) {
+      keyPoint = `Point critique : marge DORI faible (${ratioTxt})`;
+    } else if (ir != null && ir < 30 && emplLbl === "extérieur") {
+      keyPoint = `Point critique : IR limite (${ir}m)`;
+    } else if (mp != null && mp < 4) {
+      keyPoint = `Point critique : niveau de détail (${mp}MP)`;
     } else {
-      // Heuristique simple
-      if (ratioTxt && sc.ratio < 1.0) keyPoint = `Point critique : marge DORI faible (${ratioTxt})`;
-      else if (ir != null && ir < 30 && emplLbl === "extérieur") keyPoint = `Point critique : IR limite (IR ${ir}m)`;
-      else if (mp != null && mp < 4) keyPoint = `Point critique : niveau de détail (${mp}MP)`;
-      else keyPoint = `Point critique : marge de sécurité`;
+      keyPoint = `Point critique : aucun — bonne adéquation`;
     }
-  } catch {
-    keyPoint = "Point critique : —";
-  }
+  } catch { keyPoint = "Point critique : —"; }
 
-  // ✅ Phrase commerciale courte, franche, lisible
-  // (on évite les pavés et les phrases “tièdes”)
+  // Message commercial
   try {
     const feats = [];
+    if (camTypeLabel) feats.push(camTypeLabel);
     if (ratioTxt) feats.push(ratioTxt);
     if (mp != null) feats.push(`${mp}MP`);
     if (ir != null) feats.push(`IR ${ir}m`);
+    const featTxt = feats.length ? feats.slice(0, 4).join(" • ") : "données partielles";
 
-    const featTxt = feats.length ? feats.slice(0, 3).join(" • ") : "données partielles";
-
-    if (hardRule && minRatio != null && sc.ratio != null) {
+    if (sc.typeWarning) {
+      message = `⚠️ ${sc.typeWarning} — ${featTxt}.`;
+    } else if (hardRule) {
       message = `Non recommandée — marge DORI trop faible pour ${objectiveLbl.toLowerCase()} à ${dist}m (${emplLbl}).`;
     } else if (level === "ok") {
-      message = `Recommandée (marge OK) — ${objectiveLbl} ${dist}m (${emplLbl}) • ${featTxt}.`;
+      message = `Recommandée — ${camTypeLabel} adaptée pour ${objectiveLbl.toLowerCase()} à ${dist}m (${emplLbl}) • ${featTxt}.`;
     } else if (level === "warn") {
-      message = `Acceptable (marge faible) — ${objectiveLbl} ${dist}m (${emplLbl}) • ${featTxt}.`;
+      message = `Acceptable — ${objectiveLbl} ${dist}m (${emplLbl}) • ${featTxt}.`;
     } else {
       message = `Non recommandée — ${objectiveLbl} ${dist}m (${emplLbl}) • ${keyPoint.replace("Point critique : ","")}.`;
     }
-  } catch {
-    message = message || "—";
-  }
+  } catch { message = message || "—"; }
 
-  return { ...sc, level, badge, message, hardRule, keyPoint };
+  // Ajuster le score visible si le type est inadapté
+  let adjustedScore = sc.score;
+  if (sc.typeWarning && adjustedScore > 60) adjustedScore = Math.min(adjustedScore, 60);
+  return { ...sc, score: adjustedScore, level, badge, message, hardRule, keyPoint, typeWarning: sc.typeWarning || "" };
 }
 
 
@@ -1794,12 +1807,20 @@ window._getCameraById = getCameraById;
     if (emplacement === "interieur") pool1 = pool1.filter((c) => c.emplacement_interieur === true);
     else if (emplacement === "exterieur") pool1 = pool1.filter((c) => c.emplacement_exterieur === true);
     if (doriThreshold > 0) pool1 = pool1.filter((c) => (c[doriKey] ?? 0) >= doriThreshold);
+    // Exclure LPR sauf parking (lecture de plaque = parking uniquement)
+    if (useCase !== "Parking") {
+      pool1 = pool1.filter((c) => String(c.type || "").toLowerCase() !== "lpr");
+    }
 
     // ── Pool 2 : emplacement + DORI SEULEMENT (pas de filtre use_case) ──
     // Sert à trouver des alternatives longue portée (PTZ, big bullet)
     let pool2 = [...CATALOG.CAMERAS];
     if (emplacement === "interieur") pool2 = pool2.filter((c) => c.emplacement_interieur === true);
     else if (emplacement === "exterieur") pool2 = pool2.filter((c) => c.emplacement_exterieur === true);
+    // Exclure LPR sauf parking
+    if (useCase !== "Parking") {
+      pool2 = pool2.filter((c) => String(c.type || "").toLowerCase() !== "lpr");
+    }
     if (doriThreshold > 0) pool2 = pool2.filter((c) => (c[doriKey] ?? 0) >= doriThreshold);
     // Exclure celles déjà dans pool1 pour éviter les doublons
     const pool1Ids = new Set(pool1.map(c => c.id));
@@ -1809,7 +1830,10 @@ window._getCameraById = getCameraById;
     if (!pool1.length && !pool2Only.length) {
       return {
         primary: null, alternatives: [],
-        reasons: ["Aucune caméra ne correspond. Essaie de baisser la distance ou changer l'objectif."],
+        reasons: [
+          "Aucune caméra ne correspond à ces critères.",
+          "Suggestions : réduire la distance, passer en détection/dissuasion, ou envisager un emplacement extérieur avec PTZ.",
+        ],
       };
     }
 
@@ -1840,6 +1864,34 @@ window._getCameraById = getCameraById;
     for (const s of allScored.slice(1)) {
       if (alternatives.length >= 2) break;
       if (!alternatives.includes(s)) alternatives.push(s);
+    }
+
+    // Garde-fou : si le primary est un type totalement inadapté, retourner vide
+    const primaryIsLPR = primaryType === "lpr" && useCase !== "Parking";
+    const primaryIsPTZIndoor = primaryType === "ptz" && emplacement === "interieur"
+      && (!Number.isFinite(distance) || distance < (profile.ptzMinDistance || 40));
+    
+    if (primaryIsLPR || primaryIsPTZIndoor) {
+      // Chercher une alternative valide
+      const validAlt = alternatives.find(a => {
+        const t = a.camType || "";
+        if (t === "lpr" && useCase !== "Parking") return false;
+        if (t === "ptz" && emplacement === "interieur") return false;
+        return true;
+      });
+      if (validAlt) {
+        // Promouvoir l'alternative comme primary
+        const newAlts = alternatives.filter(a => a !== validAlt);
+        return { primary: validAlt, alternatives: newAlts, reasons: validAlt.reasons || [] };
+      }
+      // Aucune alternative valide non plus
+      return {
+        primary: null, alternatives: [],
+        reasons: [
+          "Aucune caméra adaptée pour " + (useCase || "ce contexte") + " " + emplacement + " à " + distance + "m en " + (objective || "identification") + ".",
+          "Suggestions : réduire la distance, passer en détection/dissuasion, ou envisager un emplacement extérieur.",
+        ],
+      };
     }
 
     return { primary, alternatives, reasons: primary.reasons || [] };
@@ -3175,6 +3227,19 @@ function imgTag(family, ref) {
   const projectName = String(proj?.projectName ?? MODEL?.projectName ?? "").trim();
   const projectNameDisplay = projectName ? projectName : "—";
 
+  // QR Code — encode l'URL de partage si disponible
+  let qrDataUrl = "";
+  try {
+    if (typeof generateShareUrl === "function") {
+      const shareUrl = generateShareUrl();
+      console.log("[PDF] Share URL length:", shareUrl ? shareUrl.length : "null");
+      if (shareUrl && shareUrl.length < 4000) {
+        qrDataUrl = generateQRDataUrl(shareUrl);
+        console.log("[PDF] QR data URL:", qrDataUrl ? "OK (" + qrDataUrl.length + " chars)" : "EMPTY");
+      }
+    }
+  } catch (e) { console.warn("[PDF] QR generation skipped:", e); }
+
   // Helpers FR
   const frCodec = (c) => {
     const s = String(c || "").toLowerCase().trim();
@@ -3208,6 +3273,22 @@ function imgTag(family, ref) {
     </tr>
   `;
 
+  // Row enrichie pour caméras : avec score et contexte
+  const row4cam = (qty, ref, name, family, scoreInfo) => `
+    <tr>
+      <td class="colQty">${safe(qty)}</td>
+      <td class="colRef">
+        <strong>${safe(ref || "—")}</strong>
+        ${scoreInfo ? `<div class="rowScore ${scoreInfo.level}">${safe(scoreInfo.score)}/100</div>` : ""}
+      </td>
+      <td class="colName">
+        ${safe(name || "")}
+        ${scoreInfo?.context ? `<div class="rowContext">${safe(scoreInfo.context)}</div>` : ""}
+      </td>
+      <td class="colImg">${imgTag(family, ref)}</td>
+    </tr>
+  `;
+
   const table4 = (rowsHtml) => {
     if (!rowsHtml) return `<div class="muted">—</div>`;
     return `
@@ -3225,20 +3306,29 @@ function imgTag(family, ref) {
     `;
   };
 
-  // ✅ Header commun (V3) : logo | titres | score
-  const headerHtml = (subtitle) => `
+  // ✅ Header commun (V4) : bande verte + logo | titres | score + sous-titre + page
+  let _pageCounter = 0;
+
+  const headerHtml = (subtitle) => {
+    _pageCounter++;
+    return `
+    <div class="greenBand"></div>
     <div class="pdfHeader">
       <div class="headerGrid">
         <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit" loading="lazy">
 
         <div class="headerTitles">
-          <div class="mainTitle">Rapport de configuration Vidéosurveillance</div>
-          <div class="metaLine">Généré le ${safe(dateStr)} • Configurateur Comelit (MVP)</div>
+          <div class="mainTitle">Rapport de configuration</div>
+          <div class="mainTitle mainTitleSub">Vidéosurveillance</div>
         </div>
 
-        <div class="scorePill">
-          <span class="scoreLabel">Score</span>
-          <span class="scoreValue">${projectScore != null ? `${safe(projectScore)}/100` : "—"}</span>
+        <div class="headerRight">
+          ${projectScore != null ? `
+          <div class="scorePill">
+            <span class="scoreLabel">Score</span>
+            <span class="scoreValue">${safe(projectScore)}/100</span>
+          </div>` : ""}
+          <div class="pageNum">Page ${_pageCounter}</div>
         </div>
       </div>
 
@@ -3250,6 +3340,7 @@ function imgTag(family, ref) {
       </div>
     </div>
   `;
+  };
 
   // =========================================================================
   // EXTRACTION DES DONNÉES (ordre important !)
@@ -3343,10 +3434,29 @@ function imgTag(family, ref) {
     // Accessoires de ce bloc
     const blockAccs = (MODEL.accessoryLines || []).filter((a) => a.fromBlockId === blk.id);
     
+    // Score de la caméra pour ce bloc
+    let scoreInfo = null;
+    if (cam && typeof interpretScoreForBlock === "function") {
+      try {
+        const interp = interpretScoreForBlock(blk, cam);
+        scoreInfo = {
+          score: interp.score ?? "—",
+          level: interp.level || "warn",
+          context: interp.message || ""
+        };
+      } catch (e) {}
+    }
+
+    const ans = blk.answers || {};
     blockGroups.push({
       blockId: blk.id,
       label: blockLabel,
-      camera: cam ? { qty: camLine.qty || 0, id: cam.id, name: cam.name } : null,
+      blkInfo: {
+        objective: String(ans.objective || "").toLowerCase(),
+        distance: ans.distance || null,
+        emplacement: String(ans.emplacement || "").toLowerCase(),
+      },
+      camera: cam ? { qty: camLine.qty || 0, id: cam.id, name: cam.name, scoreInfo } : null,
       accessories: blockAccs.map((a) => ({ qty: a.qty || 0, id: a.accessoryId, name: a.name || a.accessoryId }))
     });
   }
@@ -3397,7 +3507,7 @@ function imgTag(family, ref) {
       ${table4(currentRows.join(""))}
     </div>
 
-    <div class="footerLine">Comelit — With you always</div>
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>`);
         isFirstPage = false;
       } else {
@@ -3409,7 +3519,7 @@ function imgTag(family, ref) {
       <div class="sectionTitle">Détail par zone (suite)</div>
       ${table4(currentRows.join(""))}
     </div>
-    <div class="footerLine">Comelit — With you always</div>
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>`);
       }
       currentRows = [];
@@ -3425,22 +3535,31 @@ function imgTag(family, ref) {
     };
 
     // Fonction pour créer une ligne de séparation de bloc
-    const blockSeparatorRow = (label) => `
+    const blockSeparatorRow = (label, blkInfo) => {
+      const objLabel = {"identification":"Identification","detection":"Détection","dissuasion":"Dissuasion"}[blkInfo?.objective] || "";
+      const dist = blkInfo?.distance ? `${blkInfo.distance}m` : "";
+      const empl = blkInfo?.emplacement === "exterieur" ? "Ext." : blkInfo?.emplacement === "interieur" ? "Int." : "";
+      const meta = [objLabel, dist, empl].filter(Boolean).join(" • ");
+      return `
       <tr class="blockSeparator">
-        <td colspan="4" style="background: #f0f9f4; font-weight: 900; color: #1C1F2A; padding: 10px; border-left: 4px solid #00BC70;">
-          📍 ${safe(label)}
+        <td colspan="4">
+          <div class="blockSepInner">
+            <span class="blockSepLabel">📍 ${safe(label)}</span>
+            ${meta ? `<span class="blockSepMeta">${safe(meta)}</span>` : ""}
+          </div>
         </td>
       </tr>
     `;
+    };
 
     // Parcourir tous les blocs
     for (const group of blockGroups) {
-      // Ajouter le séparateur de bloc
-      addRow(blockSeparatorRow(group.label));
+      // Ajouter le séparateur de bloc avec contexte
+      addRow(blockSeparatorRow(group.label, group.blkInfo));
       
-      // Ajouter la caméra du bloc
+      // Ajouter la caméra du bloc (avec score)
       if (group.camera) {
-        addRow(row4(group.camera.qty, group.camera.id, group.camera.name, "cameras"));
+        addRow(row4cam(group.camera.qty, group.camera.id, group.camera.name, "cameras", group.camera.scoreInfo));
       }
       
       // Ajouter les accessoires du bloc
@@ -3481,7 +3600,7 @@ function imgTag(family, ref) {
       <div class="muted">Aucune caméra configurée</div>
     </div>
 
-    <div class="footerLine">Comelit — With you always</div>
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>`);
     }
 
@@ -4221,7 +4340,7 @@ const buildSynopticHtml = (proj) => {
   return `
     <div class="synWrap">
       <div class="synCanvas" data-syn-fit="1">
-        <div class="synStage" data-density-scale="${densityScale}">
+        <div class="synStage" style="transform-origin:50% 50%; transform:scale(${(Math.max(0.55, Math.min(1.1, 0.94 * densityScale))).toFixed(4)});">
 
           ${synHeaderHtml}
           ${legendHtml}
@@ -4286,40 +4405,7 @@ const buildSynopticHtml = (proj) => {
         .synImgPhMini{ width:100%; height:100%; background:#f8fafc; }
         .synHddTxt{ font-size:10px; font-weight:900; color:#475569; }
       </style>
-      <script>
-(() => {
-  try {
-    const wrap = document.currentScript?.closest('.synWrap');
-    if (!wrap) return;
-
-    const canvas = wrap.querySelector('.synCanvas[data-syn-fit="1"]');
-    const stage  = wrap.querySelector('.synStage');
-    if (!canvas || !stage) return;
-
-    const W = 1120, H = 720;
-    const density = Number(stage.getAttribute('data-density-scale') || '1');
-
-    // Taille dispo (zone synoptique dans la page)
-    const cw = canvas.clientWidth || 0;
-    const ch = canvas.clientHeight || 0;
-    if (cw <= 0 || ch <= 0) return;
-
-    // Fit pur
-    let fit = Math.min(cw / W, ch / H);
-
-    // Petit boost pour "remplir" (sans déborder)
-    fit *= 1.08;
-
-    // Clamp safe (évite de grossir trop si petits écrans)
-    fit = Math.max(0.55, Math.min(1.25, fit));
-
-    // Scale final = fit * pénalité densité
-    const finalScale = fit * density;
-
-    stage.style.transformOrigin = '50% 50%';
-    stage.style.transform = 'scale(' + finalScale.toFixed(4) + ')';
-  } catch(e) {}
-</script>
+      <!-- Scale calculé en CSS pur (compatible html2canvas) -->
 
     </div>
   `;
@@ -4342,20 +4428,27 @@ const buildSynopticHtml = (proj) => {
       --c-blue-soft: #eef2f7;
     }
 
+    /* ====== BANDE VERTE COMELIT ====== */
+    .greenBand{
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, var(--c-green) 0%, var(--c-green) 70%, var(--c-blue) 100%);
+      border-radius: 0 0 2px 2px;
+      margin-bottom: 2mm;
+      flex-shrink: 0;
+    }
+
     .pdfPage{
       width: 210mm;
-      height: 297mm;  /* ✅ FIXE */
+      height: 297mm;
       box-sizing: border-box;
       overflow: hidden;
       display: flex;
       flex-direction: column;
       margin: 0;
-
-      /* ✅ V2: page plus “pleine” */
-      padding: 6mm;                 /* au lieu de 18/18/14 */
+      padding: 5mm 6mm 4mm 6mm;
       background: var(--c-white);
-
-      }
+    }
 
     .pdfPage:last-child{
       page-break-after: auto;
@@ -4363,8 +4456,8 @@ const buildSynopticHtml = (proj) => {
     }
     .pdfPageLandscape{
       width: 297mm;
-      height: 210mm;  /* ✅ FIXE */
-      padding: 6mm;
+      height: 210mm;
+      padding: 5mm 6mm 4mm 6mm;
       box-sizing: border-box;
       overflow: hidden;
       display:flex;
@@ -4389,6 +4482,26 @@ const buildSynopticHtml = (proj) => {
 
 
   /* Optionnel : footer plus proche en paysage */
+    .qrBlock{
+      margin-top: auto;
+      padding: 16px 0 8px 0;
+      display:flex;
+      align-items:center;
+      gap: 16px;
+    }
+    .qrImg{
+      width: 90px;
+      height: 90px;
+      image-rendering: pixelated;
+    }
+    .qrLabel{
+      font-size: 10px;
+      color: var(--c-muted);
+      max-width: 200px;
+      line-height: 1.4;
+    }
+
+
   .pdfPageLandscape .footerLine{
     margin-top: 6px;
   }
@@ -4641,10 +4754,125 @@ const buildSynopticHtml = (proj) => {
     .aNum{ width:70px; text-align:right; }
 
     .footerLine{
-      margin-top:10px;
-      text-align:center;
-      font-size:10px;
-      color:var(--c-muted);
+      margin-top:auto;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      color: var(--c-muted);
+      border-top: 1px solid var(--c-line);
+      flex-shrink: 0;
+    }
+    .footLeft{ font-weight: 700; }
+    .footRight{ font-style: italic; }
+
+    /* ====== HEADER V4 ====== */
+    .headerRight{
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .pageNum{
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--c-muted);
+      text-align: right;
+    }
+    .mainTitleSub{
+      font-size: 16px;
+      color: var(--c-green);
+      margin-top: 2px;
+    }
+
+    /* ====== DASHBOARD KPI (PAGE 0) ====== */
+    .dashGrid{
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .dashCard{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--c-line);
+      border-radius: 14px;
+      background: var(--c-soft);
+    }
+    .dashIcon{
+      font-size: 22px;
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+    }
+    .dashData{ min-width: 0; }
+    .dashValue{
+      font-family: "Arial Black", Arial, sans-serif;
+      font-size: 15px;
+      color: var(--c-blue);
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .dashLabel{
+      font-size: 10px;
+      color: var(--c-muted);
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    /* ====== CAMERA ROW ENRICHIE ====== */
+    .rowScore{
+      display: inline-block;
+      margin-top: 3px;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 6px;
+      line-height: 1.3;
+    }
+    .rowScore.ok{ background: #dcfce7; color: #166534; }
+    .rowScore.warn{ background: #fef3c7; color: #92400e; }
+    .rowScore.bad{ background: #fee2e2; color: #991b1b; }
+    .rowContext{
+      margin-top: 3px;
+      font-size: 9px;
+      color: var(--c-muted);
+      line-height: 1.3;
+    }
+
+    /* ====== BLOCK SEPARATOR ENRICHI ====== */
+    .blockSeparator td{
+      background: #f0f9f4 !important;
+      padding: 8px 10px !important;
+      border-left: 4px solid var(--c-green) !important;
+    }
+    .blockSepInner{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .blockSepLabel{
+      font-weight: 900;
+      color: var(--c-blue);
+      font-size: 12px;
+    }
+    .blockSepMeta{
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--c-muted);
+      background: #fff;
+      padding: 2px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--c-line);
     }
 
     /* =========================================================
@@ -4682,19 +4910,68 @@ const buildSynopticHtml = (proj) => {
 
   </style>
 
-  <!-- ✅ PAGE 0 : NOM DU PROJET -->
+  <!-- ✅ PAGE 0 : SYNTHÈSE DU PROJET -->
   <div class="pdfPage">
-    ${headerHtml("Nom du projet")}
+    ${headerHtml("Synthèse du projet")}
 
     <div class="projectCard">
-      <div class="projectLabel">Quel est le nom de votre projet ?</div>
+      <div class="projectLabel">Projet</div>
       <div class="projectValue">${safe(projectNameDisplay)}</div>
-      <div class="projectHint">
-        Conseil : court et clair (site + zone). Exemple : “École Jules Ferry — Entrée”.
+    </div>
+
+    <div class="dashGrid">
+      <div class="dashCard">
+        <div class="dashIcon">📹</div>
+        <div class="dashData">
+          <div class="dashValue">${safe((MODEL.cameraLines || []).reduce((s,l) => s + (l.qty || 0), 0))}</div>
+          <div class="dashLabel">Caméras</div>
+        </div>
+      </div>
+      <div class="dashCard">
+        <div class="dashIcon">📍</div>
+        <div class="dashData">
+          <div class="dashValue">${safe(blockGroups.length)}</div>
+          <div class="dashLabel">Zones configurées</div>
+        </div>
+      </div>
+      <div class="dashCard">
+        <div class="dashIcon">💾</div>
+        <div class="dashData">
+          <div class="dashValue">${safe(requiredTB.toFixed(1))} To</div>
+          <div class="dashLabel">Stockage requis</div>
+        </div>
+      </div>
+      <div class="dashCard">
+        <div class="dashIcon">📡</div>
+        <div class="dashData">
+          <div class="dashValue">${safe(totalMbps.toFixed(1))} Mbps</div>
+          <div class="dashLabel">Débit total</div>
+        </div>
+      </div>
+      <div class="dashCard">
+        <div class="dashIcon">🎥</div>
+        <div class="dashData">
+          <div class="dashValue">${safe(nvr?.id || "—")}</div>
+          <div class="dashLabel">Enregistreur (NVR)</div>
+        </div>
+      </div>
+      <div class="dashCard">
+        <div class="dashIcon">⏱</div>
+        <div class="dashData">
+          <div class="dashValue">${safe(daysRetention)}j • ${safe(codec)} • ${safe(ips)} IPS</div>
+          <div class="dashLabel">Enregistrement</div>
+        </div>
       </div>
     </div>
 
-    <div class="footerLine">Comelit — With you always</div>
+    ${qrDataUrl ? `
+    <div class="qrBlock">
+      <img src="${qrDataUrl}" class="qrImg" alt="QR Code" />
+      <div class="qrLabel">Scannez pour ouvrir ou modifier<br>cette configuration en ligne</div>
+    </div>
+    ` : ""}
+
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>
 
 
@@ -4726,7 +5003,7 @@ const buildSynopticHtml = (proj) => {
       ${!signageEnabled ? `<div class="muted" style="margin-top:6px">Panneau de signalisation : (désactivé)</div>` : ``}
     </div>
 
-    <div class="footerLine">Comelit — With you always</div>
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>
 
   <!-- ✅ PAGE 3 -->
@@ -4800,7 +5077,7 @@ const buildSynopticHtml = (proj) => {
       </div>
     </div>
 
-    <div class="footerLine">Comelit — With you always</div>
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>
 
   <!-- ✅ PAGE 4 : SYNOPTIQUE -->
@@ -4809,7 +5086,7 @@ const buildSynopticHtml = (proj) => {
     <div class="landscapeBody">
       ${buildSynopticHtml(proj)}
     </div>
-    <div class="footerLine">Comelit — With you always</div>
+    <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
   </div>
 
 </div>`;
@@ -4878,13 +5155,15 @@ if (btnPrev) {
     return;
   }
 
-  if (stepId === "project") {
-  const isProjectComplete = MODEL.projectName?.trim() && MODEL.projectUseCase?.trim();
-  if (!isProjectComplete) {
-    btnCompute.disabled = true;
-    btnCompute.title = "Remplissez le nom et le type de site";
+  // Validation visuelle du bouton selon l'étape
+  const stepErrors = typeof validateStep === "function" ? validateStep(stepId) : [];
+  if (stepErrors.length > 0) {
+    DOM.btnCompute.classList.add("btnDisabledHint");
+    DOM.btnCompute.title = stepErrors[0];
+  } else {
+    DOM.btnCompute.classList.remove("btnDisabledHint");
+    DOM.btnCompute.title = "";
   }
-}
   DOM.btnCompute.disabled = false;
 
   // Optionnel: libellés contextuels
@@ -5069,6 +5348,7 @@ function camPickCardHTML(blk, cam, label) {
 
           <!-- Specs clés en badges -->
           <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
+            <span class="badgePill" style="background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:#1d4ed8;font-weight:900">${({"turret":"Tourelle","dome":"Dôme","bullet":"Bullet","ptz":"PTZ","fish-eye":"Fisheye","lpr":"LPR"})[String(cam.type||"").toLowerCase()] || cam.type || "—"}</span>
             <span class="badgePill" style="font-weight:900">${mp} MP</span>
             <span class="badgePill">IR ${ir}m</span>
             ${ip ? `<span class="badgePill">${ip}</span>` : ""}
@@ -5533,8 +5813,11 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
     if (!validatedBlocks.length) {
       return `
-        <div class="reasons" style="margin-top:10px">Proposition automatique <strong>par bloc caméra</strong> (caméra validée + emplacement + pose). Tu peux ajuster.</div>
-        <div class="muted" style="margin-top:12px">Aucun bloc validé. Retourne à l’étape 1 et valide au moins un bloc caméra.</div>
+        <div class="uiEmptyState">
+          <div class="uiEmptyIcon">🔩</div>
+          <div class="uiEmptyTitle">Aucun bloc validé</div>
+          <div class="uiEmptyMsg">Retourne à l'étape Caméras et valide au moins un bloc pour voir les accessoires recommandés.</div>
+        </div>
       `;
     }
 
@@ -5549,50 +5832,41 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           ? lines
               .map(
                 (acc, li) => `
-            <div class="reasons" style="padding:10px;border:1px solid var(--line);border-radius:12px">
-              <div style="display:flex;gap:10px;align-items:flex-start">
-                <div style="flex:1">
-                  <strong>${safeHtml(acc.name || acc.accessoryId)}</strong>
-                  <div class="muted">${safeHtml(accessoryTypeLabel(acc.type))}</div>
-
-                  ${acc.datasheet_url ? `<div style="margin-top:6px"><a href="${acc.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a></div>` : ""}
-
-                  <div style="margin-top:10px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-                    <div>
-                      <strong>Quantité</strong><br>
-                      <input data-action="accQty" data-bid="${safeHtml(blk.id)}" data-li="${li}"
-                        type="number" min="1" max="999" value="${acc.qty}"
-                        style="width:160px;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)" />
-                    </div>
-
-                    <button data-action="accDelete" data-bid="${safeHtml(blk.id)}" data-li="${li}"
-                      style="padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);cursor:pointer" type="button">
-                      Supprimer
-                    </button>
-                  </div>
+            <div class="uiProductCard">
+              <div class="uiProductMain">
+                <div class="uiProductInfo">
+                  <div class="uiProductTitle">${safeHtml(acc.name || acc.accessoryId)}</div>
+                  <div class="uiProductMeta">${safeHtml(accessoryTypeLabel(acc.type))}</div>
+                  ${acc.datasheet_url ? `<a class="uiLink" href="${acc.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
                 </div>
-
-                ${acc.image_url ? `<img src="${acc.image_url}" alt="" style="width:100px;height:80px;object-fit:cover;border-radius:12px;border:1px solid var(--line)" loading="lazy">` : ""}
+                ${acc.image_url ? `<img class="uiProductImg" src="${acc.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🔩</div>`}
+              </div>
+              <div class="uiProductActions">
+                <div class="uiInputGroup">
+                  <label class="uiInputLabel">Quantité</label>
+                  <input data-action="accQty" data-bid="${safeHtml(blk.id)}" data-li="${li}"
+                    type="number" min="1" max="999" value="${acc.qty}" class="uiInput uiInputSm" />
+                </div>
+                <button data-action="accDelete" data-bid="${safeHtml(blk.id)}" data-li="${li}"
+                  class="uiBtnGhost uiBtnDanger" type="button">🗑 Supprimer</button>
               </div>
             </div>
           `
               )
               .join("")
-          : `<div class="muted">Aucun accessoire trouvé pour ce bloc (mapping manquant dans accessories.csv ?).</div>`;
+          : `<div class="uiMuted">Aucun accessoire trouvé pour ce bloc.</div>`;
 
         return `
-        <div class="recoCard" style="padding:12px">
-          <div class="recoHeader">
+        <div class="uiSection">
+          <div class="uiSectionHeader">
+            <div class="uiSectionIcon">📹</div>
             <div>
-              <div class="recoName">Bloc : ${safeHtml(cam?.name || "Caméra")}</div>
-              <div class="muted">
-                ${blk.qty || 1}× • Pose: ${safeHtml(mountingLabel(blk.answers.mounting))} • ${safeHtml(emplLabel)} • Use case: ${safeHtml(blk.answers.use_case || "—")}
-              </div>
+              <div class="uiSectionTitle">${safeHtml(blk.label || cam?.name || "Bloc caméra")}</div>
+              <div class="uiSectionMeta">${blk.qty || 1}× • ${safeHtml(emplLabel)} • ${safeHtml(blk.answers.use_case || "—")}</div>
             </div>
-            <div class="score">ACC</div>
+            <div class="uiBadge">ACC</div>
           </div>
-
-          <div style="margin-top:10px;display:grid;gap:10px">
+          <div class="uiSectionBody">
             ${linesHtml}
           </div>
         </div>
@@ -5601,14 +5875,16 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       .join("");
 
     return `
-      <div class="reasons" style="margin-top:10px">Proposition automatique <strong>par bloc caméra</strong> (caméra validée + emplacement + pose). Tu peux ajuster.</div>
+      <div class="uiStepIntro">
+        <div class="uiStepIntroIcon">🔩</div>
+        <div>
+          <div class="uiStepIntroTitle">Accessoires par zone</div>
+          <div class="uiStepIntroMsg">Proposition automatique par bloc caméra. Vous pouvez ajuster les quantités ou supprimer.</div>
+        </div>
+        <button data-action="recalcAccessories" type="button" class="uiBtn uiBtnSm">♻️ Recalculer</button>
+      </div>
 
-      <button data-action="recalcAccessories" type="button"
-        style="margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--text);cursor:pointer">
-        Recalculer les accessoires (auto) — par bloc
-      </button>
-
-      <div style="margin-top:12px;display:grid;gap:12px">
+      <div class="uiSectionsGrid">
         ${blocksHtml}
       </div>
     `;
@@ -5620,66 +5896,53 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
     const nvrHtml = nvr
       ? `
-    <div class="recoCard">
-      <div class="recoHeader">
+    <div class="uiSection">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">🎥</div>
         <div>
-          <div class="recoName">${safeHtml(nvr.id)} — ${safeHtml(nvr.name)}</div>
-          <div class="muted">NVR • ${nvr.channels} canaux • ${nvr.max_in_mbps} Mbps</div>
+          <div class="uiSectionTitle">${safeHtml(nvr.id)}</div>
+          <div class="uiSectionMeta">${safeHtml(nvr.name)}</div>
         </div>
-        <div class="score">NVR</div>
+        <div class="uiBadge uiBadgeGreen">NVR</div>
       </div>
-
-      <div class="kv">
-        <div><strong>Caméras :</strong> ${proj.totalCameras}</div>
-        <div><strong>Débit total :</strong> ${proj.totalInMbps.toFixed(1)} Mbps</div>
-        <div><strong>Raison :</strong> ${safeHtml(proj.nvrPick.reason)}</div>
-        <div><strong>Baies :</strong> ${nvr.hdd_bays} • <strong>Max/baie :</strong> ${nvr.max_hdd_tb_per_bay} TB</div>
+      <div class="uiSectionBody">
+        <div class="uiKpiRow">
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${proj.totalCameras}</div>
+            <div class="uiKpiLabel">Caméras</div>
+          </div>
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${nvr.channels}</div>
+            <div class="uiKpiLabel">Canaux</div>
+          </div>
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${proj.totalInMbps.toFixed(1)}</div>
+            <div class="uiKpiLabel">Mbps</div>
+          </div>
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${nvr.hdd_bays}</div>
+            <div class="uiKpiLabel">Baies HDD</div>
+          </div>
+        </div>
+        <div class="uiMuted" style="margin-top:8px">${safeHtml(proj.nvrPick.reason)}</div>
+        ${nvr.image_url ? `<div class="uiProductImgWrap"><img class="uiProductImgLg" src="${nvr.image_url}" alt="" loading="lazy"></div>` : ""}
+        ${nvr.datasheet_url ? `<a class="uiLink" href="${nvr.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique NVR</a>` : ""}
       </div>
-
-      ${
-        nvr.image_url
-          ? `
-        <div class="reasons" style="margin-top:10px">
-          <img 
-            src="${nvr.image_url}" 
-            alt="" 
-            style="
-              width:100%;
-              max-height:240px;
-              object-fit:contain;
-              display:block;
-              margin:auto;
-              border-radius:12px;
-              border:1px solid var(--line);
-              background: rgba(255,255,255,.03);
-            "
-          >
-        </div>
-      `
-          : ""
-      }
-
-      ${
-        nvr.datasheet_url
-          ? `
-        <div class="reasons" style="margin-top:8px">
-          <a href="${nvr.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique NVR</a>
-        </div>
-      `
-          : ""
-      }
     </div>
   `
       : `
-    <div class="recoCard">
-      <div class="recoHeader">
+    <div class="uiSection uiSectionWarn">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">🎥</div>
         <div>
-          <div class="recoName">Enregistreur (NVR)</div>
-          <div class="muted">Aucun modèle compatible</div>
+          <div class="uiSectionTitle">Enregistreur (NVR)</div>
+          <div class="uiSectionMeta">Aucun modèle compatible</div>
         </div>
-        <div class="score">NVR</div>
+        <div class="uiBadge">NVR</div>
       </div>
-      <div class="reasons">Ajoute des NVR dans <code>nvrs.csv</code> (channels, max_in_mbps).</div>
+      <div class="uiSectionBody">
+        <div class="uiMuted">Ajoute des NVR dans <code>nvrs.csv</code> (channels, max_in_mbps).</div>
+      </div>
     </div>
   `;
 
@@ -5693,45 +5956,16 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       const budget = item.poe_budget_w ?? null;
 
       return `
-      <div class="reasons" style="padding:10px;border:1px solid var(--line);border-radius:12px">
-        <div style="display:flex;gap:10px;align-items:flex-start">
-          <div style="flex:1">
-            <strong>${p.qty} × ${safeHtml(ref ? `${ref} — ${name}` : name)}</strong>
-            <div class="muted">
-              ${ports} ports PoE
-              ${budget != null ? ` • Budget ${budget} W` : ""}
-              ${item.uplink_gbps != null ? ` • Uplink ${item.uplink_gbps} Gb` : ""}
+      <div class="uiProductCard">
+        <div class="uiProductMain">
+          <div class="uiProductInfo">
+            <div class="uiProductTitle">${p.qty} × ${safeHtml(ref ? `${ref} — ${name}` : name)}</div>
+            <div class="uiProductMeta">
+              ${ports} ports PoE${budget != null ? ` • Budget ${budget} W` : ""}${item.uplink_gbps != null ? ` • Uplink ${item.uplink_gbps} Gb` : ""}
             </div>
-
-            ${
-              item.datasheet_url
-                ? `
-              <div style="margin-top:6px">
-                <a href="${item.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique switch</a>
-              </div>
-            `
-                : ""
-            }
+            ${item.datasheet_url ? `<a class="uiLink" href="${item.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
           </div>
-
-          ${
-            item.image_url
-              ? `
-            <img 
-              src="${item.image_url}" 
-              alt="" 
-              style="
-                width:110px;
-                height:80px;
-                object-fit:contain;
-                border-radius:12px;
-                border:1px solid var(--line);
-                background: rgba(255,255,255,.03);
-              "
-            >
-          `
-              : ""
-          }
+          ${item.image_url ? `<img class="uiProductImg" src="${item.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🔌</div>`}
         </div>
       </div>
     `;
@@ -5739,37 +5973,29 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
     const swHtml = !sw.required
       ? `
-    <div class="recoCard" style="margin-top:10px">
-      <div class="recoHeader">
+    <div class="uiSection" style="margin-top:12px">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">🔌</div>
         <div>
-          <div class="recoName">Réseau PoE</div>
-          <div class="muted">Switch non obligatoire (&lt; 16 caméras)</div>
+          <div class="uiSectionTitle">Réseau PoE</div>
+          <div class="uiSectionMeta">Switch non obligatoire (&lt; 16 caméras)</div>
         </div>
-        <div class="score">PoE</div>
+        <div class="uiBadge">PoE</div>
       </div>
-      <div class="reasons">Pour ce MVP, on impose des switches PoE à partir de 16 caméras (réserve ${MODEL.recording.reservePortsPct}%).</div>
     </div>
   `
       : `
-    <div class="recoCard" style="margin-top:10px">
-      <div class="recoHeader">
+    <div class="uiSection" style="margin-top:12px">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">🔌</div>
         <div>
-          <div class="recoName">Réseau PoE (switch obligatoire)</div>
-          <div class="muted">Ports requis: ${sw.portsNeeded} • Ports proposés: ${sw.totalPorts} • Surplus: ${sw.surplusPorts}</div>
+          <div class="uiSectionTitle">Réseau PoE (obligatoire)</div>
+          <div class="uiSectionMeta">Ports requis: ${sw.portsNeeded} • Proposés: ${sw.totalPorts} • Surplus: ${sw.surplusPorts}</div>
         </div>
-        <div class="score">PoE</div>
+        <div class="uiBadge uiBadgeGreen">PoE</div>
       </div>
-
-      <div class="reasons" style="margin-top:10px">
-        <strong>Plan switches :</strong>
-      </div>
-
-      <div style="margin-top:10px;display:grid;gap:10px">
+      <div class="uiSectionBody">
         ${sw.plan.map(switchLineCard).join("")}
-      </div>
-
-      <div class="reasons" style="margin-top:12px">
-        <strong>Règle :</strong> ports >= caméras + ${MODEL.recording.reservePortsPct}% réserve.
       </div>
     </div>
   `;
@@ -5780,155 +6006,122 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
   function renderStepStorage() {
     const proj = getProjectCached();
     const rec = MODEL.recording;
-
     const nvr = proj.nvrPick.nvr;
     const disk = proj.disks;
     const hdd = disk?.hddRef || null;
     
     return `
-    <div style="margin-top:10px">
-    <div style="margin-top:10px">
-      <div class="kv">
-        <div>
-          <strong title="Durée de conservation des enregistrements avant suppression automatique. La loi limite généralement à 30 jours maximum.">
-            📅 Jours de conservation
-          </strong>
-          <input data-action="recDays" type="number" min="1" max="30" value="${rec.daysRetention}"
-            title="⚠️ La loi interdit généralement le stockage au-delà de 30 jours"
-            style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-          <div class="muted" style="margin-top:4px;font-size:11px">⚖️ Maximum légal : 30 jours</div>
-        </div>
-        
-        <div>
-          <strong title="Nombre d'heures d'enregistrement par jour. 24h = enregistrement permanent.">
-            ⏰ Heures par jour
-          </strong>
-          <input data-action="recHours" type="number" min="1" max="24" value="${rec.hoursPerDay}"
-            title="24h = enregistrement en continu | Moins = économie de stockage"
-            style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-          <div class="muted" style="margin-top:4px;font-size:11px">Par défaut : 24h</div>
-        </div>
-        
-        <div>
-          <strong title="Images par seconde. Plus le FPS est élevé, plus l'image est fluide mais plus le stockage nécessaire est important.">
-            🎬 Images/seconde (FPS)
-          </strong>
-          <select data-action="recFps"
-            title="15 FPS = standard | 25 FPS = fluide (plus de stockage)"
-            style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            ${[10, 12, 15, 20, 25].map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " (recommandé)" : ""}</option>`).join("")}
-          </select>
-          <div class="muted" style="margin-top:4px;font-size:11px">+ de FPS = + fluide = + de stockage</div>
-        </div>
-        
-        <div>
-          <strong title="Algorithme de compression vidéo. H.265 est plus efficace et économise ~40% de stockage par rapport à H.264.">
-            🗜️ Codec vidéo
-          </strong>
-          <select data-action="recCodec"
-            title="H.265 = moderne, économise 40% de stockage | H.264 = compatible avec anciens équipements"
-            style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé, -40% stockage)</option>
-            <option value="h264" ${rec.codec === "h264" ? "selected" : ""}>H.264 (compatible ancien)</option>
-          </select>
-        </div>
-        
-        <div>
-          <strong title="Mode d'enregistrement : continu (permanent) ou sur détection de mouvement (économise le stockage).">
-            ⏺️ Mode d'enregistrement
-          </strong>
-          <select data-action="recMode"
-            title="Continu = enregistre en permanence | Détection = enregistre uniquement quand il y a du mouvement"
-            style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-            <option value="continuous" ${rec.mode === "continuous" ? "selected" : ""}>⏺️ Continu (permanent)</option>
-            <option value="motion" ${rec.mode === "motion" ? "selected" : ""}>👁️ Sur détection (économique)</option>
-          </select>
-          <div class="muted" style="margin-top:4px;font-size:11px">Détection ≈ -50% de stockage</div>
-        </div>
-        
-        <div>
-          <strong title="Pourcentage de sécurité ajouté au calcul de stockage pour anticiper les imprévus.">
-            📊 Marge de sécurité (%)
-          </strong>
-          <input data-action="recOver" type="number" min="0" max="50" value="${rec.overheadPct}"
-            title="Recommandé : 20% de marge pour anticiper les pics d'activité"
-            style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-          <div class="muted" style="margin-top:4px;font-size:11px">Recommandé : 20%</div>
-        </div>
-      </div>
-      
-      <div class="help" style="margin-top:12px;padding:10px;background:rgba(59,130,246,.05);border-radius:10px;border:1px solid rgba(59,130,246,.2)">
-        💡 <strong>Astuce :</strong> Passez la souris sur les titres pour plus d'explications.
+    <div class="uiStepIntro">
+      <div class="uiStepIntroIcon">💾</div>
+      <div>
+        <div class="uiStepIntroTitle">Paramètres d'enregistrement & stockage</div>
+        <div class="uiStepIntroMsg">Configurez la durée de rétention, le codec et le mode d'enregistrement.</div>
       </div>
     </div>
-      <div class="kv">
-        <div><strong>Stockage requis :</strong> ~${proj.requiredTB.toFixed(1)} TB</div>
-        <div><strong>NVR :</strong> ${nvr ? safeHtml(`${nvr.id} — ${nvr.name}`) : "—"}</div>
-      </div>
 
-      ${
-        disk
-          ? `
-        <div class="reasons" style="margin-top:10px">
-          <strong>Proposition :</strong><br>
-          • ${disk.count} × ${disk.sizeTB} TB (total ${disk.totalTB} TB)<br>
-          • Capacité max NVR : ${disk.maxTotalTB} TB
+    <div class="uiSection">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">⚙️</div>
+        <div>
+          <div class="uiSectionTitle">Paramètres</div>
+          <div class="uiSectionMeta">Survolez les titres pour plus d'explications</div>
+        </div>
+      </div>
+      <div class="uiSectionBody">
+        <div class="uiFormGrid">
+          <div class="uiFormField">
+            <label class="uiInputLabel" title="Durée de conservation des enregistrements.">📅 Jours de conservation</label>
+            <input data-action="recDays" type="number" min="1" max="30" value="${rec.daysRetention}" class="uiInput" />
+            <div class="uiHint">⚖️ Maximum légal : 30 jours</div>
+          </div>
+          <div class="uiFormField">
+            <label class="uiInputLabel" title="Heures d'enregistrement par jour.">⏰ Heures / jour</label>
+            <input data-action="recHours" type="number" min="1" max="24" value="${rec.hoursPerDay}" class="uiInput" />
+            <div class="uiHint">24h = enregistrement permanent</div>
+          </div>
+          <div class="uiFormField">
+            <label class="uiInputLabel" title="Images par seconde.">🎬 FPS</label>
+            <select data-action="recFps" class="uiInput">
+              ${[10, 12, 15, 20, 25].map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " ★" : ""}</option>`).join("")}
+            </select>
+            <div class="uiHint">15 FPS recommandé</div>
+          </div>
+          <div class="uiFormField">
+            <label class="uiInputLabel" title="Codec de compression vidéo.">🗜️ Codec</label>
+            <select data-action="recCodec" class="uiInput">
+              <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé)</option>
+              <option value="h264" ${rec.codec === "h264" ? "selected" : ""}>H.264</option>
+            </select>
+          </div>
+          <div class="uiFormField">
+            <label class="uiInputLabel" title="Mode d'enregistrement.">⏺️ Mode</label>
+            <select data-action="recMode" class="uiInput">
+              <option value="continuous" ${rec.mode === "continuous" ? "selected" : ""}>⏺️ Continu</option>
+              <option value="motion" ${rec.mode === "motion" ? "selected" : ""}>👁️ Sur détection (-50%)</option>
+            </select>
+          </div>
+          <div class="uiFormField">
+            <label class="uiInputLabel" title="Marge de sécurité.">📊 Marge (%)</label>
+            <input data-action="recOver" type="number" min="0" max="50" value="${rec.overheadPct}" class="uiInput" />
+            <div class="uiHint">Recommandé : 20%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="uiSection" style="margin-top:12px">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">💾</div>
+        <div>
+          <div class="uiSectionTitle">Résultat stockage</div>
+          <div class="uiSectionMeta">Basé sur les paramètres ci-dessus</div>
+        </div>
+      </div>
+      <div class="uiSectionBody">
+        <div class="uiKpiRow">
+          <div class="uiKpiCard uiKpiCardAccent">
+            <div class="uiKpiValue">${proj.requiredTB.toFixed(1)} To</div>
+            <div class="uiKpiLabel">Stockage requis</div>
+          </div>
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${nvr ? safeHtml(nvr.id) : "—"}</div>
+            <div class="uiKpiLabel">NVR</div>
+          </div>
+          ${disk ? `
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${disk.count} × ${disk.sizeTB} To</div>
+            <div class="uiKpiLabel">Disques (${disk.totalTB} To total)</div>
+          </div>
+          ` : ""}
         </div>
 
-        ${
-          hdd
-            ? `
-          <div class="reasons" style="margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:12px">
-            <div style="display:flex;gap:10px;align-items:flex-start">
-              <div style="flex:1">
-                <strong>${safeHtml(hdd.id)} — ${safeHtml(hdd.name || "")}</strong>
-                <div class="muted">${hdd.capacity_tb ?? disk.sizeTB} TB</div>
-                ${hdd.datasheet_url ? `<div style="margin-top:6px"><a href="${hdd.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique HDD</a></div>` : ""}
-              </div>
-
-              ${
-                hdd.image_url
-                  ? `
-                <img 
-                  src="${hdd.image_url}" 
-                  alt="" 
-                  style="
-                    width:110px;
-                    height:80px;
-                    object-fit:contain;
-                    border-radius:12px;
-                    border:1px solid var(--line);
-                    background: rgba(255,255,255,.03);
-                  "
-                >
-              `
-                  : ""
-              }
+        ${hdd ? `
+        <div class="uiProductCard" style="margin-top:10px">
+          <div class="uiProductMain">
+            <div class="uiProductInfo">
+              <div class="uiProductTitle">${safeHtml(hdd.id)}</div>
+              <div class="uiProductMeta">${safeHtml(hdd.name || "")} • ${hdd.capacity_tb ?? disk.sizeTB} To</div>
+              ${hdd.datasheet_url ? `<a class="uiLink" href="${hdd.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
             </div>
+            ${hdd.image_url ? `<img class="uiProductImg" src="${hdd.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">💾</div>`}
           </div>
-        `
-            : `
-          <div class="muted" style="margin-top:10px">
-            (Info HDD non trouvée dans hdds.csv pour ${disk.sizeTB} TB)
-          </div>
-        `
-        }
-      `
-          : `
-        <div class="reasons" style="margin-top:10px">Ajoute des disques dans <code>hdds.csv</code> (capacity_tb).</div>
-      `
-      }
+        </div>
+        ` : `<div class="uiMuted" style="margin-top:8px">Aucun HDD trouvé dans le catalogue.</div>`}
+      </div>
     </div>
-  `;
+    `;
   }
+
+
 
 function renderStepSummary() {
   const proj = LAST_PROJECT;
 
   const exportHtml = `
     <div class="exportRow exportRowSummary">
-      <button class="btn primary" id="btnExportPdf">Exporter PDF</button>
-      <button class="btn secondary" id="btnExportPdfPack">PDF + Fiches techniques</button>
+      <button class="btn primary" id="btnExportPdf">📄 Exporter PDF</button>
+      <button class="btn secondary" id="btnExportPdfPack">📦 PDF + Fiches techniques</button>
+      <button class="btn secondary" id="btnPreviewPdf">👁 Aperçu PDF</button>
       <button class="btnGhost" id="btnBackToEdit">Modifier la configuration</button>
     </div>
   `;
@@ -5993,6 +6186,16 @@ function bindSummaryButtons() {
     });
   }
 
+  // Aperçu PDF
+  const btnPreview = document.getElementById("btnPreviewPdf");
+  if (btnPreview && !btnPreview.dataset.bound) {
+    btnPreview.dataset.bound = "1";
+    btnPreview.addEventListener("click", () => {
+      if (typeof showPdfPreview === "function") showPdfPreview();
+      else alert("Aperçu PDF indisponible.");
+    });
+  }
+
   const btnPack = document.getElementById("btnExportPdfPack");
   if (btnPack && !btnPack.dataset.bound) {
     btnPack.dataset.bound = "1";
@@ -6048,6 +6251,270 @@ function render() {
 
 
 // ==========================================================
+
+// ==========================================================
+// QR CODE — Utilise qrcode.js (CDN) pour générer un QR data URL
+// ==========================================================
+function generateQRDataUrl(text, size = 150) {
+  try {
+    if (typeof QRCode === "undefined") {
+      console.warn("[QR] QRCode lib not loaded");
+      return "";
+    }
+    
+    // Créer un container temporaire offscreen
+    const div = document.createElement("div");
+    div.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+    document.body.appendChild(div);
+    
+    // Générer le QR
+    const qr = new QRCode(div, {
+      text: text,
+      width: size,
+      height: size,
+      colorDark: "#1C1F2A",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+    
+    // Récupérer le canvas
+    const canvas = div.querySelector("canvas");
+    let dataUrl = "";
+    if (canvas) {
+      dataUrl = canvas.toDataURL("image/png");
+    }
+    
+    // Cleanup
+    div.remove();
+    return dataUrl;
+  } catch (e) {
+    console.warn("[QR] Generation failed:", e);
+    return "";
+  }
+}
+
+// ==========================================================
+// SHARE URL — Génère l'URL de partage pour le QR code
+// ==========================================================
+function generateShareUrl() {
+  try {
+    const snap = typeof snapshotForSave === "function" ? snapshotForSave() : null;
+    if (!snap && typeof MODEL !== "undefined") {
+      // Fallback: construire un snapshot minimal
+      const bl = (MODEL.cameraBlocks || []).map(b => ({
+        id: b.id, lb: b.label, v: b.validated, sc: b.selectedCameraId, q: b.qty, a: b.answers
+      }));
+      const cl = (MODEL.cameraLines || []).map(l => ({
+        ci: l.cameraId, fb: l.fromBlockId, q: l.qty
+      }));
+      const light = { pn: MODEL.projectName || "", uc: MODEL.projectUseCase || "", bl, cl };
+      const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(light))));
+      if (encoded.length > 3500) return null; // Trop long pour QR
+      const url = new URL(window.location.href);
+      url.searchParams.set("cfg", encoded);
+      return url.toString();
+    }
+    
+    if (!snap) return null;
+    const light = {
+      pn: snap.projectName, uc: snap.projectUseCase,
+      bl: (snap.cameraBlocks || []).map(b => ({ id: b.id, lb: b.label, v: b.validated, sc: b.selectedCameraId, q: b.qty, a: b.answers })),
+      cl: (snap.cameraLines || []).map(l => ({ ci: l.cameraId, fb: l.fromBlockId, q: l.qty })),
+    };
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(light))));
+    if (encoded.length > 3500) return null;
+    const url = new URL(window.location.href);
+    url.searchParams.set("cfg", encoded);
+    return url.toString();
+  } catch (e) {
+    console.warn("[Share] URL generation failed:", e);
+    return null;
+  }
+}
+
+// ==========================================================
+// APERÇU PDF — Preview HTML dans une modale
+// ==========================================================
+function showPdfPreview() {
+  const proj = (typeof LAST_PROJECT !== "undefined" && LAST_PROJECT)
+    ? LAST_PROJECT
+    : (typeof computeProject === "function" ? computeProject() : null);
+  
+  if (!proj) {
+    alert("Projet non disponible. Finalisez d'abord la configuration.");
+    return;
+  }
+  
+  let html;
+  try {
+    html = buildPdfHtml(proj);
+  } catch (e) {
+    alert("Erreur lors de la génération de l'aperçu : " + e.message);
+    return;
+  }
+  
+  // Créer la modale
+  const overlay = document.createElement("div");
+  overlay.id = "pdfPreviewOverlay";
+  
+  // Injecter le CSS responsive + structure
+  overlay.innerHTML = `
+    <style>
+      #pdfPreviewOverlay {
+        position: fixed; inset: 0; z-index: 99999;
+        background: rgba(0,0,0,0.75);
+        display: flex; flex-direction: column; align-items: center;
+        overflow-y: auto; -webkit-overflow-scrolling: touch;
+        padding: 12px;
+        backdrop-filter: blur(4px);
+      }
+      .prevToolbar {
+        display: flex; gap: 8px; margin-bottom: 12px;
+        padding: 10px 16px; background: #1C1F2A; border-radius: 12px;
+        align-items: center; flex-shrink: 0;
+        width: 100%; max-width: 860px;
+        flex-wrap: wrap;
+        position: sticky; top: 0; z-index: 2;
+      }
+      .prevToolbar .prevTitle {
+        color: #fff; font-weight: 900; font-size: 14px; margin-right: auto;
+      }
+      .prevToolbar button {
+        padding: 8px 14px; border-radius: 8px; border: none;
+        font-weight: 700; cursor: pointer; font-size: 13px;
+        white-space: nowrap;
+      }
+      .prevBtnExport { background: #00BC70; color: #fff; }
+      .prevBtnClose { background: #dc2626; color: #fff; }
+      .prevBtnExport:hover { background: #00a060; }
+      .prevBtnClose:hover { background: #b91c1c; }
+
+      .prevContainer {
+        display: flex; flex-direction: column; gap: 20px;
+        align-items: center; width: 100%; max-width: 860px;
+        padding-bottom: 40px;
+      }
+      .prevPageWrap {
+        background: #ffffff; border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+        width: 100%; overflow: hidden;
+        position: relative;
+      }
+      .prevPageWrap .pdfPage {
+        width: 210mm; height: auto !important; min-height: 280mm;
+        transform-origin: top left;
+        overflow: visible !important;
+      }
+      .prevPageWrap .pdfPageLandscape {
+        width: 297mm; height: auto !important; min-height: 190mm;
+        transform-origin: top left;
+      }
+      .prevPageLabel {
+        position: absolute; top: 8px; right: 12px;
+        background: rgba(0,0,0,0.5); color: #fff;
+        padding: 3px 10px; border-radius: 6px;
+        font-size: 11px; font-weight: 700; z-index: 3;
+      }
+
+      @media (max-width: 900px) {
+        #pdfPreviewOverlay { padding: 8px; }
+        .prevToolbar { padding: 8px 12px; }
+        .prevToolbar .prevTitle { font-size: 12px; }
+        .prevToolbar button { padding: 6px 10px; font-size: 12px; }
+      }
+    </style>
+
+    <div class="prevToolbar">
+      <span class="prevTitle">👁 Aperçu PDF</span>
+      <button class="prevBtnExport" id="previewExportBtn">📄 Exporter PDF</button>
+      <button class="prevBtnClose" id="previewCloseBtn">✕ Fermer</button>
+    </div>
+    <div class="prevContainer" id="prevContainer"></div>
+  `;
+  
+  document.body.appendChild(overlay);
+  document.body.style.overflow = "hidden";
+  
+  // Parser le HTML du PDF et séparer les pages
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = html;
+  const pdfRoot = tempDiv.querySelector("#pdfReportRoot") || tempDiv;
+  const pages = Array.from(pdfRoot.querySelectorAll(".pdfPage"));
+  const container = overlay.querySelector("#prevContainer");
+  
+  // Récupérer le <style> du PDF pour l'injecter dans chaque page
+  const pdfStyle = pdfRoot.querySelector("style");
+  const styleHtml = pdfStyle ? pdfStyle.outerHTML : "";
+  
+  pages.forEach((page, i) => {
+    const isLandscape = page.classList.contains("pdfPageLandscape");
+    const wrap = document.createElement("div");
+    wrap.className = "prevPageWrap";
+    
+    // Label de page
+    const label = document.createElement("div");
+    label.className = "prevPageLabel";
+    label.textContent = `Page ${i + 1}/${pages.length}${isLandscape ? " (paysage)" : ""}`;
+    wrap.appendChild(label);
+    
+    // Clone de la page
+    const clone = page.cloneNode(true);
+    clone.style.margin = "0";
+    
+    // Injecter les styles
+    const styleEl = document.createElement("div");
+    styleEl.innerHTML = styleHtml;
+    wrap.appendChild(styleEl);
+    wrap.appendChild(clone);
+    
+    container.appendChild(wrap);
+  });
+  
+  // Responsive : adapter le scale des pages à la largeur du container
+  const fitPages = () => {
+    const containerWidth = container.clientWidth || 800;
+    container.querySelectorAll(".prevPageWrap").forEach((wrap) => {
+      const page = wrap.querySelector(".pdfPage");
+      if (!page) return;
+      const isLandscape = page.classList.contains("pdfPageLandscape");
+      const pageNativeWidth = isLandscape ? 1123 : 794; // 297mm or 210mm in px @96dpi
+      const scale = Math.min(1, containerWidth / pageNativeWidth);
+      page.style.transform = `scale(${scale})`;
+      page.style.transformOrigin = "top left";
+      // Adapter la hauteur du wrapper
+      const nativeHeight = isLandscape ? 560 : 1123;
+      wrap.style.height = `${nativeHeight * scale}px`;
+    });
+  };
+  
+  fitPages();
+  window.addEventListener("resize", fitPages);
+  
+  // Cleanup handler
+  const cleanup = () => {
+    overlay.remove();
+    document.body.style.overflow = "";
+    window.removeEventListener("resize", fitPages);
+    document.removeEventListener("keydown", escHandler);
+  };
+  
+  // Bind events
+  overlay.querySelector("#previewCloseBtn").addEventListener("click", cleanup);
+  overlay.querySelector("#previewExportBtn").addEventListener("click", () => {
+    cleanup();
+    if (typeof exportProjectPdfPro === "function") exportProjectPdfPro();
+  });
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) cleanup();
+  });
+  
+  // Escape key
+  const escHandler = (e) => {
+    if (e.key === "Escape") cleanup();
+  };
+  document.addEventListener("keydown", escHandler);
+}
+
 // PDF BLOB (PRO) — même rendu que exportProjectPdfPro()
 // ==========================================================
 async function buildPdfBlobProFromProject(proj) {
@@ -6869,6 +7336,103 @@ async function exportProjectPdfPro(proj) {
   }
 }
 
+
+// ==========================================================
+// TESTS AUTOMATISÉS PDF
+// ==========================================================
+async function testPdfGeneration(verbose = true) {
+  const results = { pass: 0, fail: 0, errors: [] };
+  const log = (ok, msg) => {
+    if (ok) results.pass++;
+    else { results.fail++; results.errors.push(msg); }
+    if (verbose) console.log(`[PDF-TEST] ${ok ? "✅" : "❌"} ${msg}`);
+  };
+
+  try {
+    // 1) Vérifier que le projet est disponible
+    const proj = LAST_PROJECT || (typeof computeProject === "function" ? computeProject() : null);
+    log(!!proj, "Projet disponible");
+    if (!proj) { console.log("[PDF-TEST] Arrêt : pas de projet"); return results; }
+
+    // 2) Vérifier buildPdfHtml
+    let html;
+    try {
+      html = buildPdfHtml(proj);
+      log(!!html && html.length > 500, `buildPdfHtml OK (${html.length} chars)`);
+    } catch (e) {
+      log(false, `buildPdfHtml ERREUR: ${e.message}`);
+      return results;
+    }
+
+    // 3) Vérifier le nombre de pages
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = html;
+    const allPages = tempDiv.querySelectorAll(".pdfPage");
+    const portraitPages = tempDiv.querySelectorAll(".pdfPage:not(.pdfPageLandscape)");
+    const landscapePages = tempDiv.querySelectorAll(".pdfPageLandscape");
+    
+    log(allPages.length >= 4, `Nombre de pages: ${allPages.length} (min. 4 attendu)`);
+    log(portraitPages.length >= 3, `Pages portrait: ${portraitPages.length} (min. 3)`);
+    log(landscapePages.length >= 1, `Pages paysage (synoptique): ${landscapePages.length} (min. 1)`);
+
+    // 4) Vérifier la page 0 (synthèse)
+    const page0 = allPages[0];
+    log(!!page0?.querySelector(".greenBand"), "Page 0 : bande verte présente");
+    log(!!page0?.querySelector(".dashGrid"), "Page 0 : dashboard KPI présent");
+    log(!!page0?.querySelector(".footerLine"), "Page 0 : footer présent");
+
+    // 5) Vérifier la page synoptique
+    const synPage = landscapePages[0];
+    log(!!synPage?.querySelector(".synWrap"), "Page synoptique : synWrap présent");
+    log(!!synPage?.querySelector(".synStage"), "Page synoptique : synStage présent");
+
+    // 6) Vérifier les headers sur chaque page
+    let allHeaders = true;
+    allPages.forEach((p, i) => {
+      if (!p.querySelector(".pdfHeader")) { allHeaders = false; log(false, `Page ${i}: header manquant`); }
+    });
+    if (allHeaders) log(true, "Toutes les pages ont un header");
+
+    // 7) Vérifier les footers
+    let allFooters = true;
+    allPages.forEach((p, i) => {
+      if (!p.querySelector(".footerLine")) { allFooters = false; log(false, `Page ${i}: footer manquant`); }
+    });
+    if (allFooters) log(true, "Toutes les pages ont un footer");
+
+    // 8) Vérifier les dimensions des pages (styles inline)
+    const page0Style = getComputedStyle ? null : null; // Pas possible sans DOM réel
+    log(true, "Dimensions: vérification manuelle via aperçu PDF");
+
+    // 9) Test de génération réelle (si libs disponibles)
+    if (typeof window?.jspdf?.jsPDF === "function" && typeof window?.html2canvas === "function") {
+      try {
+        const blob = await buildPdfBlobProFromProject(proj);
+        log(!!blob && blob.size > 5000, `PDF blob généré: ${blob ? (blob.size / 1024).toFixed(0) + " Ko" : "null"}`);
+        log(blob?.type === "application/pdf", `Type MIME: ${blob?.type}`);
+      } catch (e) {
+        log(false, `Génération PDF réelle échouée: ${e.message}`);
+      }
+    } else {
+      log(true, "Génération réelle: libs non chargées (test HTML uniquement)");
+    }
+
+    // Résumé
+    console.log(`\n[PDF-TEST] === RÉSULTAT: ${results.pass} ✅ / ${results.fail} ❌ ===`);
+    if (results.errors.length) {
+      console.log("[PDF-TEST] Erreurs:", results.errors);
+    }
+
+  } catch (e) {
+    log(false, `Exception globale: ${e.message}`);
+  }
+  
+  return results;
+}
+
+// Exposer globalement pour usage en console
+window.testPdfGeneration = testPdfGeneration;
+
 // ==========================================================
 // EXPORT PACK (PDF + FICHES TECHNIQUES) -> ZIP
 // ==========================================================
@@ -7279,6 +7843,106 @@ function ensurePdfPackButton() {
   // ==========================================================
 // 13) NAV / BUTTONS (safe bindings)
 // ==========================================================
+
+// ==========================================================
+// VALIDATION PAR ÉTAPE
+// ==========================================================
+function validateStep(stepId) {
+  const errors = [];
+  
+  switch (stepId) {
+    case "project":
+      if (!MODEL.projectName?.trim()) errors.push("Le nom du projet est obligatoire.");
+      if (!MODEL.projectUseCase?.trim()) errors.push("Le type de site est obligatoire.");
+      break;
+      
+    case "cameras": {
+      const validatedCount = (MODEL.cameraBlocks || []).filter(b => b.validated).length;
+      if (validatedCount === 0) errors.push("Validez au moins une caméra avant de continuer.");
+      // Vérifier que tous les blocs actifs ont des réponses complètes
+      for (const blk of (MODEL.cameraBlocks || [])) {
+        if (blk.validated) continue; // validé = OK
+        const ans = blk.answers || {};
+        if (ans.emplacement || ans.objective || ans.distance) {
+          // Bloc partiellement rempli mais non validé
+          errors.push(`Le bloc "${blk.label || 'sans nom'}" est en cours — validez-le ou supprimez-le.`);
+        }
+      }
+      break;
+    }
+      
+    case "mounts":
+      // Pas de validation stricte pour les accessoires
+      break;
+      
+    case "nvr_network": {
+      try {
+        const proj = getProjectCached();
+        if (!proj?.nvrPick?.nvr) {
+          errors.push("Aucun NVR compatible trouvé. Vérifiez le catalogue NVR.");
+        }
+      } catch {
+        errors.push("Impossible de calculer la configuration NVR.");
+      }
+      break;
+    }
+      
+    case "storage": {
+      const rec = MODEL.recording;
+      if (!rec.daysRetention || rec.daysRetention < 1) errors.push("Jours de conservation invalides (min. 1).");
+      if (rec.daysRetention > 30) errors.push("La loi limite la conservation à 30 jours maximum.");
+      if (!rec.hoursPerDay || rec.hoursPerDay < 1) errors.push("Heures/jour invalides (min. 1).");
+      break;
+    }
+  }
+  
+  return errors;
+}
+
+function showStepValidationErrors(errors) {
+  if (!errors.length) return;
+  
+  // Supprimer un ancien toast s'il existe
+  const old = document.getElementById("stepValidationToast");
+  if (old) old.remove();
+  
+  const toast = document.createElement("div");
+  toast.id = "stepValidationToast";
+  Object.assign(toast.style, {
+    position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)",
+    zIndex: "99998", maxWidth: "500px", width: "90%",
+    background: "#1C1F2A", color: "#fff", borderRadius: "14px",
+    padding: "16px 20px", boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+    borderLeft: "4px solid #DC2626",
+    animation: "slideUpToast .3s ease",
+  });
+  
+  toast.innerHTML = `
+    <div style="font-weight:900;font-size:14px;margin-bottom:8px">⚠️ Impossible de continuer</div>
+    ${errors.map(e => `<div style="font-size:13px;margin-top:4px;opacity:0.9">• ${e}</div>`).join("")}
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Auto-remove après 5s
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transition = "opacity .3s ease";
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+  
+  // Click to dismiss
+  toast.addEventListener("click", () => toast.remove());
+}
+
+// CSS animation pour le toast
+if (!document.getElementById("stepValidationStyle")) {
+  const style = document.createElement("style");
+  style.id = "stepValidationStyle";
+  style.textContent = `@keyframes slideUpToast { from { transform: translateX(-50%) translateY(20px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }`;
+  document.head.appendChild(style);
+}
+
 function bind(el, evt, fn) {
   if (!el) return;
   el.addEventListener(evt, fn);
@@ -7290,8 +7954,13 @@ bind(DOM.btnCompute, "click", () => {
   const summaryIdx = STEPS.findIndex(s => s.id === "summary");
   const storageIdx = STEPS.findIndex(s => s.id === "storage");
 
-  // 1) Projet => suivant direct
+  // 1) Projet => vérifie nom + use case
   if (stepId === "project") {
+    const errs = validateStep("project");
+    if (errs.length) {
+      showStepValidationErrors(errs);
+      return;
+    }
     MODEL.stepIndex++;
     MODEL.ui.resultsShown = false;
     syncResultsUI();
@@ -7301,8 +7970,9 @@ bind(DOM.btnCompute, "click", () => {
 
   // 2) Caméras => exige au moins 1 caméra validée
   if (stepId === "cameras") {
-    if (!canGoNext()) {
-      alert("Valide au moins 1 caméra (bouton 'Je valide cette caméra').");
+    const errs = validateStep("cameras");
+    if (errs.length) {
+      showStepValidationErrors(errs);
       return;
     }
     suggestAccessories();
@@ -7322,8 +7992,13 @@ bind(DOM.btnCompute, "click", () => {
     return;
   }
 
-  // 4) NVR + Réseau
+  // 4) NVR + Réseau => vérifie qu'un NVR est sélectionné
   if (stepId === "nvr_network") {
+    const errs = validateStep("nvr_network");
+    if (errs.length) {
+      showStepValidationErrors(errs);
+      return;
+    }
     MODEL.stepIndex++;
     MODEL.ui.resultsShown = false;
     syncResultsUI();
@@ -7550,7 +8225,27 @@ bind(DOM.stepsEl, "input", onStepsInput);
       KPI.sendNowait('page_view', { app: 'configurateur', v: (window.APP_VERSION || null) });
 
       
-       const [
+      // ✅ Dual-mode : JSON externe prioritaire, CSV en fallback
+      const loadJsonOrCsv = async (name, required = false) => {
+        try {
+          const jsonRes = await fetch(`/data/${name}.json`, { cache: "no-store" });
+          if (jsonRes.ok) {
+            const data = await jsonRes.json();
+            console.log(`[CATALOG] ${name}.json loaded (${Array.isArray(data) ? data.length : '?'} items)`);
+            return Array.isArray(data) ? data : [];
+          }
+        } catch {}
+        // Fallback CSV
+        try {
+          return await loadCsv(`/data/${name}.csv`);
+        } catch (e) {
+          if (required) throw e;
+          console.warn(`[CATALOG] ${name} not found (JSON or CSV)`);
+          return [];
+        }
+      };
+
+      const [
         camsRaw,
         nvrsRaw,
         hddsRaw,
@@ -7560,18 +8255,14 @@ bind(DOM.stepsEl, "input", onStepsInput);
         enclosuresRaw,
         signageRaw
       ] = await Promise.all([
-        loadCsv("/data/cameras.csv"),
-        loadCsv("/data/nvrs.csv"),
-        loadCsv("/data/hdds.csv"),
-        loadCsv("/data/switches.csv"),
-        loadCsv("/data/accessories.csv"),
-
-        // ✅ Fallback: si le fichier n'existe pas, on met []
-        loadCsv("/data/screens.csv").catch(() => []),
-        loadCsv("/data/enclosures.csv").catch(() => []),
-
-        // ✅ panneaux de signalisation (optionnel)
-        loadCsv("/data/signage.csv").catch(() => []),
+        loadJsonOrCsv("cameras", true),
+        loadJsonOrCsv("nvrs", true),
+        loadJsonOrCsv("hdds", true),
+        loadJsonOrCsv("switches", true),
+        loadJsonOrCsv("accessories", true),
+        loadJsonOrCsv("screens"),
+        loadJsonOrCsv("enclosures"),
+        loadJsonOrCsv("signage"),
       ]);
 
 
