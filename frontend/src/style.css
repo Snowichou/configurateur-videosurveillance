@@ -3915,3 +3915,61 @@ header .brandCenter,
   font-size: 14px;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,.3));
 }
+
+/* ============================================================
+   COMPLEMENTS — toggles écran / boîtier / signalisation
+   ============================================================ */
+.uiComplementRow{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.uiComplementRow:last-of-type{ border-bottom: none; }
+.uiComplementInfo{ flex: 1; min-width: 0; }
+.uiComplementControls{ flex-shrink: 0; }
+.uiComplementDetail{
+  padding: 10px 0 10px 16px;
+  border-left: 3px solid rgba(0,188,112,.3);
+  margin-bottom: 6px;
+}
+.uiBtnActive{
+  background: rgba(0,188,112,.12) !important;
+  border-color: rgba(0,188,112,.4) !important;
+  color: #166534 !important;
+}
+
+/* ============================================================
+   UI ALERTS — messages de compatibilité compléments
+   ============================================================ */
+.uiAlertOk{
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,188,112,.3);
+  background: rgba(0,188,112,.06);
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.uiAlertWarn{
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245,158,11,.3);
+  background: rgba(245,158,11,.06);
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.uiAlertDanger{
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(220,38,38,.3);
+  background: rgba(220,38,38,.06);
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}

@@ -184,8 +184,6 @@ function kpiConfigSnapshot(proj) {
 }
 
 
-
-
 (() => {
   "use strict";
 
@@ -196,6 +194,24 @@ function kpiConfigSnapshot(proj) {
   let LAST_PROJECT = null;
   let btnToggleResults = null;
   let _renderProjectCache = null;
+  // Invalide le cache projet — à appeler à chaque mutation du MODEL
+    function invalidateProjectCache() {
+      _renderProjectCache = null;
+      LAST_PROJECT = null;
+    }
+
+  // Mutation safe du MODEL avec invalidation automatique
+  function mutateModel(path, value) {
+    const keys = path.split(".");
+    let obj = MODEL;
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (obj[keys[i]] == null) obj[keys[i]] = {};
+      obj = obj[keys[i]];
+    }
+    obj[keys[keys.length - 1]] = value;
+    invalidateProjectCache();
+  }
+
 
   window.addEventListener("error", (e) => {
     console.error("JS Error:", e.error || e.message);
@@ -589,7 +605,6 @@ function computeProjectScoreWeighted(){
 }
 
 
-
 // ==========================================================
 // AXE 1 — Lecture “pastilles” (strict)
 // ==========================================================
@@ -840,8 +855,6 @@ function interpretScoreForBlock(block, cam){
 }
 
 
-
-
 /**
  * Motif principal "propre" (sans parsing de texte)
  * On sort: "DORI" | "Détails" | "Nuit/IR" | "Cohérence"
@@ -1088,6 +1101,80 @@ function buildPdfRootForExport(proj) {
     return objs;
   }
 
+
+// ==========================================================
+// 0) CONSTANTES CENTRALISÉES
+// ==========================================================
+
+// 1) Couleurs d'abord (pour pouvoir les réutiliser partout sans dépendance circulaire)
+const COLORS = Object.freeze({
+  green:    "#00BC70",
+  blue:     "#1C1F2A",
+  danger:   "#DC2626",
+  warn:     "#F59E0B",
+  muted:    "#6B7280",
+
+  // Fonds "tintés" (lisibles)
+  okBg:     "rgba(0,188,112,.12)",
+  warnBg:   "rgba(245,158,11,.12)",
+  dangerBg: "rgba(220,38,38,.10)",
+
+  // Bonus utiles
+  okBorder:     "rgba(0,188,112,.35)",
+  warnBorder:   "rgba(245,158,11,.35)",
+  dangerBorder: "rgba(220,38,38,.35)",
+});
+
+// 2) Ensuite CONFIG (peut référencer COLORS sans problème)
+const CONFIG = Object.freeze({
+  colors: COLORS,
+
+  // Seuils légaux et métier
+  limits: {
+    maxRetentionDays: 30,
+    maxHoursPerDay: 24,
+    maxFps: 30,
+    defaultFps: 25,
+    defaultRetentionDays: 14,
+    defaultOverheadPct: 20,
+    defaultReservePortsPct: 10,
+    maxProjectNameLength: 80,
+    maxBlockLabelLength: 60,
+    maxQty: 999,
+    maxScreenQty: 20,
+    maxEnclosureQty: 10,
+    maxSignageQty: 20,
+    minPoeCamerasForSwitch: 16,
+    shareUrlMaxChars: 4000,
+    qrMaxChars: 4000,
+  },
+
+  // Codecs disponibles
+  codecs: ["h265", "h264"],
+  fpsOptions: [10, 12, 15, 20, 25],
+  screenSizes: [18, 22, 27, 32, 43, 55],
+
+  // Scoring
+  scoring: {
+    levels: {
+      ok:   { icon: "✅", label: "Recommandée", color: COLORS.green,  bg: COLORS.okBg },
+      warn: { icon: "⚠️", label: "Acceptable",  color: COLORS.warn,   bg: COLORS.warnBg },
+      bad:  { icon: "❌", label: "Non adaptée",  color: COLORS.danger, bg: COLORS.dangerBg },
+    }
+  },
+
+  // Chemins médias locaux
+  paths: {
+    imgRoot: "/data/Images",
+    pdfRoot: "/data/fiche_tech",
+    dataDir: "/data",
+  },
+});
+
+// Raccourcis
+const CLR = CONFIG.colors;
+const LIM = CONFIG.limits;
+
   async function loadCsv(url) {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(`Impossible de charger ${url} (${res.status})`);
@@ -1117,13 +1204,13 @@ function buildPdfRootForExport(proj) {
   accessoryLines: [],
 
   recording: {
-    daysRetention: 14,
-    hoursPerDay: 24,
-    fps: 15,
+    daysRetention: LIM.defaultRetentionDays,
+    hoursPerDay: LIM.maxHoursPerDay,
+    fps: LIM.defaultFps,
     codec: "h265",
     mode: "continuous",
-    overheadPct: 20,
-    reservePortsPct: 10,
+    overheadPct: LIM.defaultOverheadPct,
+    reservePortsPct: LIM.defaultReservePortsPct,
   },
 
   complements: {
@@ -1898,7 +1985,6 @@ window._getCameraById = getCameraById;
   }
 
 
-
   // ==========================================================
   // 7) ENGINE - BLOCS + ACCESSOIRES
   // ==========================================================
@@ -1993,7 +2079,6 @@ function sanity() {
 }
 
 
-
   function rebuildAccessoryLinesFromBlocks() {
     const out = [];
 
@@ -2039,7 +2124,7 @@ function invalidateIfNeeded(block, reason = "Modification") {
   try {
     // Toujours invalider le cache de rendu/calcul projet
     // (sinon computeProject() peut rester sur un résultat ancien)
-    if (typeof _renderProjectCache !== "undefined") _renderProjectCache = null;
+    if (typeof _renderProjectCache !== "undefined") invalidateProjectCache();
 
     if (!block) return;
 
@@ -2056,7 +2141,7 @@ function invalidateIfNeeded(block, reason = "Modification") {
   } catch (e) {
     console.warn("[invalidateIfNeeded] fallback", e);
     try {
-      if (typeof _renderProjectCache !== "undefined") _renderProjectCache = null;
+      if (typeof _renderProjectCache !== "undefined") invalidateProjectCache();
     } catch {}
   }
 }
@@ -2688,14 +2773,12 @@ function computePerCameraBitrates() {
 }
 
 
-
 // petite util locale safe (si tu n’en as pas déjà)
 function clampNum(v, min, max, fallback) {
   const n = Number(v);
   if (!Number.isFinite(n)) return fallback;
   return Math.max(min, Math.min(max, n));
 }
-
 
 
 function recommendScreenForProject(totalCameras) {
@@ -2772,7 +2855,13 @@ function getSelectedOrRecommendedEnclosure(proj) {
 
   function getProjectCached() {
     if (_renderProjectCache) return _renderProjectCache;
-    _renderProjectCache = computeProject();
+    try {
+      _renderProjectCache = computeProject();
+    } catch (e) {
+      console.error("[getProjectCached] computeProject failed:", e.message);
+      _renderProjectCache = null;
+      return null;
+    }
     return _renderProjectCache;
   }
 
@@ -3196,7 +3285,6 @@ function applyLocalMediaToCatalog() {
   apply("enclosures", CATALOG?.ENCLOSURES);
   apply("signage", CATALOG?.SIGNAGE);
 }
-
 
 
 function imgTag(family, ref) {
@@ -5132,9 +5220,6 @@ function syncResultsUI() {
 }
 
 
-
-
-
 function updateNavButtons() {
   const stepId = STEPS[MODEL.stepIndex]?.id;
 
@@ -5172,10 +5257,6 @@ if (btnPrev) {
 }
 
 
-
-
-  // ==========================================================
-  // 10) UI - STEPS RENDER
   // ==========================================================
   // 10) UI - STEPS RENDER
   // ==========================================================
@@ -5289,9 +5370,9 @@ function camPickCardHTML(blk, cam, label) {
   
   // Config niveau
   const levelConfig = {
-    ok:   { icon: "✅", label: "Recommandée", color: "#00BC70", bg: "rgba(0,188,112,.1)" },
+    ok:   { icon: "✅", label: "Recommandée", color: CLR.green, bg: CLR.okBg },
     warn: { icon: "⚠️", label: "Acceptable", color: "#F59E0B", bg: "rgba(245,158,11,.1)" },
-    bad:  { icon: "❌", label: "Non adaptée", color: "#DC2626", bg: "rgba(220,38,38,.1)" }
+    bad:  { icon: "❌", label: "Non adaptée", color: CLR.danger, bg: CLR.dangerBg }
   };
   const lvl = levelConfig[interp.level] || levelConfig.warn;
 
@@ -5745,7 +5826,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
             <input
               data-action="projName"
               type="text"
-              maxlength="80"
+              maxlength="${LIM.maxProjectNameLength}"
               value="${safeHtml(val)}"
               placeholder="Ex : Copro Victor Hugo — Parking"
               style="width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1px solid ${val.trim() ? 'var(--line)' : 'rgba(220,38,38,.5)'};background:var(--panel2);color:var(--text)"
@@ -5892,7 +5973,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
   function renderStepNvrNetwork() {
     const proj = getProjectCached();
-    const nvr = proj.nvrPick.nvr;
+    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">Calcul impossible</div><div class="uiEmptyMsg">Vérifiez que vous avez au moins une caméra validée.</div></div>`;
+    const nvr = proj.nvrPick?.nvr;
 
     const nvrHtml = nvr
       ? `
@@ -6005,8 +6087,9 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
   function renderStepStorage() {
     const proj = getProjectCached();
+    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">Calcul impossible</div><div class="uiEmptyMsg">Vérifiez que vous avez au moins une caméra validée.</div></div>`;
     const rec = MODEL.recording;
-    const nvr = proj.nvrPick.nvr;
+    const nvr = proj.nvrPick?.nvr;
     const disk = proj.disks;
     const hdd = disk?.hddRef || null;
     
@@ -6042,9 +6125,9 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <div class="uiFormField">
             <label class="uiInputLabel" title="Images par seconde.">🎬 FPS</label>
             <select data-action="recFps" class="uiInput">
-              ${[10, 12, 15, 20, 25].map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " ★" : ""}</option>`).join("")}
+              ${CONFIG.fpsOptions.map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " ★" : ""}</option>`).join("")}
             </select>
-            <div class="uiHint">15 FPS recommandé</div>
+            <div class="uiHint">25 FPS recommandé</div>
           </div>
           <div class="uiFormField">
             <label class="uiInputLabel" title="Codec de compression vidéo.">🗜️ Codec</label>
@@ -6109,9 +6192,174 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         ` : `<div class="uiMuted" style="margin-top:8px">Aucun HDD trouvé dans le catalogue.</div>`}
       </div>
     </div>
+
+    <div class="uiSection" style="margin-top:12px">
+      <div class="uiSectionHeader">
+        <div class="uiSectionIcon">🛒</div>
+        <div>
+          <div class="uiSectionTitle">Produits complémentaires</div>
+          <div class="uiSectionMeta">Optionnel — écran, boîtier de protection, signalisation</div>
+        </div>
+      </div>
+      <div class="uiSectionBody">
+
+        <!-- ÉCRAN -->
+        <div class="uiComplementRow">
+          <div class="uiComplementInfo">
+            <div class="uiProductTitle">🖥 Écran de supervision</div>
+            <div class="uiProductMeta">Visualisation en direct des caméras</div>
+          </div>
+          <div class="uiComplementControls">
+            <button data-action="screenToggle" data-value="${MODEL.complements.screen.enabled ? '0' : '1'}"
+              class="uiBtn uiBtnSm ${MODEL.complements.screen.enabled ? 'uiBtnActive' : ''}">
+              ${MODEL.complements.screen.enabled ? '✅ Activé' : '❌ Désactivé'}
+            </button>
+          </div>
+        </div>
+        ${MODEL.complements.screen.enabled ? (() => {
+          const scrSel = typeof getSelectedOrRecommendedScreen === "function" ? getSelectedOrRecommendedScreen(proj)?.selected : null;
+          const hdmiOut = typeof getNvrHdmiOutputs === "function" ? getNvrHdmiOutputs(proj) : null;
+          const qtyWarn = typeof screenQtyWarning === "function" ? screenQtyWarning(proj) : null;
+          return `
+        <div class="uiComplementDetail">
+          <div class="uiFormGrid" style="grid-template-columns: 1fr 1fr;">
+            <div class="uiFormField">
+              <label class="uiInputLabel">Taille (pouces)</label>
+              <select data-action="screenSize" class="uiInput">
+                ${CONFIG.screenSizes.map(s => `<option value="${s}" ${MODEL.complements.screen.sizeInch === s ? "selected" : ""}>${s}"</option>`).join("")}
+              </select>
+            </div>
+            <div class="uiFormField">
+              <label class="uiInputLabel">Quantité${hdmiOut ? ` (max ${hdmiOut} sorties HDMI)` : ''}</label>
+              <input data-action="screenQty" type="number" min="1" max="${hdmiOut || 20}" value="${MODEL.complements.screen.qty || 1}" class="uiInput" />
+            </div>
+          </div>
+          ${qtyWarn ? `<div class="uiAlertWarn" style="margin-top:6px">⚠️ ${safeHtml(qtyWarn)}</div>` : ''}
+          ${scrSel ? `
+          <div class="uiProductCard" style="margin-top:8px">
+            <div class="uiProductMain">
+              <div class="uiProductInfo">
+                <div class="uiProductTitle">${safeHtml(scrSel.id)}</div>
+                <div class="uiProductMeta">${safeHtml(scrSel.name || "")}</div>
+                ${scrSel.datasheet_url ? `<a class="uiLink" href="${scrSel.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
+              </div>
+              ${scrSel.image_url ? `<img class="uiProductImg" src="${scrSel.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🖥</div>`}
+            </div>
+          </div>` : `<div class="uiMuted" style="margin-top:6px">Aucun écran trouvé dans le catalogue pour ${MODEL.complements.screen.sizeInch}".</div>`}
+        </div>`;
+        })() : ""}
+
+        <!-- BOÎTIER PROTECTION -->
+        <div class="uiComplementRow">
+          <div class="uiComplementInfo">
+            <div class="uiProductTitle">🔒 Boîtier de protection NVR</div>
+            <div class="uiProductMeta">Coffret sécurisé — auto-adapté au NVR${MODEL.complements.screen.enabled ? ' et écran' : ''}</div>
+          </div>
+          <div class="uiComplementControls">
+            <button data-action="enclosureToggle" data-value="${MODEL.complements.enclosure.enabled ? '0' : '1'}"
+              class="uiBtn uiBtnSm ${MODEL.complements.enclosure.enabled ? 'uiBtnActive' : ''}">
+              ${MODEL.complements.enclosure.enabled ? '✅ Activé' : '❌ Désactivé'}
+            </button>
+          </div>
+        </div>
+        ${MODEL.complements.enclosure.enabled ? (() => {
+          const screenSel = MODEL.complements.screen.enabled
+            ? (typeof pickScreenBySize === "function" ? pickScreenBySize(MODEL.complements.screen.sizeInch) : null)
+            : null;
+          const encAuto = typeof pickBestEnclosure === "function" ? pickBestEnclosure(proj, screenSel) : null;
+          const encSel = encAuto?.enclosure || null;
+          const reason = encAuto?.reason || "";
+          const screenOk = encAuto?.screenInsideOk || false;
+          
+          let compatMsg = "";
+          let compatClass = "";
+          if (reason === "nvr_and_screen_ok") {
+            compatMsg = "✅ Compatible NVR + écran intégré";
+            compatClass = "uiAlertOk";
+          } else if (reason === "nvr_ok_screen_not_inside") {
+            compatMsg = "⚠️ Compatible NVR, mais l'écran sélectionné ne rentre pas dans ce boîtier — écran à poser séparément";
+            compatClass = "uiAlertWarn";
+          } else if (reason === "nvr_ok_no_screen") {
+            compatMsg = "✅ Compatible avec le NVR sélectionné";
+            compatClass = "uiAlertOk";
+          } else if (reason === "no_enclosure_for_nvr") {
+            compatMsg = "❌ Aucun boîtier compatible avec ce NVR dans le catalogue";
+            compatClass = "uiAlertDanger";
+          } else if (reason === "no_nvr_or_catalog") {
+            compatMsg = "⚠️ Sélectionnez d'abord un NVR à l'étape précédente";
+            compatClass = "uiAlertWarn";
+          }
+          
+          return `
+        <div class="uiComplementDetail">
+          ${compatMsg ? `<div class="${compatClass}" style="margin-bottom:8px">${compatMsg}</div>` : ''}
+          <div class="uiFormGrid" style="grid-template-columns: 1fr;">
+            <div class="uiFormField">
+              <label class="uiInputLabel">Quantité</label>
+              <input data-action="enclosureQty" type="number" min="1" max="10" value="${MODEL.complements.enclosure.qty || 1}" class="uiInput" />
+            </div>
+          </div>
+          ${encSel ? `
+          <div class="uiProductCard" style="margin-top:8px">
+            <div class="uiProductMain">
+              <div class="uiProductInfo">
+                <div class="uiProductTitle">${safeHtml(encSel.id)}</div>
+                <div class="uiProductMeta">${safeHtml(encSel.name || "")}</div>
+                ${encSel.datasheet_url ? `<a class="uiLink" href="${encSel.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
+              </div>
+              ${encSel.image_url ? `<img class="uiProductImg" src="${encSel.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🔒</div>`}
+            </div>
+          </div>` : ''}
+        </div>`;
+        })() : ""}
+
+        <!-- PANNEAU SIGNALISATION -->
+        <div class="uiComplementRow">
+          <div class="uiComplementInfo">
+            <div class="uiProductTitle">⚠️ Panneau de signalisation</div>
+            <div class="uiProductMeta">Obligation légale : signaler la vidéosurveillance</div>
+          </div>
+          <div class="uiComplementControls">
+            <button data-action="signageToggle" data-value="${MODEL.complements.signage?.enabled ? '0' : '1'}"
+              class="uiBtn uiBtnSm ${MODEL.complements.signage?.enabled ? 'uiBtnActive' : ''}">
+              ${MODEL.complements.signage?.enabled ? '✅ Activé' : '❌ Désactivé'}
+            </button>
+          </div>
+        </div>
+        ${MODEL.complements.signage?.enabled ? (() => {
+          const signSel = typeof getSelectedOrRecommendedSign === "function" ? getSelectedOrRecommendedSign()?.sign : null;
+          return `
+        <div class="uiComplementDetail">
+          <div class="uiFormGrid" style="grid-template-columns: 1fr 1fr;">
+            <div class="uiFormField">
+              <label class="uiInputLabel">Portée</label>
+              <select data-action="signageScope" class="uiInput">
+                <option value="Public" ${MODEL.complements.signage.scope === "Public" ? "selected" : ""}>Public</option>
+                <option value="Privé" ${MODEL.complements.signage.scope === "Privé" ? "selected" : ""}>Privé</option>
+              </select>
+            </div>
+            <div class="uiFormField">
+              <label class="uiInputLabel">Quantité</label>
+              <input data-action="signageQty" type="number" min="1" max="20" value="${MODEL.complements.signage.qty || 1}" class="uiInput" />
+            </div>
+          </div>
+          ${signSel ? `
+          <div class="uiProductCard" style="margin-top:8px">
+            <div class="uiProductMain">
+              <div class="uiProductInfo">
+                <div class="uiProductTitle">${safeHtml(signSel.id)}</div>
+                <div class="uiProductMeta">${safeHtml(signSel.name || "")}</div>
+              </div>
+              ${signSel.image_url ? `<img class="uiProductImg" src="${signSel.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">⚠️</div>`}
+            </div>
+          </div>` : ''}
+        </div>`;
+        })() : ""}
+
+      </div>
+    </div>
     `;
   }
-
 
 
 function renderStepSummary() {
@@ -6247,7 +6495,6 @@ function render() {
   updateNavButtons();
   updateProgress();
 }
-
 
 
 // ==========================================================
@@ -6752,7 +6999,7 @@ function renderCameraPickCard(cam, blk, sc, mainReason) {
   const levelConfig = {
     ok: { icon: "✅", label: "Recommandée", color: "var(--comelit-green)" },
     warn: { icon: "⚠️", label: "Acceptable", color: "#F59E0B" },
-    bad: { icon: "❌", label: "Non adaptée", color: "#DC2626" }
+    bad: { icon: "❌", label: "Non adaptée", color: CLR.danger }
   };
   const level = levelConfig[interp.level] || levelConfig.warn;
 
@@ -6834,10 +7081,7 @@ function onStepsClick(e) {
   };
 
   if (action === "screenSize") {
-    const sz = Number(el.dataset.size);
-    if (Number.isFinite(sz)) MODEL.complements.screen.sizeInch = sz;
-    render();
-    kpi("complements_screen_size", { sizeInch: MODEL.complements.screen.sizeInch });
+    // Géré dans onStepsChange (c'est un select)
     return;
   }
 
@@ -6918,6 +7162,7 @@ function onStepsClick(e) {
 
   if (action === "screenToggle") {
     MODEL.complements.screen.enabled = el.dataset.value === "1";
+    invalidateProjectCache();
     render();
     kpi("complements_screen_toggle", { enabled: !!MODEL.complements.screen.enabled });
     return;
@@ -6925,6 +7170,7 @@ function onStepsClick(e) {
 
   if (action === "enclosureToggle") {
     MODEL.complements.enclosure.enabled = el.dataset.value === "1";
+    invalidateProjectCache();
     render();
     kpi("complements_enclosure_toggle", { enabled: !!MODEL.complements.enclosure.enabled });
     return;
@@ -6934,6 +7180,7 @@ function onStepsClick(e) {
     MODEL.complements.signage =
       MODEL.complements.signage || { enabled: false, scope: "Public", qty: 1 };
     MODEL.complements.signage.enabled = el.dataset.value === "1";
+    invalidateProjectCache();
     render();
     kpi("complements_signage_toggle", { enabled: !!MODEL.complements.signage.enabled });
     return;
@@ -6983,6 +7230,15 @@ if (action === "projUseCase") {
 
   const action = el.getAttribute("data-action");
   if (!action) return;
+
+  // Compléments — selects
+  if (action === "screenSize") {
+    const sz = Number(el.value);
+    if (Number.isFinite(sz)) MODEL.complements.screen.sizeInch = sz;
+    invalidateProjectCache();
+    render();
+    return;
+  }
 
   // 1) Champs SELECT des blocs caméra
 
@@ -7111,11 +7367,13 @@ if (action === "projUseCase") {
 
       if (action === "screenQty") {
     MODEL.complements.screen.qty = clampInt(el.value, 1, 99);
+    invalidateProjectCache();
     render();
     return;
   }
   if (action === "enclosureQty") {
     MODEL.complements.enclosure.qty = clampInt(el.value, 1, 99);
+    invalidateProjectCache();
     render();
     return;
   }
@@ -7123,6 +7381,7 @@ if (action === "projUseCase") {
   if (action === "signageScope") {
     MODEL.complements.signage = MODEL.complements.signage || { enabled: true, scope: "Public", qty: 1 };
     MODEL.complements.signage.scope = el.value || "Public";
+    invalidateProjectCache();
     render();
     return;
   }
@@ -7130,6 +7389,7 @@ if (action === "projUseCase") {
   if (action === "signageQty") {
     MODEL.complements.signage = MODEL.complements.signage || { enabled: true, scope: "Public", qty: 1 };
     MODEL.complements.signage.qty = clampInt(el.value, 1, 99);
+    invalidateProjectCache();
     render();
     return;
   }
@@ -7147,11 +7407,13 @@ if (action === "projUseCase") {
   }
     if (action === "compScreenQty") {
     MODEL.complements.screen.qty = clampInt(el.value, 1, 99);
+    invalidateProjectCache();
     render();
     return;
   }
   if (action === "compEnclosureQty") {
     MODEL.complements.enclosure.qty = clampInt(el.value, 1, 99);
+    invalidateProjectCache();
     render();
     return;
   }
@@ -7775,8 +8037,6 @@ async function fetchAsBlob(url) {
 }
 
 
-
-
 function ensurePdfPackButton() {
   const pdfBtn = document.querySelector("#btnExportPdf");
   if (!pdfBtn) return false; // pas encore rendu
@@ -8061,13 +8321,13 @@ bind(DOM.btnReset, "click", () => {
   };
 
   MODEL.recording = {
-    daysRetention: 14,
-    hoursPerDay: 24,
-    fps: 15,
+    daysRetention: LIM.defaultRetentionDays,
+    hoursPerDay: LIM.maxHoursPerDay,
+    fps: LIM.defaultFps,
     codec: "h265",
     mode: "continuous",
-    overheadPct: 20,
-    reservePortsPct: 10,
+    overheadPct: LIM.defaultOverheadPct,
+    reservePortsPct: LIM.defaultReservePortsPct,
   };
 
   MODEL.ui.resultsShown = false;
@@ -8075,7 +8335,7 @@ bind(DOM.btnReset, "click", () => {
   LAST_PROJECT = null;
 
   sanity();
-  _renderProjectCache = null;
+  invalidateProjectCache();
   syncResultsUI();
   render();
   updateNavButtons();
@@ -8225,7 +8485,7 @@ bind(DOM.stepsEl, "input", onStepsInput);
       KPI.sendNowait('page_view', { app: 'configurateur', v: (window.APP_VERSION || null) });
 
       
-      // ✅ Dual-mode : JSON externe prioritaire, CSV en fallback
+      // ✅ Dual-mode : JSON externe prioritaire, CSV en fallback silencieux
       const loadJsonOrCsv = async (name, required = false) => {
         try {
           const jsonRes = await fetch(`/data/${name}.json`, { cache: "no-store" });
@@ -8235,12 +8495,11 @@ bind(DOM.stepsEl, "input", onStepsInput);
             return Array.isArray(data) ? data : [];
           }
         } catch {}
-        // Fallback CSV
+        // Fallback CSV (silencieux)
         try {
           return await loadCsv(`/data/${name}.csv`);
         } catch (e) {
           if (required) throw e;
-          console.warn(`[CATALOG] ${name} not found (JSON or CSV)`);
           return [];
         }
       };
@@ -8264,7 +8523,6 @@ bind(DOM.stepsEl, "input", onStepsInput);
         loadJsonOrCsv("enclosures"),
         loadJsonOrCsv("signage"),
       ]);
-
 
 
       CATALOG.CAMERAS = camsRaw.map(normalizeCamera).filter((c) => c.id);
@@ -8433,7 +8691,6 @@ const warn = adminSchemaWarnings(name, ADMIN_GRID.headers, ADMIN_GRID.rows);
 if (msg) msg.textContent = warn ? `⚠️ Chargé avec alertes — ${warn}` : "✅ Chargé";
 
 }
-
 
 
 async function adminSaveCsv(name, content){
