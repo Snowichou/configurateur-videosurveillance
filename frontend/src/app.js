@@ -214,10 +214,10 @@ function kpiConfigSnapshot(proj) {
 
 
   window.addEventListener("error", (e) => {
-    console.error("JS Error:", e.error || e.message);
+    LOG.error("JS Error:", e.error || e.message);
   });
   window.addEventListener("unhandledrejection", (e) => {
-    console.error("Unhandled promise:", e.reason);
+    LOG.error("Unhandled promise:", e.reason);
   });
 
     /* =========================================================
@@ -539,26 +539,26 @@ function renderEnclosureDecisionMessage(proj, screen, enclosureAuto) {
   const nvrId = proj?.nvrPick?.nvr?.id || null;
 
   if (!nvrId) {
-    return `<div class="alert info" style="margin-top:10px">Aucun NVR sélectionné → impossible de proposer un boîtier.</div>`;
+    return `<div class="alert info" class="mt10">Aucun NVR sélectionné → impossible de proposer un boîtier.</div>`;
   }
 
   if (!enclosureAuto?.enclosure) {
-    return `<div class="alert warn" style="margin-top:10px">Aucun boîtier compatible avec cet enregistreur.</div>`;
+    return `<div class="alert warn" class="mt10">Aucun boîtier compatible avec cet enregistreur.</div>`;
   }
 
   if (screen && enclosureAuto.reason === "nvr_ok_screen_not_inside") {
-    return `<div class="alert warn" style="margin-top:10px">
+    return `<div class="alert warn" class="mt10">
       Boîtier compatible NVR, mais <strong>l’écran ne peut pas se mettre à l’intérieur</strong> du boîtier.
     </div>`;
   }
 
   if (screen && enclosureAuto.reason === "nvr_and_screen_ok") {
-    return `<div class="alert ok" style="margin-top:10px">
+    return `<div class="alert ok" class="mt10">
       Boîtier compatible avec le NVR et <strong>l’écran peut être intégré</strong>.
     </div>`;
   }
 
-  return `<div class="alert ok" style="margin-top:10px">
+  return `<div class="alert ok" class="mt10">
     Boîtier compatible avec le NVR.
   </div>`;
 }
@@ -1175,6 +1175,23 @@ const CONFIG = Object.freeze({
 const CLR = CONFIG.colors;
 const LIM = CONFIG.limits;
 
+
+// ==========================================================
+// LOGGER CONDITIONNEL (silencieux en prod)
+// ==========================================================
+const LOG_LEVEL = (new URLSearchParams(window.location.search)).get("debug") ? "debug" : "warn";
+const LOG = {
+  _shouldLog(level) {
+    const levels = { debug: 0, info: 1, warn: 2, error: 3 };
+    return (levels[level] ?? 2) >= (levels[LOG_LEVEL] ?? 2);
+  },
+  debug(...args) { if (this._shouldLog("debug")) console.log("[DEBUG]", ...args); },
+  info(...args)  { if (this._shouldLog("info"))  console.log("[INFO]", ...args); },
+  warn(...args)  { if (this._shouldLog("warn"))  console.warn("[WARN]", ...args); },
+  error(...args) { if (this._shouldLog("error")) console.error("[ERROR]", ...args); },
+};
+window.LOG = LOG;
+
   async function loadCsv(url) {
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error(`Impossible de charger ${url} (${res.status})`);
@@ -1302,7 +1319,6 @@ const KPI = (() => {
   // ------------------------------------------------------------
 
   function compactCameras() {
-    // attend tes structures existantes : MODEL.cameraLines + getCameraById()
     const lines = Array.isArray(MODEL?.cameraLines) ? MODEL.cameraLines : [];
     const cams = [];
 
@@ -1311,10 +1327,16 @@ const KPI = (() => {
       if (!camId) continue;
       const cam = (typeof getCameraById === "function") ? getCameraById(camId) : null;
       if (!cam) continue;
+      // Enrichir avec les infos du bloc d'origine
+      const blk = (MODEL?.cameraBlocks || []).find(b => b.id === l.fromBlockId);
+      const ans = blk?.answers || {};
       cams.push({
         id: cam.id,
         name: cam.name || "",
         qty: Number(l.qty || 0) || 0,
+        objective: ans.objective || null,
+        emplacement: ans.emplacement || null,
+        distance: Number(ans.distance || ans.distance_m || 0) || null,
       });
     }
     return cams.filter(c => c.qty > 0);
@@ -1348,14 +1370,37 @@ const KPI = (() => {
     const signage_scope = signage_enabled ? String(comp?.signage?.scope || "Public") : null;
     const signage_qty = signage_enabled ? (Number(comp?.signage?.qty || 1) || 1) : null;
 
+    const rec = MODEL?.recording || {};
+
     return {
       sid: getSessionId(),
       config_type,
+      use_case: MODEL?.useCase || null,
       cam_total_qty,
       unique_cam_models: cams.length,
-      cameras: cams, // 👈 KPI le plus utile
+      cameras: cams,
       nvr_id,
       retention_days: retention_days_ok,
+      // Stockage
+      storage: {
+        required_tb: Number(proj?.requiredTB || 0) || null,
+        total_mbps: Number(proj?.totalInMbps || 0) || null,
+        hdd_id: proj?.disks?.hddRef?.id || null,
+        hdd_count: Number(proj?.disks?.count || 0) || null,
+        hdd_size_tb: Number(proj?.disks?.sizeTB || 0) || null,
+      },
+      // Enregistrement
+      recording: {
+        codec: rec?.codec || null,
+        fps: Number(rec?.fps || 0) || null,
+        mode: rec?.mode || null,
+        days: Number(rec?.daysRetention || 0) || null,
+        hours: Number(rec?.hoursPerDay || 0) || null,
+        overhead_pct: Number(rec?.overheadPct || 0) || null,
+      },
+      // Switches
+      switches_required: !!proj?.switches?.required,
+      switches_ports: Number(proj?.switches?.portsNeeded || 0) || null,
       complements: {
         screen_enabled,
         screen_size_inch,
@@ -2139,7 +2184,7 @@ function invalidateIfNeeded(block, reason = "Modification") {
       }
     }
   } catch (e) {
-    console.warn("[invalidateIfNeeded] fallback", e);
+    LOG.warn("[invalidateIfNeeded] fallback", e);
     try {
       if (typeof _renderProjectCache !== "undefined") invalidateProjectCache();
     } catch {}
@@ -2858,7 +2903,7 @@ function getSelectedOrRecommendedEnclosure(proj) {
     try {
       _renderProjectCache = computeProject();
     } catch (e) {
-      console.error("[getProjectCached] computeProject failed:", e.message);
+      LOG.error("[getProjectCached] computeProject failed:", e.message);
       _renderProjectCache = null;
       return null;
     }
@@ -3051,9 +3096,9 @@ function getSelectedOrRecommendedEnclosure(proj) {
       })}</div>`
     : `<div class="sumEmpty">—</div>`;
 
-  // Compléments
-  const scr = getSelectedOrRecommendedScreen(proj).selected;
-  const enc = getSelectedOrRecommendedEnclosure(proj).selected;
+  // Compléments (lazy — ne calcule que si activé)
+  const scr = MODEL.complements?.screen?.enabled ? getSelectedOrRecommendedScreen(proj)?.selected : null;
+  const enc = MODEL.complements?.enclosure?.enabled ? getSelectedOrRecommendedEnclosure(proj)?.selected : null;
 
   const screenHtml = scr
     ? `<div class="sumList">${row({
@@ -3244,10 +3289,13 @@ function getThumbSrc(family, id) {
 const LOCAL_PDF_ROOT = "/data/fiche_tech";
 
 // ✅ Datasheets 100% locaux (même logique que getThumbSrc)
+const __datasheetCache = new Map();
 function getDatasheetSrc(family, ref) {
   const id = String(ref || "").trim();
   if (!id) return "";
   const fam = String(family || "").toLowerCase().trim();
+  const key = `${fam}::${id}`;
+  if (__datasheetCache.has(key)) return __datasheetCache.get(key);
 
   let folder = fam;
   if (fam === "cameras") folder = "cameras";
@@ -3260,7 +3308,9 @@ function getDatasheetSrc(family, ref) {
   else if (fam === "signage") folder = "signage";
 
   // on suppose: /data/Datasheets/<folder>/<ID>.pdf
-  return `${LOCAL_PDF_ROOT}/${folder}/${encodeURIComponent(id)}.pdf`;
+  const url = `${LOCAL_PDF_ROOT}/${folder}/${encodeURIComponent(id)}.pdf`;
+  __datasheetCache.set(key, url);
+  return url;
 }
 
 // ✅ Force le catalogue à utiliser les médias locaux (images + fiches)
@@ -3294,6 +3344,510 @@ function imgTag(family, ref) {
     onerror="this.style.display='none'; this.insertAdjacentHTML('afterend','<span class=muted>—</span>');" />`;
 }
 
+
+// ==========================================================
+// PDF CSS — extrait pour maintenabilité (494 lignes)
+// ==========================================================
+function getPdfCssBlock() {
+  const COMELIT_GREEN = COLORS.green;
+  const COMELIT_BLUE = COLORS.blue;
+  return `  <style>
+    * { box-sizing: border-box; }
+    html, body { width:100%; background:#ffffff; }
+
+    :root{
+      --c-green: ${COMELIT_GREEN};
+      --c-blue:  ${COMELIT_BLUE};
+      --c-white: #ffffff;
+      --c-muted: #475569;
+      --c-line:  #e5e7eb;
+      --c-soft:  #f8fafc;
+      --c-blue-soft: #eef2f7;
+    }
+
+    /* ====== BANDE VERTE COMELIT ====== */
+    .greenBand{
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, var(--c-green) 0%, var(--c-green) 70%, var(--c-blue) 100%);
+      border-radius: 0 0 2px 2px;
+      margin-bottom: 2mm;
+      flex-shrink: 0;
+    }
+
+    .pdfPage{
+      width: 210mm;
+      height: 297mm;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      margin: 0;
+      padding: 5mm 6mm 4mm 6mm;
+      background: var(--c-white);
+    }
+
+    .pdfPage:last-child{
+      page-break-after: auto;
+      break-after: auto;
+    }
+    .pdfPageLandscape{
+      width: 297mm;
+      height: 210mm;
+      padding: 5mm 6mm 4mm 6mm;
+      box-sizing: border-box;
+      overflow: hidden;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .pdfPageLandscape .landscapeBody{
+      flex: 1 1 auto;
+      display:flex;
+      flex-direction:column;
+      min-height: 0;
+    }
+
+    /* ✅ synWrap = prend toute la hauteur dispo */
+    .pdfPageLandscape .synWrap{
+      flex: 1 1 auto;
+      height: 100%;
+      padding: 0;      /* important : c’est le synWrap interne qui gère le bord */
+      border: none;    /* évite double bord si tu en as un ailleurs */
+      min-height: 0;
+    }
+
+
+  /* Optionnel : footer plus proche en paysage */
+    .qrBlock{
+      margin-top: auto;
+      padding: 16px 0 8px 0;
+      display:flex;
+      align-items:center;
+      gap: 16px;
+    }
+    .qrImg{
+      width: 90px;
+      height: 90px;
+      image-rendering: pixelated;
+    }
+    .qrLabel{
+      font-size: 10px;
+      color: var(--c-muted);
+      max-width: 200px;
+      line-height: 1.4;
+    }
+
+
+  .pdfPageLandscape .footerLine{
+    margin-top: 6px;
+  }
+
+
+    .pdfHeader{
+      border-bottom:3px solid var(--c-blue);
+      padding-bottom:8px;
+      margin-bottom:10px;
+    }
+
+    .headerGrid{
+      display:grid;
+      grid-template-columns: 120px 1fr auto;
+      column-gap: 12px;
+      align-items:center;
+    }
+    .brandLogo{
+      width:132px;             /* ✅ avant 120 */
+      height:auto;
+      object-fit:contain;
+    }
+
+
+    .headerTitles{
+      min-width:0;
+      text-align:center;
+      padding:0 8px;
+    }
+
+    .mainTitle{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:22px;            /* ✅ + lisible */
+      line-height:1.15;
+      color:var(--c-blue);
+      margin:0;
+      white-space:normal;
+      overflow:visible;
+      text-overflow:clip;
+    }
+
+    .metaLine{
+      margin-top:4px;
+      font-size:11.5px;          /* ✅ avant 10.5 */
+      color:var(--c-muted);
+      line-height:1.25;
+    }
+
+    .scorePill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border:1px solid var(--c-line);
+      border-left:6px solid var(--c-green);
+      border-radius:999px;
+      background:var(--c-soft);
+      padding:6px 10px;
+      white-space:nowrap;
+      justify-self:end;
+    }
+    .scoreLabel{
+      font-size:10px;
+      color:var(--c-muted);
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+    }
+    .scoreValue{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:12px;
+      color:var(--c-blue);
+    }
+
+    .headerSub{
+      margin-top:6px;           /* ✅ plus respirant */
+      font-size:14px;            /* ✅ avant 12.5 */
+      font-weight:900;
+      color:var(--c-blue);
+    }
+    .headerSubWrap{
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid var(--c-line);
+    }
+
+    .headerSubLine{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .headerSubDot{
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--c-green);
+      flex:0 0 auto;
+    }
+
+    .headerSubText{
+      font-size:14px;          /* ✅ plus gros */
+      font-weight:900;
+      color:var(--c-blue);
+      line-height:1.2;
+    }
+
+    .projectCard{
+      margin-top:10px;
+      border:1px solid var(--c-line);
+      border-left:10px solid var(--c-green);
+      border-radius:16px;
+      padding:12px;           /* ✅ moins “gros” */
+      background:var(--c-soft);
+    }
+
+    .projectLabel{
+      font-size:11px;
+      color:var(--c-muted);
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:0.3px;
+    }
+    .projectValue{
+      margin-top:10px;
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:26px;
+      line-height:1.15;
+      color:var(--c-blue);
+      overflow-wrap:anywhere;
+    }
+    .projectHint{
+      margin-top:10px;
+      font-size:11px;
+      color:var(--c-muted);
+      line-height:1.35;
+    }
+
+    .kpiRow{
+      display:flex;
+      gap:12px;
+      margin-top:10px;
+    }
+
+    .kpiBox{
+      flex:1 1 0;
+      border:1px solid var(--c-line);
+      border-radius:14px;
+      background:var(--c-soft);
+      padding:12px;             /* ✅ + de présence */
+    }
+
+    .kpiLabel{
+      font-size:12px;           /* ✅ avant 11 */
+      color:var(--c-muted);
+      font-weight:800;
+    }
+
+    .kpiValue{
+      margin-top:4px;
+      font-size:16px;           /* ✅ avant 14 */
+      font-weight:900;
+      color:var(--c-blue);
+    }
+
+    /* ✅ muted un peu plus grand, sinon ça “fait vide” */
+    .muted{
+      color:var(--c-muted);
+      font-size:12px;           /* ✅ avant 11 */
+      line-height:1.35;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+
+    .section{
+      margin-top:10px;          /* ✅ avant 7 */
+      padding:12px;             /* ✅ avant 8 */
+      border:1px solid var(--c-line);
+      border-radius:14px;
+      background:#fff;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .sectionTitle{
+      font-family:"Arial Black", Arial, sans-serif;
+      font-size:13.5px;       /* ✅ + grand */
+      margin:0 0 8px 0;
+      color:var(--c-blue);
+    }
+
+    .tbl{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;         /* ✅ + lisible */
+      table-layout:fixed;
+      overflow-wrap:anywhere;
+    }
+
+    .tbl th, .tbl td{
+      border:1px solid var(--c-line);
+      padding:9px 10px;         /* ✅ avant 7/8 */
+      vertical-align:top;
+    }
+
+    .tbl th{
+      background:var(--c-blue-soft);
+      text-align:left;
+      font-weight:900;
+      color:var(--c-blue);
+    }
+
+    .colQty{ width:62px; }      /* ✅ avant 54 */
+    .colRef{ width:150px; }     /* ✅ avant 130 */
+    .colImg{ width:96px; text-align:center; } /* ✅ avant 76 */
+
+      .thumb{
+        width:58px;             /* ✅ + grand */
+        height:58px;
+        object-fit:contain;
+        border:1px solid var(--c-line);
+        border-radius:10px;
+        background:#fff;
+        display:inline-block;
+      }
+
+
+    .annexGrid{ display:flex; gap:10px; align-items:stretch; }
+    .annexColL{ flex:0 0 40%; }
+    .annexColR{ flex:1 1 auto; }
+
+    .tblAnnex{
+      width:100%;
+      border-collapse:collapse;
+      font-size:9.5px;
+      overflow-wrap:anywhere;
+    }
+    .tblAnnex th, .tblAnnex td{
+      border:1px solid var(--c-line);
+      padding:5px 6px;
+      vertical-align:top;
+    }
+    .tblAnnex th{
+      background:var(--c-blue-soft);
+      text-align:left;
+      font-weight:900;
+      color:var(--c-blue);
+    }
+    .aQty{ width:36px; }
+    .aRef{ width:92px; }
+    .aNum{ width:70px; text-align:right; }
+
+    .footerLine{
+      margin-top:auto;
+      padding-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9px;
+      color: var(--c-muted);
+      border-top: 1px solid var(--c-line);
+      flex-shrink: 0;
+    }
+    .footLeft{ font-weight: 700; }
+    .footRight{ font-style: italic; }
+
+    /* ====== HEADER V4 ====== */
+    .headerRight{
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+    .pageNum{
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--c-muted);
+      text-align: right;
+    }
+    .mainTitleSub{
+      font-size: 16px;
+      color: var(--c-green);
+      margin-top: 2px;
+    }
+
+    /* ====== DASHBOARD KPI (PAGE 0) ====== */
+    .dashGrid{
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .dashCard{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--c-line);
+      border-radius: 14px;
+      background: var(--c-soft);
+    }
+    .dashIcon{
+      font-size: 22px;
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      border: 1px solid var(--c-line);
+      border-radius: 10px;
+    }
+    .dashData{ min-width: 0; }
+    .dashValue{
+      font-family: "Arial Black", Arial, sans-serif;
+      font-size: 15px;
+      color: var(--c-blue);
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+    .dashLabel{
+      font-size: 10px;
+      color: var(--c-muted);
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    /* ====== CAMERA ROW ENRICHIE ====== */
+    .rowScore{
+      display: inline-block;
+      margin-top: 3px;
+      font-size: 10px;
+      font-weight: 900;
+      padding: 2px 6px;
+      border-radius: 6px;
+      line-height: 1.3;
+    }
+    .rowScore.ok{ background: #dcfce7; color: #166534; }
+    .rowScore.warn{ background: #fef3c7; color: #92400e; }
+    .rowScore.bad{ background: #fee2e2; color: #991b1b; }
+    .rowContext{
+      margin-top: 3px;
+      font-size: 9px;
+      color: var(--c-muted);
+      line-height: 1.3;
+    }
+
+    /* ====== BLOCK SEPARATOR ENRICHI ====== */
+    .blockSeparator td{
+      background: #f0f9f4 !important;
+      padding: 8px 10px !important;
+      border-left: 4px solid var(--c-green) !important;
+    }
+    .blockSepInner{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .blockSepLabel{
+      font-weight: 900;
+      color: var(--c-blue);
+      font-size: 12px;
+    }
+    .blockSepMeta{
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--c-muted);
+      background: #fff;
+      padding: 2px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--c-line);
+    }
+
+    /* =========================================================
+       ✅ ANNEXE 2 — SYNOPTIQUE (LANDSCAPE NATIF)
+       ========================================================= */
+
+  .synWrap{
+  width: 100%;
+  height: 180mm;   /* tu étais à 178mm c'est ok */
+  border: 1px solid var(--c-line);
+  border-radius: 18px;
+  background: #fff;
+  overflow: hidden;
+  padding: 10mm;   /* ✅ un poil moins, ça agrandit le schéma utile */
+}
+.synCanvas{
+  width: 100%;
+  height: 100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.synCanvas svg{
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+
+
+.synCanvas svg{
+  width: 100%;
+  height: 100%;
+  display:block;
+}
+
+  </style>`;
+}
+
   function buildPdfHtml(proj) {
   const now = new Date();
   const dateStr = now.toLocaleString("fr-FR");
@@ -3320,13 +3874,13 @@ function imgTag(family, ref) {
   try {
     if (typeof generateShareUrl === "function") {
       const shareUrl = generateShareUrl();
-      console.log("[PDF] Share URL length:", shareUrl ? shareUrl.length : "null");
+      LOG.debug("[PDF] Share URL length:", shareUrl ? shareUrl.length : "null");
       if (shareUrl && shareUrl.length < 4000) {
         qrDataUrl = generateQRDataUrl(shareUrl);
-        console.log("[PDF] QR data URL:", qrDataUrl ? "OK (" + qrDataUrl.length + " chars)" : "EMPTY");
+        LOG.debug("[PDF] QR data URL:", qrDataUrl ? "OK (" + qrDataUrl.length + " chars)" : "EMPTY");
       }
     }
-  } catch (e) { console.warn("[PDF] QR generation skipped:", e); }
+  } catch (e) { LOG.warn("[PDF] QR generation skipped:", e); }
 
   // Helpers FR
   const frCodec = (c) => {
@@ -4502,501 +5056,7 @@ const buildSynopticHtml = (proj) => {
 
     return `
 <div id="pdfReportRoot" style="font-family: Arial, sans-serif; color:${COMELIT_BLUE}; background:#ffffff;">
-  <style>
-    * { box-sizing: border-box; }
-    html, body { width:100%; background:#ffffff; }
-
-    :root{
-      --c-green: ${COMELIT_GREEN};
-      --c-blue:  ${COMELIT_BLUE};
-      --c-white: #ffffff;
-      --c-muted: #475569;
-      --c-line:  #e5e7eb;
-      --c-soft:  #f8fafc;
-      --c-blue-soft: #eef2f7;
-    }
-
-    /* ====== BANDE VERTE COMELIT ====== */
-    .greenBand{
-      width: 100%;
-      height: 5px;
-      background: linear-gradient(90deg, var(--c-green) 0%, var(--c-green) 70%, var(--c-blue) 100%);
-      border-radius: 0 0 2px 2px;
-      margin-bottom: 2mm;
-      flex-shrink: 0;
-    }
-
-    .pdfPage{
-      width: 210mm;
-      height: 297mm;
-      box-sizing: border-box;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      margin: 0;
-      padding: 5mm 6mm 4mm 6mm;
-      background: var(--c-white);
-    }
-
-    .pdfPage:last-child{
-      page-break-after: auto;
-      break-after: auto;
-    }
-    .pdfPageLandscape{
-      width: 297mm;
-      height: 210mm;
-      padding: 5mm 6mm 4mm 6mm;
-      box-sizing: border-box;
-      overflow: hidden;
-      display:flex;
-      flex-direction:column;
-    }
-
-    .pdfPageLandscape .landscapeBody{
-      flex: 1 1 auto;
-      display:flex;
-      flex-direction:column;
-      min-height: 0;
-    }
-
-    /* ✅ synWrap = prend toute la hauteur dispo */
-    .pdfPageLandscape .synWrap{
-      flex: 1 1 auto;
-      height: 100%;
-      padding: 0;      /* important : c’est le synWrap interne qui gère le bord */
-      border: none;    /* évite double bord si tu en as un ailleurs */
-      min-height: 0;
-    }
-
-
-  /* Optionnel : footer plus proche en paysage */
-    .qrBlock{
-      margin-top: auto;
-      padding: 16px 0 8px 0;
-      display:flex;
-      align-items:center;
-      gap: 16px;
-    }
-    .qrImg{
-      width: 90px;
-      height: 90px;
-      image-rendering: pixelated;
-    }
-    .qrLabel{
-      font-size: 10px;
-      color: var(--c-muted);
-      max-width: 200px;
-      line-height: 1.4;
-    }
-
-
-  .pdfPageLandscape .footerLine{
-    margin-top: 6px;
-  }
-
-
-    .pdfHeader{
-      border-bottom:3px solid var(--c-blue);
-      padding-bottom:8px;
-      margin-bottom:10px;
-    }
-
-    .headerGrid{
-      display:grid;
-      grid-template-columns: 120px 1fr auto;
-      column-gap: 12px;
-      align-items:center;
-    }
-    .brandLogo{
-      width:132px;             /* ✅ avant 120 */
-      height:auto;
-      object-fit:contain;
-    }
-
-
-    .headerTitles{
-      min-width:0;
-      text-align:center;
-      padding:0 8px;
-    }
-
-    .mainTitle{
-      font-family:"Arial Black", Arial, sans-serif;
-      font-size:22px;            /* ✅ + lisible */
-      line-height:1.15;
-      color:var(--c-blue);
-      margin:0;
-      white-space:normal;
-      overflow:visible;
-      text-overflow:clip;
-    }
-
-    .metaLine{
-      margin-top:4px;
-      font-size:11.5px;          /* ✅ avant 10.5 */
-      color:var(--c-muted);
-      line-height:1.25;
-    }
-
-    .scorePill{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      border:1px solid var(--c-line);
-      border-left:6px solid var(--c-green);
-      border-radius:999px;
-      background:var(--c-soft);
-      padding:6px 10px;
-      white-space:nowrap;
-      justify-self:end;
-    }
-    .scoreLabel{
-      font-size:10px;
-      color:var(--c-muted);
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:0.3px;
-    }
-    .scoreValue{
-      font-family:"Arial Black", Arial, sans-serif;
-      font-size:12px;
-      color:var(--c-blue);
-    }
-
-    .headerSub{
-      margin-top:6px;           /* ✅ plus respirant */
-      font-size:14px;            /* ✅ avant 12.5 */
-      font-weight:900;
-      color:var(--c-blue);
-    }
-    .headerSubWrap{
-      margin-top:10px;
-      padding-top:10px;
-      border-top:1px solid var(--c-line);
-    }
-
-    .headerSubLine{
-      display:flex;
-      align-items:center;
-      gap:10px;
-    }
-
-    .headerSubDot{
-      width:10px;
-      height:10px;
-      border-radius:999px;
-      background:var(--c-green);
-      flex:0 0 auto;
-    }
-
-    .headerSubText{
-      font-size:14px;          /* ✅ plus gros */
-      font-weight:900;
-      color:var(--c-blue);
-      line-height:1.2;
-    }
-
-    .projectCard{
-      margin-top:10px;
-      border:1px solid var(--c-line);
-      border-left:10px solid var(--c-green);
-      border-radius:16px;
-      padding:12px;           /* ✅ moins “gros” */
-      background:var(--c-soft);
-    }
-
-    .projectLabel{
-      font-size:11px;
-      color:var(--c-muted);
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:0.3px;
-    }
-    .projectValue{
-      margin-top:10px;
-      font-family:"Arial Black", Arial, sans-serif;
-      font-size:26px;
-      line-height:1.15;
-      color:var(--c-blue);
-      overflow-wrap:anywhere;
-    }
-    .projectHint{
-      margin-top:10px;
-      font-size:11px;
-      color:var(--c-muted);
-      line-height:1.35;
-    }
-
-    .kpiRow{
-      display:flex;
-      gap:12px;
-      margin-top:10px;
-    }
-
-    .kpiBox{
-      flex:1 1 0;
-      border:1px solid var(--c-line);
-      border-radius:14px;
-      background:var(--c-soft);
-      padding:12px;             /* ✅ + de présence */
-    }
-
-    .kpiLabel{
-      font-size:12px;           /* ✅ avant 11 */
-      color:var(--c-muted);
-      font-weight:800;
-    }
-
-    .kpiValue{
-      margin-top:4px;
-      font-size:16px;           /* ✅ avant 14 */
-      font-weight:900;
-      color:var(--c-blue);
-    }
-
-    /* ✅ muted un peu plus grand, sinon ça “fait vide” */
-    .muted{
-      color:var(--c-muted);
-      font-size:12px;           /* ✅ avant 11 */
-      line-height:1.35;
-      overflow-wrap:anywhere;
-      word-break:break-word;
-    }
-
-    .section{
-      margin-top:10px;          /* ✅ avant 7 */
-      padding:12px;             /* ✅ avant 8 */
-      border:1px solid var(--c-line);
-      border-radius:14px;
-      background:#fff;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-
-    .sectionTitle{
-      font-family:"Arial Black", Arial, sans-serif;
-      font-size:13.5px;       /* ✅ + grand */
-      margin:0 0 8px 0;
-      color:var(--c-blue);
-    }
-
-    .tbl{
-      width:100%;
-      border-collapse:collapse;
-      font-size:12px;         /* ✅ + lisible */
-      table-layout:fixed;
-      overflow-wrap:anywhere;
-    }
-
-    .tbl th, .tbl td{
-      border:1px solid var(--c-line);
-      padding:9px 10px;         /* ✅ avant 7/8 */
-      vertical-align:top;
-    }
-
-    .tbl th{
-      background:var(--c-blue-soft);
-      text-align:left;
-      font-weight:900;
-      color:var(--c-blue);
-    }
-
-    .colQty{ width:62px; }      /* ✅ avant 54 */
-    .colRef{ width:150px; }     /* ✅ avant 130 */
-    .colImg{ width:96px; text-align:center; } /* ✅ avant 76 */
-
-      .thumb{
-        width:58px;             /* ✅ + grand */
-        height:58px;
-        object-fit:contain;
-        border:1px solid var(--c-line);
-        border-radius:10px;
-        background:#fff;
-        display:inline-block;
-      }
-
-
-    .annexGrid{ display:flex; gap:10px; align-items:stretch; }
-    .annexColL{ flex:0 0 40%; }
-    .annexColR{ flex:1 1 auto; }
-
-    .tblAnnex{
-      width:100%;
-      border-collapse:collapse;
-      font-size:9.5px;
-      overflow-wrap:anywhere;
-    }
-    .tblAnnex th, .tblAnnex td{
-      border:1px solid var(--c-line);
-      padding:5px 6px;
-      vertical-align:top;
-    }
-    .tblAnnex th{
-      background:var(--c-blue-soft);
-      text-align:left;
-      font-weight:900;
-      color:var(--c-blue);
-    }
-    .aQty{ width:36px; }
-    .aRef{ width:92px; }
-    .aNum{ width:70px; text-align:right; }
-
-    .footerLine{
-      margin-top:auto;
-      padding-top: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 9px;
-      color: var(--c-muted);
-      border-top: 1px solid var(--c-line);
-      flex-shrink: 0;
-    }
-    .footLeft{ font-weight: 700; }
-    .footRight{ font-style: italic; }
-
-    /* ====== HEADER V4 ====== */
-    .headerRight{
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 4px;
-    }
-    .pageNum{
-      font-size: 9px;
-      font-weight: 700;
-      color: var(--c-muted);
-      text-align: right;
-    }
-    .mainTitleSub{
-      font-size: 16px;
-      color: var(--c-green);
-      margin-top: 2px;
-    }
-
-    /* ====== DASHBOARD KPI (PAGE 0) ====== */
-    .dashGrid{
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .dashCard{
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px;
-      border: 1px solid var(--c-line);
-      border-radius: 14px;
-      background: var(--c-soft);
-    }
-    .dashIcon{
-      font-size: 22px;
-      flex-shrink: 0;
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #fff;
-      border: 1px solid var(--c-line);
-      border-radius: 10px;
-    }
-    .dashData{ min-width: 0; }
-    .dashValue{
-      font-family: "Arial Black", Arial, sans-serif;
-      font-size: 15px;
-      color: var(--c-blue);
-      line-height: 1.2;
-      overflow-wrap: anywhere;
-    }
-    .dashLabel{
-      font-size: 10px;
-      color: var(--c-muted);
-      font-weight: 700;
-      margin-top: 2px;
-    }
-
-    /* ====== CAMERA ROW ENRICHIE ====== */
-    .rowScore{
-      display: inline-block;
-      margin-top: 3px;
-      font-size: 10px;
-      font-weight: 900;
-      padding: 2px 6px;
-      border-radius: 6px;
-      line-height: 1.3;
-    }
-    .rowScore.ok{ background: #dcfce7; color: #166534; }
-    .rowScore.warn{ background: #fef3c7; color: #92400e; }
-    .rowScore.bad{ background: #fee2e2; color: #991b1b; }
-    .rowContext{
-      margin-top: 3px;
-      font-size: 9px;
-      color: var(--c-muted);
-      line-height: 1.3;
-    }
-
-    /* ====== BLOCK SEPARATOR ENRICHI ====== */
-    .blockSeparator td{
-      background: #f0f9f4 !important;
-      padding: 8px 10px !important;
-      border-left: 4px solid var(--c-green) !important;
-    }
-    .blockSepInner{
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .blockSepLabel{
-      font-weight: 900;
-      color: var(--c-blue);
-      font-size: 12px;
-    }
-    .blockSepMeta{
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--c-muted);
-      background: #fff;
-      padding: 2px 8px;
-      border-radius: 8px;
-      border: 1px solid var(--c-line);
-    }
-
-    /* =========================================================
-       ✅ ANNEXE 2 — SYNOPTIQUE (LANDSCAPE NATIF)
-       ========================================================= */
-
-  .synWrap{
-  width: 100%;
-  height: 180mm;   /* tu étais à 178mm c'est ok */
-  border: 1px solid var(--c-line);
-  border-radius: 18px;
-  background: #fff;
-  overflow: hidden;
-  padding: 10mm;   /* ✅ un poil moins, ça agrandit le schéma utile */
-}
-.synCanvas{
-  width: 100%;
-  height: 100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-.synCanvas svg{
-  width: 100%;
-  height: 100%;
-  display:block;
-}
-
-
-.synCanvas svg{
-  width: 100%;
-  height: 100%;
-  display:block;
-}
-
-  </style>
+${getPdfCssBlock()}
 
   <!-- ✅ PAGE 0 : SYNTHÈSE DU PROJET -->
   <div class="pdfPage">
@@ -5088,7 +5148,7 @@ const buildSynopticHtml = (proj) => {
     <div class="section">
       <div class="sectionTitle">Produits complémentaires</div>
       ${table4(compRows)}
-      ${!signageEnabled ? `<div class="muted" style="margin-top:6px">Panneau de signalisation : (désactivé)</div>` : ``}
+      ${!signageEnabled ? `<div class="muted" class="mt6">Panneau de signalisation : (désactivé)</div>` : ``}
     </div>
 
     <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
@@ -5120,7 +5180,7 @@ const buildSynopticHtml = (proj) => {
           <div class="muted">
             To ≈ (Débit total (Mbps) × 3600 × Heures/jour × Jours) ÷ (8 × 1024 × 1024) × (1 + Marge)
           </div>
-          <div class="muted" style="margin-top:8px">
+          <div class="muted" class="mt8">
             Débit total estimé : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong><br>
             Stockage requis : <strong>~${safe(requiredTB.toFixed(2))} To</strong>
           </div>
@@ -5148,17 +5208,17 @@ const buildSynopticHtml = (proj) => {
                 </table>
                 ${
                   perCamHiddenCount > 0
-                    ? `<div class="muted" style="margin-top:6px">… + ${safe(perCamHiddenCount)} ligne(s) supplémentaires non affichées (pour tenir sur 1 page)</div>`
+                    ? `<div class="muted" class="mt6">… + ${safe(perCamHiddenCount)} ligne(s) supplémentaires non affichées (pour tenir sur 1 page)</div>`
                     : ``
                 }
-                <div class="muted" style="margin-top:6px">
+                <div class="muted" class="mt6">
                   Total débit : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong>
                 </div>
               `
               : `<div class="muted">—</div>`
           }
 
-          <div class="muted" style="margin-top:6px">
+          <div class="muted" class="mt6">
             Source : catalogue caméras → <em>bitrate_mbps_typical</em> (si vide : estimation).
           </div>
         </div>
@@ -5461,7 +5521,7 @@ function camPickCardHTML(blk, cam, label) {
           </div>
 
           <!-- Détails (accordéon) -->
-          <details style="margin-top:10px">
+          <details class="mt10">
             <summary style="cursor:pointer;font-size:12px;font-weight:900;color:var(--muted);padding:6px 0">
               + Voir les détails techniques
             </summary>
@@ -5518,7 +5578,7 @@ function camPickCardHTML(blk, cam, label) {
             <div class="score">${blk.qty || 1}x</div>
           </div>
 
-                    <div style="margin-top:10px">
+                    <div class="mt10">
             <strong>Nom du bloc (zone)</strong>
             <input
               data-action="inputBlockLabel"
@@ -5527,18 +5587,18 @@ function camPickCardHTML(blk, cam, label) {
               maxlength="60"
               value="${safeHtml(blk.label ?? "")}"
               placeholder="ex: Parking entrée, Couloir RDC…"
-              style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)"
+              class="uiInput uiInputBlock"
             />
           </div>
 
-          <div class="kv" style="margin-top:12px">
+          <div class="kv" class="mt12">
             <div>
               <strong title="L'emplacement de votre ou vos caméras (Intérieur ou Extérieur)">
-                📍 Emplacement <span style="color:#DC2626">*</span>
+                📍 Emplacement <span class="fieldRequired">*</span>
               </strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="emplacement"
                 title="Choisissez si la caméra sera installée en intérieur ou en extérieur"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.emplacement ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
+                class="uiInput uiInputBlock ${ans.emplacement ? '' : 'uiInputMissing'}">
                 <option value="">— Choisir l'emplacement —</option>
                 <option value="interieur" ${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>🏠 Intérieur</option>
                 <option value="exterieur" ${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>🌳 Extérieur</option>
@@ -5547,11 +5607,11 @@ function camPickCardHTML(blk, cam, label) {
 
             <div>
               <strong title="L'objectif de surveillance selon la norme DORI : que doit faire la caméra ? (Dissuader, Détecter ou Identifier)">
-                🎯 Objectif DORI <span style="color:#DC2626">*</span>
+                🎯 Objectif DORI <span class="fieldRequired">*</span>
               </strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="objective"
                 title="Dissuasion = voir qu'il y a quelqu'un | Détection = voir une silhouette | Identification = reconnaître un visage"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.objective ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
+                class="uiInput uiInputBlock ${ans.objective ? '' : 'uiInputMissing'}">
                 <option value="">— Choisir l'objectif —</option>
                 <option value="dissuasion" ${ans.objective === "dissuasion" ? "selected" : ""}>👁️ Dissuasion (voir une présence)</option>
                 <option value="detection" ${ans.objective === "detection" ? "selected" : ""}>🚶 Détection (voir une silhouette)</option>
@@ -5561,13 +5621,13 @@ function camPickCardHTML(blk, cam, label) {
 
             <div>
               <strong title="Distance maximale entre la caméra et la zone à surveiller (en mètres)">
-                📏 Distance maximale (m) <span style="color:#DC2626">*</span>
+                📏 Distance maximale (m) <span class="fieldRequired">*</span>
               </strong>
               <input data-action="inputBlockField" data-bid="${safeHtml(blk.id)}" data-field="distance_m" type="number" min="1" max="999"
                 value="${safeHtml(ans.distance_m ?? "")}" placeholder="Ex: 15"
                 title="Indiquez la distance en mètres entre la caméra et le point le plus éloigné à surveiller"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.distance_m ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)" />
-              <div class="muted" style="margin-top:6px">
+              <div class="muted" class="mt6">
                 Norme DORI : ${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
               </div>
             </div>
@@ -5578,7 +5638,7 @@ function camPickCardHTML(blk, cam, label) {
               </strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="mounting"
                 title="Mur = fixation murale | Plafond = fixation au plafond"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
+                class="uiInput uiInputBlock">
                 <option value="wall" ${ans.mounting === "wall" ? "selected" : ""}>🧱 Mur</option>
                 <option value="ceiling" ${ans.mounting === "ceiling" ? "selected" : ""}>⬆️ Plafond</option>
               </select>
@@ -5591,7 +5651,7 @@ function camPickCardHTML(blk, cam, label) {
               <input data-action="inputBlockQty" data-bid="${safeHtml(blk.id)}" type="number" min="1" max="999"
                 value="${safeHtml(blk.qty ?? 1)}"
                 title="Combien de caméras identiques souhaitez-vous pour cette configuration ?"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)" />
+                class="uiInput uiInputBlock" />
             </div>
 
             <div>
@@ -5600,18 +5660,18 @@ function camPickCardHTML(blk, cam, label) {
               </strong>
               <select data-action="changeBlockQuality" data-bid="${safeHtml(blk.id)}"
                 title="Économique = moins de stockage | Standard = bon compromis | Haute = meilleure qualité mais plus de stockage"
-                style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
+                class="uiInput uiInputBlock">
                 <option value="low" ${blk.quality === "low" ? "selected" : ""}>💚 Économique</option>
                 <option value="standard" ${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>💛 Standard (recommandé)</option>
                 <option value="high" ${blk.quality === "high" ? "selected" : ""}>🔴 Haute définition</option>
               </select>
             </div>
           </div>
-          <div class="reasons" style="margin-top:12px">
+          <div class="reasons" class="mt12">
             ${
               canRecommendBlock(blk)
                 ? `✅ Critères OK → recommandations disponibles à droite.`
-                : `⚠️ Remplis les champs obligatoires (<span style="color:#DC2626">*</span>) pour voir les propositions.`
+                : `⚠️ Remplis les champs obligatoires (<span class="fieldRequired">*</span>) pour voir les propositions.`
             }
           </div>
 
@@ -5646,7 +5706,7 @@ function camPickCardHTML(blk, cam, label) {
     `;
 
     if (!canRecommendBlock(activeBlock)) {
-      rightHtml += `<div class="recoCard" style="padding:12px"><div class="muted">⚠️ Remplis les champs obligatoires (<span style="color:#DC2626">*</span>) : <strong>Emplacement</strong>, <strong>Objectif</strong> et <strong>Distance</strong> pour voir les propositions.</div></div>`;
+      rightHtml += `<div class="recoCard" style="padding:12px"><div class="muted">⚠️ Remplis les champs obligatoires (<span class="fieldRequired">*</span>) : <strong>Emplacement</strong>, <strong>Objectif</strong> et <strong>Distance</strong> pour voir les propositions.</div></div>`;
     } else {
       const primary = reco?.primary?.camera || null;
       const alternatives = (reco?.alternatives || []).map((x) => x.camera).filter(Boolean);
@@ -5784,7 +5844,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
             <button data-action="addBlock" class="btnGhost" type="button">+ Ajouter un autre modèle de caméra</button>
           </div>
 
-          <div class="reasons" style="margin-top:12px">
+          <div class="reasons" class="mt12">
             <strong>Résumé (panier validé) :</strong><br>
             • Blocs validés : ${validatedCount} / ${MODEL.cameraBlocks.length}<br>
             • Total caméras : ${totalCams}<br>
@@ -5808,6 +5868,28 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
   // Vérifie si les champs sont remplis
   const isComplete = val.trim().length > 0 && useCase.trim().length > 0;
 
+  // Sauvegarde locale
+  const savedCfg = loadConfigFromLocalStorage();
+  let saveCardHtml = "";
+  if (savedCfg) {
+    const saveName = safeHtml(savedCfg.projectName || "Sans nom");
+    const saveDate = savedCfg.savedAt ? new Date(savedCfg.savedAt).toLocaleDateString("fr-FR", { day:"numeric", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+    const saveNbCams = (savedCfg.cameraLines || []).reduce((a, l) => a + (Number(l.qty) || 0), 0);
+    const saveNbBlocks = (savedCfg.cameraBlocks || []).filter(b => b.validated).length;
+    saveCardHtml = '<div class="recoCard" style="padding:14px;border:1.5px solid rgba(0,188,112,.3);background:rgba(0,188,112,.03)">'
+      + '<div class="recoHeader"><div>'
+      + '<div class="recoName">💾 Sauvegarde disponible</div>'
+      + '<div class="muted" style="margin-top:4px">'
+      + '<strong>' + saveName + '</strong><br>'
+      + (saveDate ? saveDate + '<br>' : '')
+      + saveNbBlocks + ' bloc(s) validé(s) · ' + saveNbCams + ' caméra(s)'
+      + '</div></div></div>'
+      + '<div style="display:flex;gap:8px;margin-top:12px">'
+      + '<button class="btn primary" data-action="restoreSave" type="button" style="flex:1">📥 Charger cette configuration</button>'
+      + '<button class="btnGhost" data-action="deleteSave" type="button" style="font-size:12px">🗑️</button>'
+      + '</div></div>';
+  }
+
   return `
     <div class="stepSplit">
       <div class="blocksCol">
@@ -5822,31 +5904,31 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
           <!-- Nom du projet -->
           <div style="margin-top:14px">
-            <strong>Nom du projet <span style="color:#DC2626">*</span></strong>
+            <strong>Nom du projet <span class="fieldRequired">*</span></strong>
             <input
               data-action="projName"
               type="text"
               maxlength="${LIM.maxProjectNameLength}"
               value="${safeHtml(val)}"
               placeholder="Ex : Copro Victor Hugo — Parking"
-              style="width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1px solid ${val.trim() ? 'var(--line)' : 'rgba(220,38,38,.5)'};background:var(--panel2);color:var(--text)"
+              class="uiInput uiInputBlock ${val.trim() ? '' : 'uiInputMissing'}"
             />
-            <div class="muted" style="margin-top:6px">
+            <div class="muted" class="mt6">
               Conseil : site + zone (court et clair). Exemple : "École Jules Ferry — Entrée".
             </div>
           </div>
 
           <!-- Use Case global -->
           <div style="margin-top:14px">
-            <strong>Type de site <span style="color:#DC2626">*</span></strong>
+            <strong>Type de site <span class="fieldRequired">*</span></strong>
             <select
               data-action="projUseCase"
-              style="width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1px solid ${useCase.trim() ? 'var(--line)' : 'rgba(220,38,38,.5)'};background:var(--panel2);color:var(--text)"
+              class="uiInput uiInputBlock ${useCase.trim() ? '' : 'uiInputMissing'}"
             >
               <option value="">— Sélectionner le type de site —</option>
               ${useCases.map(u => `<option value="${safeHtml(u)}" ${useCase === u ? "selected" : ""}>${safeHtml(u)}</option>`).join("")}
             </select>
-            <div class="muted" style="margin-top:6px">
+            <div class="muted" class="mt6">
               Ce choix pré-filtrera les caméras adaptées à votre environnement.
             </div>
           </div>
@@ -5864,9 +5946,11 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       </div>
 
       <div class="proposalsCol">
-        <div class="recoCard" style="padding:14px">
+        ${saveCardHtml}
+
+        <div class="recoCard" style="padding:14px${savedCfg ? ";margin-top:10px" : ""}">
           <div class="recoName">Aperçu</div>
-          <div class="muted" style="margin-top:6px">
+          <div class="muted" class="mt6">
             Le PDF commencera par une page "Informations projet" avec :<br>
             • Nom du projet<br>
             • Type de site<br>
@@ -5877,7 +5961,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
         <div class="recoCard" style="padding:14px;margin-top:10px">
           <div class="recoName">Pourquoi le type de site ?</div>
-          <div class="muted" style="margin-top:6px">
+          <div class="muted" class="mt6">
             Le type de site permet de :<br>
             • Filtrer les caméras adaptées<br>
             • Pré-configurer les paramètres<br>
@@ -6006,7 +6090,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
             <div class="uiKpiLabel">Baies HDD</div>
           </div>
         </div>
-        <div class="uiMuted" style="margin-top:8px">${safeHtml(proj.nvrPick.reason)}</div>
+        <div class="uiMuted" class="mt8">${safeHtml(proj.nvrPick.reason)}</div>
         ${nvr.image_url ? `<div class="uiProductImgWrap"><img class="uiProductImgLg" src="${nvr.image_url}" alt="" loading="lazy"></div>` : ""}
         ${nvr.datasheet_url ? `<a class="uiLink" href="${nvr.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique NVR</a>` : ""}
       </div>
@@ -6055,7 +6139,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
     const swHtml = !sw.required
       ? `
-    <div class="uiSection" style="margin-top:12px">
+    <div class="uiSection" class="mt12">
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">🔌</div>
         <div>
@@ -6067,7 +6151,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     </div>
   `
       : `
-    <div class="uiSection" style="margin-top:12px">
+    <div class="uiSection" class="mt12">
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">🔌</div>
         <div>
@@ -6152,7 +6236,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       </div>
     </div>
 
-    <div class="uiSection" style="margin-top:12px">
+    <div class="uiSection" class="mt12">
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">💾</div>
         <div>
@@ -6179,7 +6263,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         </div>
 
         ${hdd ? `
-        <div class="uiProductCard" style="margin-top:10px">
+        <div class="uiProductCard" class="mt10">
           <div class="uiProductMain">
             <div class="uiProductInfo">
               <div class="uiProductTitle">${safeHtml(hdd.id)}</div>
@@ -6189,11 +6273,11 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
             ${hdd.image_url ? `<img class="uiProductImg" src="${hdd.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">💾</div>`}
           </div>
         </div>
-        ` : `<div class="uiMuted" style="margin-top:8px">Aucun HDD trouvé dans le catalogue.</div>`}
+        ` : `<div class="uiMuted" class="mt8">Aucun HDD trouvé dans le catalogue.</div>`}
       </div>
     </div>
 
-    <div class="uiSection" style="margin-top:12px">
+    <div class="uiSection" class="mt12">
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">🛒</div>
         <div>
@@ -6234,9 +6318,9 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
               <input data-action="screenQty" type="number" min="1" max="${hdmiOut || 20}" value="${MODEL.complements.screen.qty || 1}" class="uiInput" />
             </div>
           </div>
-          ${qtyWarn ? `<div class="uiAlertWarn" style="margin-top:6px">⚠️ ${safeHtml(qtyWarn)}</div>` : ''}
+          ${qtyWarn ? `<div class="uiAlertWarn" class="mt6">⚠️ ${safeHtml(qtyWarn)}</div>` : ''}
           ${scrSel ? `
-          <div class="uiProductCard" style="margin-top:8px">
+          <div class="uiProductCard" class="mt8">
             <div class="uiProductMain">
               <div class="uiProductInfo">
                 <div class="uiProductTitle">${safeHtml(scrSel.id)}</div>
@@ -6245,7 +6329,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
               </div>
               ${scrSel.image_url ? `<img class="uiProductImg" src="${scrSel.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🖥</div>`}
             </div>
-          </div>` : `<div class="uiMuted" style="margin-top:6px">Aucun écran trouvé dans le catalogue pour ${MODEL.complements.screen.sizeInch}".</div>`}
+          </div>` : `<div class="uiMuted" class="mt6">Aucun écran trouvé dans le catalogue pour ${MODEL.complements.screen.sizeInch}".</div>`}
         </div>`;
         })() : ""}
 
@@ -6300,7 +6384,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
             </div>
           </div>
           ${encSel ? `
-          <div class="uiProductCard" style="margin-top:8px">
+          <div class="uiProductCard" class="mt8">
             <div class="uiProductMain">
               <div class="uiProductInfo">
                 <div class="uiProductTitle">${safeHtml(encSel.id)}</div>
@@ -6344,7 +6428,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
             </div>
           </div>
           ${signSel ? `
-          <div class="uiProductCard" style="margin-top:8px">
+          <div class="uiProductCard" class="mt8">
             <div class="uiProductMain">
               <div class="uiProductInfo">
                 <div class="uiProductTitle">${safeHtml(signSel.id)}</div>
@@ -6366,11 +6450,36 @@ function renderStepSummary() {
   const proj = LAST_PROJECT;
 
   const exportHtml = `
-    <div class="exportRow exportRowSummary">
-      <button class="btn primary" id="btnExportPdf">📄 Exporter PDF</button>
-      <button class="btn secondary" id="btnExportPdfPack">📦 PDF + Fiches techniques</button>
-      <button class="btn secondary" id="btnPreviewPdf">👁 Aperçu PDF</button>
-      <button class="btnGhost" id="btnBackToEdit">Modifier la configuration</button>
+    <div class="exportBar">
+      <div class="exportBarPrimary">
+        <button class="exportBtn exportBtnMain" id="btnExportPdf">
+          <span class="exportBtnIcon">📄</span>
+          <span class="exportBtnLabel">Exporter PDF</span>
+        </button>
+        <button class="exportBtn exportBtnSecondary" id="btnExportPdfPack">
+          <span class="exportBtnIcon">📦</span>
+          <span class="exportBtnLabel">PDF + Fiches techniques</span>
+        </button>
+        <button class="exportBtn exportBtnSecondary" id="btnPreviewPdf">
+          <span class="exportBtnIcon">👁</span>
+          <span class="exportBtnLabel">Aperçu PDF</span>
+        </button>
+      </div>
+      <div class="exportBarDivider"></div>
+      <div class="exportBarSecondary">
+        <button class="exportBtn exportBtnSecondary" id="btnSaveConfig">
+          <span class="exportBtnIcon">💾</span>
+          <span class="exportBtnLabel">Sauvegarder</span>
+        </button>
+        <button class="exportBtn exportBtnSecondary" id="btnShareConfig">
+          <span class="exportBtnIcon">🔗</span>
+          <span class="exportBtnLabel">Partager</span>
+        </button>
+        <button class="exportBtn exportBtnGhost" id="btnBackToEdit">
+          <span class="exportBtnIcon">✏️</span>
+          <span class="exportBtnLabel">Modifier</span>
+        </button>
+      </div>
     </div>
   `;
 
@@ -6381,15 +6490,14 @@ function renderStepSummary() {
         <div class="stepBadge">6/6</div>
       </div>
 
-      <div class="stepHelp">
-        Ton résumé final est affiché en pleine largeur.
-        <br>Tu peux exporter le PDF, ou revenir modifier la config si besoin.
-      </div>
-
-      <div class="summaryHint ${proj ? "ok" : "warn"}">
-        ${proj
-          ? "✅ Configuration finalisée."
-          : "⚠️ Aucune configuration finalisée (reviens à l’étape Stockage et clique Finaliser)."}
+      <div class="summaryBanner ${proj ? "ok" : "warn"}">
+        <div class="summaryBannerIcon">${proj ? "✅" : "⚠️"}</div>
+        <div class="summaryBannerText">
+          <div class="summaryBannerTitle">${proj ? "Configuration finalisée" : "Configuration incomplète"}</div>
+          <div class="summaryBannerSub">${proj
+            ? "Exporte le PDF ou ajuste ta configuration."
+            : "Reviens à l'étape Stockage et clique Finaliser."}</div>
+        </div>
       </div>
 
       ${proj ? exportHtml : ""}
@@ -6452,6 +6560,24 @@ function bindSummaryButtons() {
       else alert("Export pack indisponible.");
     });
   }
+
+  // Sauvegarder
+  const btnSave = document.getElementById("btnSaveConfig");
+  if (btnSave && !btnSave.dataset.bound) {
+    btnSave.dataset.bound = "1";
+    btnSave.addEventListener("click", () => {
+      saveConfigToLocalStorage();
+    });
+  }
+
+  // Partager
+  const btnShare = document.getElementById("btnShareConfig");
+  if (btnShare && !btnShare.dataset.bound) {
+    btnShare.dataset.bound = "1";
+    btnShare.addEventListener("click", () => {
+      shareConfigUrl();
+    });
+  }
 }
 
   // ==========================================================
@@ -6505,7 +6631,7 @@ function render() {
 function generateQRDataUrl(text, size = 150) {
   try {
     if (typeof QRCode === "undefined") {
-      console.warn("[QR] QRCode lib not loaded");
+      LOG.warn("[QR] QRCode lib not loaded");
       return "";
     }
     
@@ -6535,7 +6661,7 @@ function generateQRDataUrl(text, size = 150) {
     div.remove();
     return dataUrl;
   } catch (e) {
-    console.warn("[QR] Generation failed:", e);
+    LOG.warn("[QR] Generation failed:", e);
     return "";
   }
 }
@@ -6543,6 +6669,172 @@ function generateQRDataUrl(text, size = 150) {
 // ==========================================================
 // SHARE URL — Génère l'URL de partage pour le QR code
 // ==========================================================
+// ==========================================================
+// SAUVEGARDE & PARTAGE
+// ==========================================================
+
+function snapshotForSave() {
+  try {
+    return {
+      projectName: MODEL?.projectName || "",
+      projectUseCase: MODEL?.projectUseCase || "",
+      cameraBlocks: (MODEL?.cameraBlocks || []).map(b => ({
+        id: b.id, label: b.label, validated: b.validated,
+        selectedCameraId: b.selectedCameraId, qty: b.qty,
+        answers: b.answers || {},
+      })),
+      cameraLines: (MODEL?.cameraLines || []).map(l => ({
+        cameraId: l.cameraId, fromBlockId: l.fromBlockId, qty: l.qty,
+      })),
+      accessoryLines: (MODEL?.accessoryLines || []).map(a => ({
+        accessoryId: a.accessoryId, fromBlockId: a.fromBlockId,
+        qty: a.qty, type: a.type,
+      })),
+      recording: { ...(MODEL?.recording || {}) },
+      complements: JSON.parse(JSON.stringify(MODEL?.complements || {})),
+      savedAt: new Date().toISOString(),
+    };
+  } catch (e) {
+    LOG.error("[Save] Snapshot failed:", e);
+    return null;
+  }
+}
+
+function restoreFromSnapshot(snap) {
+  try {
+    if (!snap) return false;
+    if (snap.projectName != null) MODEL.projectName = snap.projectName;
+    if (snap.projectUseCase != null) MODEL.projectUseCase = snap.projectUseCase;
+    if (Array.isArray(snap.cameraBlocks)) MODEL.cameraBlocks = snap.cameraBlocks;
+    if (Array.isArray(snap.cameraLines)) MODEL.cameraLines = snap.cameraLines;
+    if (Array.isArray(snap.accessoryLines)) MODEL.accessoryLines = snap.accessoryLines;
+    if (snap.recording) MODEL.recording = { ...MODEL.recording, ...snap.recording };
+    if (snap.complements) MODEL.complements = JSON.parse(JSON.stringify(snap.complements));
+    invalidateProjectCache();
+    return true;
+  } catch (e) {
+    LOG.error("[Save] Restore failed:", e);
+    return false;
+  }
+}
+
+const SAVE_KEY = "comelit_cfg_save";
+
+function saveConfigToLocalStorage() {
+  const snap = snapshotForSave();
+  if (!snap) {
+    showToast("❌ Impossible de sauvegarder la configuration.", "danger");
+    return;
+  }
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
+    showToast("💾 Configuration sauvegardée !", "ok");
+  } catch (e) {
+    LOG.error("[Save] LocalStorage failed:", e);
+    showToast("❌ Erreur de sauvegarde : " + e.message, "danger");
+  }
+}
+
+function loadConfigFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+function shareConfigUrl() {
+  const url = generateShareUrl();
+  if (!url) {
+    // Trop long pour un URL — proposer copie JSON
+    const snap = snapshotForSave();
+    if (snap) {
+      const json = JSON.stringify(snap);
+      navigator.clipboard.writeText(json).then(() => {
+        showToast("📋 Configuration trop longue pour un lien. JSON copié dans le presse-papier.", "warn");
+      }).catch(() => {
+        showToast("⚠️ Configuration trop volumineuse pour un lien de partage.", "warn");
+      });
+    }
+    return;
+  }
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      showToast("🔗 Lien copié dans le presse-papier !", "ok");
+    }).catch(() => {
+      prompt("Copie ce lien pour partager ta configuration :", url);
+    });
+  } else {
+    prompt("Copie ce lien pour partager ta configuration :", url);
+  }
+}
+
+function showToast(message, type = "ok") {
+  const existing = document.getElementById("cfgToast");
+  if (existing) existing.remove();
+
+  const toast = document.createElement("div");
+  toast.id = "cfgToast";
+  const bg = type === "ok" ? CLR.green : type === "warn" ? CLR.warn : CLR.danger;
+  Object.assign(toast.style, {
+    position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)",
+    zIndex: "99999", padding: "14px 24px", borderRadius: "12px",
+    background: bg, color: "#fff", fontWeight: "800", fontSize: "13px",
+    boxShadow: "0 8px 32px rgba(0,0,0,.25)",
+    transition: "opacity .3s ease, transform .3s ease",
+  });
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateX(-50%) translateY(10px)";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+// Restauration auto au chargement si ?cfg= dans l'URL
+(function autoRestoreFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const cfg = params.get("cfg");
+    if (!cfg) return;
+    const json = decodeURIComponent(escape(atob(cfg)));
+    const light = JSON.parse(json);
+    // Reconstituer le format snapshot depuis le format light
+    if (light.bl) {
+      const snap = {
+        projectName: light.pn || "",
+        projectUseCase: light.uc || "",
+        cameraBlocks: (light.bl || []).map(b => ({
+          id: b.id, label: b.lb, validated: b.v,
+          selectedCameraId: b.sc, qty: b.q, answers: b.a || {},
+        })),
+        cameraLines: (light.cl || []).map(l => ({
+          cameraId: l.ci, fromBlockId: l.fb, qty: l.q,
+        })),
+      };
+      // Attendre que le DOM soit prêt
+      const waitAndRestore = () => {
+        if (typeof MODEL !== "undefined" && typeof render === "function") {
+          restoreFromSnapshot(snap);
+          render();
+          showToast("📥 Configuration restaurée depuis le lien !", "ok");
+          // Nettoyer l'URL
+          const clean = new URL(window.location.href);
+          clean.searchParams.delete("cfg");
+          window.history.replaceState({}, "", clean.toString());
+        } else {
+          setTimeout(waitAndRestore, 200);
+        }
+      };
+      setTimeout(waitAndRestore, 500);
+    }
+  } catch (e) {
+    LOG.warn("[Share] Auto-restore failed:", e);
+  }
+})();
+
 function generateShareUrl() {
   try {
     const snap = typeof snapshotForSave === "function" ? snapshotForSave() : null;
@@ -6574,7 +6866,7 @@ function generateShareUrl() {
     url.searchParams.set("cfg", encoded);
     return url.toString();
   } catch (e) {
-    console.warn("[Share] URL generation failed:", e);
+    LOG.warn("[Share] URL generation failed:", e);
     return null;
   }
 }
@@ -6797,7 +7089,7 @@ async function buildPdfBlobProFromProject(proj) {
   try {
     host.innerHTML = buildPdfHtml(proj);
   } catch (e) {
-    console.error("[PDF] buildPdfHtml failed:", e);
+    LOG.error("[PDF] buildPdfHtml failed:", e);
     throw new Error("Impossible de générer le HTML du PDF: " + e.message);
   }
   
@@ -7044,7 +7336,7 @@ function renderCameraPickCard(cam, blk, sc, mainReason) {
           </div>
 
           <!-- Actions -->
-          <div class="cameraPickActions" style="margin-top:12px">
+          <div class="cameraPickActions" class="mt12">
             <button
               data-action="validateCamera"
               data-camid="${safeHtml(cam.id)}"
@@ -7082,6 +7374,27 @@ function onStepsClick(e) {
 
   if (action === "screenSize") {
     // Géré dans onStepsChange (c'est un select)
+    return;
+  }
+
+  if (action === "restoreSave") {
+    const snap = loadConfigFromLocalStorage();
+    if (snap && restoreFromSnapshot(snap)) {
+      MODEL.stepIndex = 0;
+      render();
+      showToast("📥 Configuration restaurée !", "ok");
+    } else {
+      showToast("❌ Impossible de restaurer la sauvegarde.", "danger");
+    }
+    return;
+  }
+
+  if (action === "deleteSave") {
+    if (confirm("Supprimer la sauvegarde locale ?")) {
+      localStorage.removeItem(SAVE_KEY);
+      render();
+      showToast("🗑️ Sauvegarde supprimée.", "ok");
+    }
     return;
   }
 
@@ -7545,7 +7858,7 @@ async function exportProjectPdfPro(proj) {
         LAST_PROJECT = proj;
       }
     } catch (e) {
-      console.error("[PDF] computeProject failed:", e);
+      LOG.error("[PDF] computeProject failed:", e);
     }
   }
   
@@ -7590,10 +7903,10 @@ async function exportProjectPdfPro(proj) {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    console.log("[PDF] Export OK:", filename);
+    LOG.info("[PDF] Export OK:", filename);
     
   } catch (e) {
-    console.error("[PDF] Export failed:", e);
+    LOG.error("[PDF] Export failed:", e);
     alert("Export PDF échoué: " + e.message);
   }
 }
@@ -7869,19 +8182,20 @@ function collectProductIdsForPack(proj) {
 }
 
 async function exportProjectPdfWithLocalDatasheetsZip() {
+  // Vérifier JSZip
+  if (typeof JSZip !== "function") {
+    alert("JSZip non chargé. Impossible de créer le pack.");
+    return;
+  }
+
   // Récupérer le projet
-  let proj = (typeof LAST_PROJECT !== "undefined" && LAST_PROJECT)
-    ? LAST_PROJECT
-    : null;
-    
+  let proj = (typeof LAST_PROJECT !== "undefined" && LAST_PROJECT) ? LAST_PROJECT : null;
   if (!proj && typeof computeProject === "function") {
     try {
       proj = computeProject();
-      if (typeof LAST_PROJECT !== "undefined") {
-        LAST_PROJECT = proj;
-      }
+      if (typeof LAST_PROJECT !== "undefined") LAST_PROJECT = proj;
     } catch (e) {
-      console.error("[ZIP] computeProject failed:", e);
+      LOG.error("[ZIP] computeProject failed:", e);
     }
   }
 
@@ -7891,110 +8205,139 @@ async function exportProjectPdfWithLocalDatasheetsZip() {
   }
 
   const day = new Date().toISOString().slice(0, 10);
-
-  // Générer le PDF
-  let pdfBlob;
-  try {
-    pdfBlob = await buildPdfBlobProFromProject(proj);
-    if (!pdfBlob || pdfBlob.size < 5000) {
-      throw new Error("PDF invalide");
-    }
-  } catch (e) {
-    console.error("[ZIP] PDF error:", e);
-    alert("Impossible de générer le PDF: " + e.message);
-    return;
-  }
-
-  // Convertir PDF en base64
-  const pdf_base64 = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      resolve(result.includes(",") ? result.split(",")[1] : result);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(pdfBlob);
-  });
-
-  // Collecter les IDs produits
-  const product_ids = collectProductIdsForPack(proj);
-
-  // ✅ Générer le nom du fichier ZIP basé sur le nom du projet
-  const projectSlugZip = (MODEL?.projectName || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // Retire les accents
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+  const projectSlug = (MODEL?.projectName || "")
+    .trim().toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
     .slice(0, 40) || "projet";
 
-  // ✅ Construire le payload (APRÈS avoir déclaré projectSlugZip)
-  const payload = {
-    pdf_base64,
-    product_ids,
-    zip_name: `${projectSlugZip}_${day}.zip`,
-  };
+  // Indicateur de progression
+  const toast = document.createElement("div");
+  Object.assign(toast.style, {
+    position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)",
+    zIndex: "99999", padding: "14px 24px", borderRadius: "12px",
+    background: COLORS.blue, color: "#fff", fontWeight: "800", fontSize: "13px",
+    boxShadow: "0 8px 32px rgba(0,0,0,.3)",
+  });
+  toast.textContent = "📦 Génération du pack en cours...";
+  document.body.appendChild(toast);
 
-  // Endpoints à essayer
-  const endpoints = [
-    "/export/localzip",
-    "http://127.0.0.1:8000/export/localzip",
-    "http://localhost:8000/export/localzip",
-  ];
+  const updateToast = (msg) => { toast.textContent = msg; };
 
-  let response = null;
-  let lastError = "";
-
-  for (const endpoint of endpoints) {
-    try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) break;
-      lastError = await response.text().catch(() => `HTTP ${response.status}`);
-      response = null;
-    } catch (e) {
-      lastError = e.message;
-      response = null;
-    }
-  }
-
-  if (!response) {
-    alert("Export pack indisponible.\nDétail : " + lastError);
-    return;
-  }
-
-  // Télécharger le ZIP
   try {
-    const zipBlob = await response.blob();
-    if (!zipBlob || zipBlob.size < 200) {
-      throw new Error("ZIP vide");
+    // 1) Générer le PDF
+    updateToast("📄 Génération du PDF...");
+    const pdfBlob = await buildPdfBlobProFromProject(proj);
+    if (!pdfBlob || pdfBlob.size < 5000) throw new Error("PDF invalide");
+
+    // 2) Collecter les IDs produits
+    const productIds = collectProductIdsForPack(proj);
+    LOG.info("[ZIP] Produits à inclure:", productIds);
+
+    // 3) Récupérer les fiches techniques locales
+    updateToast(`📑 Récupération des fiches techniques (0/${productIds.length})...`);
+
+    // Construire un index produit → famille depuis le catalogue
+    const productFamilyMap = new Map();
+    const catalogEntries = [
+      ["cameras", CATALOG?.CAMERAS],
+      ["nvrs", CATALOG?.NVRS],
+      ["hdds", CATALOG?.HDDS],
+      ["switches", CATALOG?.SWITCHES],
+      ["screens", CATALOG?.SCREENS],
+      ["enclosures", CATALOG?.ENCLOSURES],
+      ["signage", CATALOG?.SIGNAGE],
+    ];
+    for (const [fam, list] of catalogEntries) {
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        if (item?.id) productFamilyMap.set(String(item.id).trim(), fam);
+      }
+    }
+    // Les accessoires sont dans accessoryLines, pas dans un array catalogue standard
+    for (const a of (MODEL?.accessoryLines || [])) {
+      if (a?.accessoryId) productFamilyMap.set(String(a.accessoryId).trim(), "accessories");
     }
 
+    const datasheets = [];
+
+    for (let i = 0; i < productIds.length; i++) {
+      const id = productIds[i];
+      updateToast(`📑 Récupération des fiches techniques (${i + 1}/${productIds.length})...`);
+
+      // Trouver la famille via le catalogue (pas de brute-force)
+      const family = productFamilyMap.get(id);
+      if (!family) {
+        LOG.debug(`[ZIP] Produit ${id} non trouvé dans le catalogue`);
+        continue;
+      }
+
+      const dsUrl = getDatasheetSrc(family, id);
+      if (!dsUrl) continue;
+
+      try {
+        const res = await fetch(dsUrl);
+        if (res.ok) {
+          const blob = await res.blob();
+          if (blob.size > 500) {
+            datasheets.push({ filename: `${id}.pdf`, blob });
+            LOG.debug(`[ZIP] Fiche OK: ${id}.pdf (${(blob.size / 1024).toFixed(0)} Ko)`);
+          }
+        } else {
+          LOG.debug(`[ZIP] Pas de fiche pour ${id} (${res.status})`);
+        }
+      } catch (e) {
+        LOG.warn(`[ZIP] Échec fiche ${id}:`, e.message);
+      }
+    }
+
+    // 4) Assembler le ZIP
+    updateToast(`📦 Assemblage du ZIP (${datasheets.length} fiches)...`);
+
+    const zip = new JSZip();
+    const zipFolder = zip.folder("fiches_techniques");
+
+    // Ajouter le PDF principal
+    zip.file(`${projectSlug}_${day}.pdf`, pdfBlob);
+
+    // Ajouter les fiches techniques
+    for (const ds of datasheets) {
+      zipFolder.file(ds.filename, ds.blob);
+    }
+
+    // 5) Générer et télécharger
+    updateToast("⬇️ Téléchargement...");
+
+    const zipBlob = await zip.generateAsync({
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+    });
+
+    const zipName = `${projectSlug}_pack_${day}.zip`;
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = payload.zip_name;
+    a.download = zipName;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
 
-    console.log("[ZIP] Export OK:", payload.zip_name);
+    LOG.info(`[ZIP] Export OK: ${zipName} (${(zipBlob.size / 1024).toFixed(0)} Ko, ${datasheets.length} fiches)`);
+    updateToast(`✅ Pack exporté ! (${datasheets.length} fiches techniques)`);
+    setTimeout(() => toast.remove(), 3000);
+
   } catch (e) {
-    console.error("[ZIP] Download error:", e);
-    alert("Erreur téléchargement ZIP.");
+    LOG.error("[ZIP] Export failed:", e);
+    toast.style.borderLeft = `4px solid ${COLORS.danger}`;
+    toast.textContent = `❌ Erreur: ${e.message}`;
+    setTimeout(() => toast.remove(), 5000);
   }
 }
 
 // Alias pour compatibilité
-async function exportProjectPdfPackPro() {
-  return await exportProjectPdfWithLocalDatasheetsZip();
-}
-
-// Alias pour compatibilité avec l'ancien nom
+// Alias pour compatibilité
 async function exportProjectPdfPackPro() {
   return await exportProjectPdfWithLocalDatasheetsZip();
 }
@@ -8048,7 +8391,7 @@ function ensurePdfPackButton() {
       try {
         exportProjectPdfPro();
       } catch (err) {
-        console.error(err);
+        LOG.error(err);
         alert("Erreur export PDF (voir console).");
       }
     });
@@ -8078,7 +8421,7 @@ function ensurePdfPackButton() {
       e.preventDefault();
       try {
         if (typeof exportProjectPdfWithLocalDatasheetsZip !== "function") {
-          console.warn("exportProjectPdfWithLocalDatasheetsZip non trouvée, tentative fallback...");
+          LOG.warn("exportProjectPdfWithLocalDatasheetsZip non trouvée, tentative fallback...");
           // Essayer un fallback
           if (typeof exportProjectPdfPackPro === "function") {
             await exportProjectPdfPackPro();
@@ -8089,7 +8432,7 @@ function ensurePdfPackButton() {
         }
         await exportProjectPdfWithLocalDatasheetsZip();
       } catch (err) {
-        console.error(err);
+        LOG.error(err);
         alert("Erreur export pack (voir console).");
       }
     });
@@ -8103,6 +8446,70 @@ function ensurePdfPackButton() {
   // ==========================================================
 // 13) NAV / BUTTONS (safe bindings)
 // ==========================================================
+
+
+// ==========================================================
+// PERFORMANCE UTILITIES
+// ==========================================================
+
+// Debounce — retarde l'exécution jusqu'à ce que l'utilisateur arrête
+function debounce(fn, delay = 150) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+// Throttle — exécute max 1 fois par intervalle
+function throttle(fn, interval = 100) {
+  let last = 0;
+  let timer;
+  return function(...args) {
+    const now = Date.now();
+    const remaining = interval - (now - last);
+    clearTimeout(timer);
+    if (remaining <= 0) {
+      last = now;
+      fn.apply(this, args);
+    } else {
+      timer = setTimeout(() => { last = Date.now(); fn.apply(this, args); }, remaining);
+    }
+  };
+}
+
+// Render batching — évite les renders multiples dans le même frame
+let _renderScheduled = false;
+function scheduleRender() {
+  if (_renderScheduled) return;
+  _renderScheduled = true;
+  requestAnimationFrame(() => {
+    _renderScheduled = false;
+    if (typeof render === "function") render();
+  });
+}
+
+// ==========================================================
+// MEMOIZE — cache les résultats de fonctions pures
+// ==========================================================
+function memoize(fn, keyFn) {
+  const cache = new Map();
+  const memoized = function(...args) {
+    const key = keyFn ? keyFn(...args) : JSON.stringify(args);
+    if (cache.has(key)) return cache.get(key);
+    const result = fn.apply(this, args);
+    cache.set(key, result);
+    // Limite la taille du cache
+    if (cache.size > 200) {
+      const firstKey = cache.keys().next().value;
+      cache.delete(firstKey);
+    }
+    return result;
+  };
+  memoized.clearCache = () => cache.clear();
+  return memoized;
+}
+
 
 // ==========================================================
 // VALIDATION PAR ÉTAPE
@@ -8272,7 +8679,7 @@ bind(DOM.btnCompute, "click", () => {
     try {
       proj = computeProject();
     } catch (e) {
-      console.error(e);
+      LOG.error(e);
       alert("Impossible de finaliser : vérifie les paramètres (caméras/NVR/stockage).");
       return;
     }
@@ -8412,7 +8819,7 @@ bind(DOM.btnDemo, "click", () => {
   updateNavButtons();
   
   // ✅ Message de confirmation
-  console.log("[DEMO] Configuration de démonstration chargée:", {
+  LOG.info("[DEMO] Configuration de démonstration chargée:", {
     projet: MODEL.projectName,
     typeSite: MODEL.projectUseCase,
     blocs: MODEL.cameraBlocks.length,
@@ -8486,16 +8893,22 @@ bind(DOM.stepsEl, "input", onStepsInput);
 
       
       // ✅ Dual-mode : JSON externe prioritaire, CSV en fallback silencieux
+      // Mode catalogue : CSV par défaut. JSON activable avec ?json=1 dans l'URL
+      const _useJsonCatalog = (new URLSearchParams(window.location.search)).has("json");
+
       const loadJsonOrCsv = async (name, required = false) => {
-        try {
-          const jsonRes = await fetch(`/data/${name}.json`, { cache: "no-store" });
-          if (jsonRes.ok) {
-            const data = await jsonRes.json();
-            console.log(`[CATALOG] ${name}.json loaded (${Array.isArray(data) ? data.length : '?'} items)`);
-            return Array.isArray(data) ? data : [];
-          }
-        } catch {}
-        // Fallback CSV (silencieux)
+        // Tenter JSON uniquement si activé (évite les 404 en console)
+        if (_useJsonCatalog) {
+          try {
+            const jsonRes = await fetch(`/data/${name}.json`, { cache: "no-store" });
+            if (jsonRes.ok) {
+              const data = await jsonRes.json();
+              LOG.info(`[CATALOG] ${name}.json loaded (${Array.isArray(data) ? data.length : '?'} items)`);
+              return Array.isArray(data) ? data : [];
+            }
+          } catch {}
+        }
+        // CSV (par défaut)
         try {
           return await loadCsv(`/data/${name}.csv`);
         } catch (e) {
@@ -8567,7 +8980,7 @@ bind(DOM.stepsEl, "input", onStepsInput);
       render();
       updateNavButtons();
     } catch (e) {
-      console.error(e);
+      LOG.error(e);
       if (DOM.dataStatusEl) DOM.dataStatusEl.textContent = "Erreur chargement données ❌";
       alert(
         `Erreur chargement data: ${e.message}\n\nVérifie:\n- dossier /data\n- fichiers cameras.csv / nvrs.csv / hdds.csv / switches.csv / accessories.csv\n- serveur local (http://localhost:8000)`
@@ -9098,6 +9511,6 @@ if (typeof document !== "undefined") {
   }
 }
 
-console.log("[PDF-FIX v2] Corrections chargées avec récupération automatique du projet.");
+LOG.info("[PDF-FIX v2] Corrections chargées avec récupération automatique du projet.");
 
 })();
