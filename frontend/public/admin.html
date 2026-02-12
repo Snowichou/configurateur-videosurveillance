@@ -280,6 +280,8 @@
     .kpiGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
     @media(max-width:900px){ .kpiGrid{grid-template-columns:repeat(2,1fr)} }
     @media(max-width:500px){ .kpiGrid{grid-template-columns:1fr} }
+    .grid{display:grid;gap:10px}
+    @media(max-width:900px){ .grid{grid-template-columns:1fr !important} }
     .kpiTile{
       border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;
       transition:all .15s ease;
@@ -330,6 +332,35 @@
     }
     .monthSelector button:hover{background:rgba(0,188,112,.08)}
     .monthSelector span{font-weight:900;min-width:140px;text-align:center}
+
+    /* ============================================================
+       RESPONSIVE
+       ============================================================ */
+    @media(max-width:768px){
+      .topBar{flex-direction:column;gap:10px;padding:12px}
+      .topBar .row{flex-wrap:wrap;gap:6px}
+      .tabs{flex-wrap:wrap}
+      main{padding:10px}
+      .card{padding:12px}
+      .row{flex-wrap:wrap;gap:6px}
+      .monthSelector{width:100%;justify-content:center}
+      .monthSelector span{min-width:100px;font-size:13px}
+      .kpiVal{font-size:22px}
+      .tableWrap{max-height:60vh}
+      .tableWrap td input{width:100px;padding:6px 8px;font-size:12px}
+      .list .name{font-size:12px}
+      .list .val{font-size:12px}
+      .h1{font-size:14px}
+      .h2{font-size:11px}
+    }
+    @media(max-width:500px){
+      .topBar{padding:10px}
+      main{padding:6px}
+      .card{padding:10px;border-radius:12px}
+      .btn,.tabBtn{padding:8px 12px;font-size:11px}
+      .kpiVal{font-size:18px}
+      .loginBox{padding:24px 20px;margin:10px}
+    }
   </style>
   <!-- Chart.js pour les graphiques -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -394,6 +425,7 @@
       <div class="tabs">
         <button class="tabBtn on" data-tab="catalog">Catalogues</button>
         <button class="tabBtn" data-tab="kpi">KPI Metier</button>
+        <button class="tabBtn" data-tab="health">Sante BDD</button>
         <button class="tabBtn" data-tab="events">Evenements bruts</button>
       </div>
     </div>
@@ -475,7 +507,7 @@
         </div>
       </div>
 
-      <!-- KPIs principaux -->
+      <!-- KPIs principaux — ligne 1 -->
       <div class="kpiGrid" style="margin-bottom:14px">
         <div class="kpiTile">
           <div class="kpiLabel">Configurations generees</div>
@@ -485,7 +517,6 @@
         <div class="kpiTile">
           <div class="kpiLabel">Cameras configurees</div>
           <div id="kpiCameras" class="kpiVal">--</div>
-          <div id="kpiCamerasTrend" class="kpiTrend"></div>
         </div>
         <div class="kpiTile">
           <div class="kpiLabel">Camera moyenne/config</div>
@@ -497,16 +528,34 @@
         </div>
       </div>
 
+      <!-- KPIs secondaires — ligne 2 -->
+      <div class="kpiGrid" style="margin-bottom:14px">
+        <div class="kpiTile">
+          <div class="kpiLabel">Stockage moyen</div>
+          <div id="kpiAvgStorage" class="kpiVal">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Debit moyen</div>
+          <div id="kpiAvgMbps" class="kpiVal">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Retention moyenne</div>
+          <div id="kpiAvgRetention" class="kpiVal">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Taux complements</div>
+          <div id="kpiComplementRate" class="kpiVal">--</div>
+        </div>
+      </div>
+
+      <!-- Graphiques ligne 1 -->
       <div class="grid" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
-        <!-- Graphique evolution mensuelle -->
         <div class="card">
           <div class="chartTitle">Evolution des configurations (12 derniers mois)</div>
           <div style="height:250px">
             <canvas id="chartConfigs"></canvas>
           </div>
         </div>
-
-        <!-- Graphique cameras par type -->
         <div class="card">
           <div class="chartTitle">Repartition par type de site</div>
           <div style="height:250px">
@@ -515,8 +564,8 @@
         </div>
       </div>
 
+      <!-- Top cameras / NVR / Gammes -->
       <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
-        <!-- Top cameras -->
         <div class="card">
           <div class="h">
             <div>
@@ -526,8 +575,6 @@
           </div>
           <ul id="topCameras" class="list"></ul>
         </div>
-
-        <!-- Top NVR -->
         <div class="card">
           <div class="h">
             <div>
@@ -537,8 +584,6 @@
           </div>
           <ul id="topNvrs" class="list"></ul>
         </div>
-
-        <!-- Repartition gammes -->
         <div class="card">
           <div class="h">
             <div>
@@ -550,24 +595,131 @@
         </div>
       </div>
 
-      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px">
-        <!-- Configs par jour de semaine -->
+      <!-- Graphiques ligne 2 : Activité + DORI + Emplacements -->
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:14px">
         <div class="card">
           <div class="chartTitle">Activite par jour de la semaine</div>
           <div style="height:200px">
             <canvas id="chartWeekday"></canvas>
           </div>
         </div>
+        <div class="card">
+          <div class="chartTitle">Objectifs DORI</div>
+          <div style="height:200px">
+            <canvas id="chartDori"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="chartTitle">Emplacements</div>
+          <div style="height:200px">
+            <canvas id="chartEmplacement"></canvas>
+          </div>
+        </div>
+      </div>
 
-        <!-- Objectifs DORI -->
+      <!-- Ligne 3 : Distances + Codecs + Compléments -->
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:14px">
+        <div class="card">
+          <div class="chartTitle">Distances configurees</div>
+          <div style="height:200px">
+            <canvas id="chartDistances"></canvas>
+          </div>
+        </div>
         <div class="card">
           <div class="h">
             <div>
-              <div class="h1">Objectifs DORI</div>
-              <div class="h2">Repartition des besoins</div>
+              <div class="h1">Parametres enregistrement</div>
+              <div class="h2">Codecs et FPS les plus utilises</div>
             </div>
           </div>
-          <ul id="topObjectives" class="list"></ul>
+          <ul id="topRecording" class="list"></ul>
+        </div>
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Complements</div>
+              <div class="h2">Taux d'activation par type</div>
+            </div>
+          </div>
+          <div id="complementStats" class="muted">--</div>
+        </div>
+      </div>
+
+      <!-- Ligne 4 : Top HDD + Switches + Écrans -->
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:14px">
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Top HDD</div>
+              <div class="h2">Disques les plus recommandes</div>
+            </div>
+          </div>
+          <ul id="topHdds" class="list"></ul>
+        </div>
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Top distances</div>
+              <div class="h2">Distances cibles les plus demandees</div>
+            </div>
+          </div>
+          <ul id="topDistances" class="list"></ul>
+        </div>
+        <div class="card">
+          <div class="h">
+            <div>
+              <div class="h1">Tailles ecrans</div>
+              <div class="h2">Preferences utilisateurs</div>
+            </div>
+          </div>
+          <ul id="topScreenSizes" class="list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SANTE BDD -->
+    <section id="tab_health" class="hidden">
+      <div class="kpiGrid" style="margin-bottom:14px">
+        <div class="kpiTile">
+          <div class="kpiLabel">Total produits</div>
+          <div id="healthTotal" class="kpiVal">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Sans image</div>
+          <div id="healthNoImg" class="kpiVal" style="color:#DC2626">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Sans fiche technique</div>
+          <div id="healthNoDs" class="kpiVal" style="color:#F59E0B">--</div>
+        </div>
+        <div class="kpiTile">
+          <div class="kpiLabel">Completude</div>
+          <div id="healthScore" class="kpiVal">--</div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr">
+        <div class="card">
+          <div class="h" style="margin-bottom:12px">
+            <div>
+              <div class="h1">Etat des catalogues</div>
+              <div class="h2">Couverture images et fiches techniques par famille</div>
+            </div>
+            <button id="btnRefreshHealth" class="btn">Analyser</button>
+          </div>
+          <div id="healthDetails" class="muted">Cliquez sur Analyser pour scanner les catalogues.</div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr;margin-top:14px">
+        <div class="card">
+          <div class="h" style="margin-bottom:12px">
+            <div>
+              <div class="h1">Produits incomplets</div>
+              <div class="h2">References avec donnees manquantes</div>
+            </div>
+          </div>
+          <div id="healthMissing" class="muted">--</div>
         </div>
       </div>
     </section>
@@ -620,6 +772,9 @@
   let chartConfigs = null;
   let chartSiteTypes = null;
   let chartWeekday = null;
+  let chartDori = null;
+  let chartEmplacement = null;
+  let chartDistances = null;
 
   // ==================== AUTH ====================
   function showAdmin() {
@@ -721,11 +876,12 @@
     $$(".tabBtn").forEach(x => x.classList.remove("on"));
     b.classList.add("on");
     const tab = b.dataset.tab;
-    $("#tab_catalog").classList.toggle("hidden", tab !== "catalog");
-    $("#tab_kpi").classList.toggle("hidden", tab !== "kpi");
-    $("#tab_events").classList.toggle("hidden", tab !== "events");
-    
+    ["catalog","kpi","health","events"].forEach(t => {
+      const el = $(`#tab_${t}`);
+      if(el) el.classList.toggle("hidden", tab !== t);
+    });
     if(tab === "kpi") refreshKpiMetier();
+    if(tab === "health") refreshHealth();
   }));
 
   // ==================== CATALOG ====================
@@ -843,8 +999,6 @@
       );
       
       const computeEvents = monthEvents.filter(e => e.event === "compute_project");
-      const validateEvents = monthEvents.filter(e => e.event === "validate_camera");
-      
       const nbConfigs = computeEvents.length;
       $("#kpiConfigs").textContent = nbConfigs;
       
@@ -854,7 +1008,17 @@
       const rangeCount = {};
       const siteTypeCount = {};
       const objectiveCount = {};
+      const emplacementCount = {};
+      const distanceList = [];
+      const distanceBuckets = { "0-10m": 0, "10-25m": 0, "25-50m": 0, "50-100m": 0, "100m+": 0 };
+      const codecCount = {};
+      const fpsCount = {};
+      const hddCount = {};
+      const screenSizeCount = {};
       const sessions = new Set();
+      let totalTB = 0, totalMbps = 0, totalRetentionDays = 0;
+      let storageCount = 0, mbpsCount = 0, retentionCount = 0;
+      let complementScreen = 0, complementEnclosure = 0, complementSignage = 0;
       
       computeEvents.forEach(e => {
         const p = e.payload || {};
@@ -863,35 +1027,148 @@
         const camQty = Number(p.cam_total_qty) || 0;
         totalCameras += camQty;
         
-        const siteType = p.config_type || "Autre";
+        const siteType = p.config_type || p.use_case || "Autre";
         siteTypeCount[siteType] = (siteTypeCount[siteType] || 0) + 1;
         
-        if(p.nvr_id){
-          nvrCount[p.nvr_id] = (nvrCount[p.nvr_id] || 0) + 1;
+        if(p.nvr_id) nvrCount[p.nvr_id] = (nvrCount[p.nvr_id] || 0) + 1;
+        
+        // Stockage
+        const st = p.storage || {};
+        if(st.required_tb > 0) { totalTB += st.required_tb; storageCount++; }
+        if(st.total_mbps > 0) { totalMbps += st.total_mbps; mbpsCount++; }
+        if(st.hdd_id) hddCount[st.hdd_id + (st.hdd_count > 1 ? ` x${st.hdd_count}` : "")] = (hddCount[st.hdd_id] || 0) + 1;
+        
+        // Enregistrement
+        const rec = p.recording || {};
+        if(rec.days > 0) { totalRetentionDays += rec.days; retentionCount++; }
+        if(rec.codec) {
+          const c = String(rec.codec).toUpperCase();
+          codecCount[c] = (codecCount[c] || 0) + 1;
+        }
+        if(rec.fps > 0) {
+          fpsCount[rec.fps + " IPS"] = (fpsCount[rec.fps + " IPS"] || 0) + 1;
         }
         
+        // Compléments
+        const comp = p.complements || {};
+        if(comp.screen_enabled) { 
+          complementScreen++;
+          if(comp.screen_size_inch) screenSizeCount[comp.screen_size_inch + '"'] = (screenSizeCount[comp.screen_size_inch + '"'] || 0) + 1;
+        }
+        if(comp.enclosure_enabled) complementEnclosure++;
+        if(comp.signage_enabled) complementSignage++;
+        
+        // Caméras avec objectifs et emplacements
         (p.cameras || []).forEach(cam => {
           const id = cam.id || "?";
           const qty = Number(cam.qty) || 1;
           cameraCount[id] = (cameraCount[id] || 0) + qty;
           
-          const range = id.includes("NEXT") ? "NEXT" : 
-                        id.includes("ADVANCE") ? "ADVANCE" : 
-                        id.includes("EASY") ? "EASY" : "Autre";
+          // Gamme — utiliser brand_range si disponible, sinon fallback ID
+          const range = cam.range || (
+            id.includes("NEXT") ? "NEXT" : 
+            id.includes("ADVANCE") ? "ADVANCE" : 
+            id.includes("EASY") ? "EASY" : "Autre"
+          );
           rangeCount[range] = (rangeCount[range] || 0) + qty;
+          
+          // DORI — extraire des caméras
+          if(cam.objective) {
+            const obj = String(cam.objective).toLowerCase();
+            const label = obj === "identification" ? "Identification" :
+                          obj === "detection" ? "Detection" :
+                          obj === "dissuasion" ? "Dissuasion" :
+                          obj === "observation" ? "Observation" : obj;
+            objectiveCount[label] = (objectiveCount[label] || 0) + qty;
+          }
+          
+          // Emplacements
+          if(cam.emplacement) {
+            const empl = String(cam.emplacement).toLowerCase();
+            const label = empl.includes("ext") ? "Exterieur" : empl.includes("int") ? "Interieur" : empl;
+            emplacementCount[label] = (emplacementCount[label] || 0) + qty;
+          }
+          
+          // Distances
+          if(cam.distance > 0) {
+            distanceList.push(cam.distance);
+            const d = cam.distance;
+            if(d <= 10) distanceBuckets["0-10m"] += qty;
+            else if(d <= 25) distanceBuckets["10-25m"] += qty;
+            else if(d <= 50) distanceBuckets["25-50m"] += qty;
+            else if(d <= 100) distanceBuckets["50-100m"] += qty;
+            else distanceBuckets["100m+"] += qty;
+          }
         });
       });
       
+      // KPIs principaux
       $("#kpiCameras").textContent = totalCameras;
       $("#kpiAvgCam").innerHTML = nbConfigs > 0 ? (totalCameras / nbConfigs).toFixed(1) + "<small> cam/config</small>" : "--";
       $("#kpiSessions").textContent = sessions.size;
       
+      // KPIs secondaires
+      $("#kpiAvgStorage").innerHTML = storageCount > 0 ? (totalTB / storageCount).toFixed(1) + "<small> To</small>" : "--";
+      $("#kpiAvgMbps").innerHTML = mbpsCount > 0 ? (totalMbps / mbpsCount).toFixed(0) + "<small> Mbps</small>" : "--";
+      $("#kpiAvgRetention").innerHTML = retentionCount > 0 ? (totalRetentionDays / retentionCount).toFixed(0) + "<small> jours</small>" : "--";
+      
+      const compTotal = nbConfigs || 1;
+      const screenPct = Math.round(complementScreen / compTotal * 100);
+      const enclosurePct = Math.round(complementEnclosure / compTotal * 100);
+      const signagePct = Math.round(complementSignage / compTotal * 100);
+      $("#kpiComplementRate").innerHTML = nbConfigs > 0 ? screenPct + "<small>%</small>" : "--";
+      
+      // Compléments détaillés
+      const compDiv = $("#complementStats");
+      if(compDiv && nbConfigs > 0) {
+        compDiv.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:90px;font-size:12px;font-weight:800">Ecran</span>
+              <div style="flex:1;background:rgba(0,0,0,.06);border-radius:6px;height:22px;overflow:hidden">
+                <div style="width:${screenPct}%;height:100%;background:#00BC70;border-radius:6px;min-width:${screenPct > 0 ? '24px' : '0'}"></div>
+              </div>
+              <span style="font-size:13px;font-weight:900;width:40px;text-align:right">${screenPct}%</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:90px;font-size:12px;font-weight:800">Boitier</span>
+              <div style="flex:1;background:rgba(0,0,0,.06);border-radius:6px;height:22px;overflow:hidden">
+                <div style="width:${enclosurePct}%;height:100%;background:#3B82F6;border-radius:6px;min-width:${enclosurePct > 0 ? '24px' : '0'}"></div>
+              </div>
+              <span style="font-size:13px;font-weight:900;width:40px;text-align:right">${enclosurePct}%</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:90px;font-size:12px;font-weight:800">Signalisation</span>
+              <div style="flex:1;background:rgba(0,0,0,.06);border-radius:6px;height:22px;overflow:hidden">
+                <div style="width:${signagePct}%;height:100%;background:#F59E0B;border-radius:6px;min-width:${signagePct > 0 ? '24px' : '0'}"></div>
+              </div>
+              <span style="font-size:13px;font-weight:900;width:40px;text-align:right">${signagePct}%</span>
+            </div>
+          </div>`;
+      }
+      
+      // Listes
       renderTopList("#topCameras", cameraCount, 10);
       renderTopList("#topNvrs", nvrCount, 5);
       renderTopList("#topRanges", rangeCount, 5);
-      renderTopList("#topObjectives", objectiveCount, 5);
+      renderTopList("#topHdds", hddCount, 5);
       
-      renderCharts(summary, siteTypeCount, monthEvents);
+      // Enregistrement : fusionner codec + fps
+      const recData = {};
+      Object.entries(codecCount).forEach(([k, v]) => recData["Codec " + k] = v);
+      Object.entries(fpsCount).forEach(([k, v]) => recData[k] = v);
+      renderTopList("#topRecording", recData, 8);
+      
+      // Distances top
+      const distCount = {};
+      distanceList.forEach(d => { const k = d + "m"; distCount[k] = (distCount[k] || 0) + 1; });
+      renderTopList("#topDistances", distCount, 8);
+      
+      // Écrans
+      renderTopList("#topScreenSizes", screenSizeCount, 5);
+      
+      // Charts
+      renderCharts(summary, siteTypeCount, monthEvents, objectiveCount, emplacementCount, distanceBuckets);
       
     } catch(e) {
       console.error("KPI error:", e);
@@ -922,7 +1199,8 @@
     }).join("");
   }
 
-  function renderCharts(summary, siteTypeCount, monthEvents){
+  function renderCharts(summary, siteTypeCount, monthEvents, objectiveCount, emplacementCount, distanceBuckets){
+    const chartColors = ['#00BC70', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
     const byDay = summary.by_day || [];
     const last12Months = {};
     const now = new Date();
@@ -966,34 +1244,30 @@
       }
     });
     
+    // Site types doughnut
     const siteLabels = Object.keys(siteTypeCount);
     const siteData = Object.values(siteTypeCount);
-    
     if(chartSiteTypes) chartSiteTypes.destroy();
     if(siteLabels.length > 0){
       chartSiteTypes = new Chart($("#chartSiteTypes"), {
         type: 'doughnut',
         data: {
           labels: siteLabels,
-          datasets: [{
-            data: siteData,
-            backgroundColor: ['#00BC70', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
-          }]
+          datasets: [{ data: siteData, backgroundColor: chartColors }]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
+          responsive: true, maintainAspectRatio: false,
           plugins: { legend: { position: 'right' } }
         }
       });
     }
     
+    // Weekday bar
     const weekdayCount = [0,0,0,0,0,0,0];
     monthEvents.forEach(e => {
       const d = new Date(e.ts_utc);
       if(!isNaN(d)) weekdayCount[d.getDay()]++;
     });
-    
     if(chartWeekday) chartWeekday.destroy();
     chartWeekday = new Chart($("#chartWeekday"), {
       type: 'bar',
@@ -1007,12 +1281,84 @@
         }]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: { y: { beginAtZero: true } }
       }
     });
+    
+    // DORI doughnut
+    const doriLabels = Object.keys(objectiveCount || {});
+    const doriData = Object.values(objectiveCount || {});
+    if(chartDori) chartDori.destroy();
+    if(doriLabels.length > 0){
+      chartDori = new Chart($("#chartDori"), {
+        type: 'doughnut',
+        data: {
+          labels: doriLabels,
+          datasets: [{ data: doriData, backgroundColor: ['#00BC70', '#3B82F6', '#F59E0B', '#EF4444'] }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right' } }
+        }
+      });
+    } else {
+      const ctx = $("#chartDori");
+      if(ctx) {
+        const parent = ctx.parentElement;
+        if(parent) parent.innerHTML = '<div class="muted" style="display:grid;place-items:center;height:100%">Aucune donnee DORI.<br><small>Les objectifs seront visibles apres la prochaine mise a jour des KPI.</small></div>';
+      }
+    }
+    
+    // Emplacements bar
+    const emplLabels = Object.keys(emplacementCount || {});
+    const emplData = Object.values(emplacementCount || {});
+    if(chartEmplacement) chartEmplacement.destroy();
+    if(emplLabels.length > 0){
+      chartEmplacement = new Chart($("#chartEmplacement"), {
+        type: 'bar',
+        data: {
+          labels: emplLabels,
+          datasets: [{
+            label: 'Cameras',
+            data: emplData,
+            backgroundColor: ['#3B82F6', '#F59E0B', '#8B5CF6'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          indexAxis: 'y',
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true } }
+        }
+      });
+    }
+    
+    // Distances bar
+    const distLabels = Object.keys(distanceBuckets || {});
+    const distData = Object.values(distanceBuckets || {});
+    if(chartDistances) chartDistances.destroy();
+    if(distData.some(v => v > 0)){
+      chartDistances = new Chart($("#chartDistances"), {
+        type: 'bar',
+        data: {
+          labels: distLabels,
+          datasets: [{
+            label: 'Cameras',
+            data: distData,
+            backgroundColor: 'rgba(59,130,246,0.6)',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
   }
 
   $("#btnRefreshKpi").addEventListener("click", () => refreshKpiMetier());
@@ -1108,6 +1454,155 @@
       </div>`;
     }).join("") || "<div class='muted'>Aucun event.</div>";
   });
+
+  // ==================== SANTE BDD ====================
+  async function refreshHealth(){
+    // Accessories a une structure différente (mapping camera→accessoires), pas de check image standard
+    const families = ["cameras","nvrs","hdds","switches","screens","enclosures","signage"];
+    
+    let totalProducts = 0;
+    let totalNoImg = 0;
+    let totalNoDs = 0;
+    const familyStats = [];
+    const missingProducts = [];
+    
+    for(const fam of families){
+      try {
+        const data = await api(`/api/admin/catalog/${fam}`);
+        const rows = data.rows || [];
+        const cols = data.columns || [];
+        const count = rows.length;
+        totalProducts += count;
+        
+        let noImg = 0, noName = 0, noId = 0;
+        
+        rows.forEach(r => {
+          const id = String(r.id || "").trim();
+          const name = String(r.name || "").trim();
+          const img = String(r.image_url || "").trim();
+          
+          if(!id) noId++;
+          if(!name) noName++;
+          if(!img || img === "false") noImg++;
+          
+          const issues = [];
+          if(!name) issues.push("nom manquant");
+          if(!img || img === "false") issues.push("image manquante");
+          if(issues.length > 0 && id) {
+            missingProducts.push({ family: fam, id, issues });
+          }
+        });
+        
+        totalNoImg += noImg;
+        
+        familyStats.push({
+          family: fam,
+          count,
+          cols: cols.length,
+          noImg,
+          noName,
+          noId,
+          imgPct: count > 0 ? Math.round((count - noImg) / count * 100) : 0,
+        });
+        
+      } catch(e) {
+        familyStats.push({ family: fam, count: 0, error: e.message });
+      }
+    }
+    
+    // Ajouter accessories en tant que ligne info (pas de check image)
+    try {
+      const accData = await api("/api/admin/catalog/accessories");
+      const accRows = accData.rows || [];
+      familyStats.push({
+        family: "accessories",
+        count: accRows.length,
+        cols: (accData.columns || []).length,
+        noImg: 0, noName: 0, noId: 0,
+        imgPct: -1, // flag: pas de check
+        isMapping: true,
+      });
+      totalProducts += accRows.length;
+    } catch(e) {
+      familyStats.push({ family: "accessories", count: 0, error: e.message });
+    }
+    
+    // KPIs
+    $("#healthTotal").textContent = totalProducts;
+    $("#healthNoImg").textContent = totalNoImg;
+    $("#healthNoDs").textContent = "--";
+    const completePct = totalProducts > 0 ? Math.round((totalProducts - totalNoImg) / totalProducts * 100) : 0;
+    $("#healthScore").innerHTML = completePct + "<small>%</small>";
+    
+    // Table des familles
+    const detailsDiv = $("#healthDetails");
+    detailsDiv.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--line)">
+            <th style="text-align:left;padding:8px;font-weight:900">Famille</th>
+            <th style="text-align:right;padding:8px">Produits</th>
+            <th style="text-align:right;padding:8px">Colonnes</th>
+            <th style="text-align:right;padding:8px">Sans image</th>
+            <th style="text-align:right;padding:8px">Sans nom</th>
+            <th style="text-align:left;padding:8px">Couverture image</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${familyStats.map(f => {
+            if(f.error) return `<tr><td style="padding:8px">${f.family}</td><td colspan="5" class="muted">${f.error}</td></tr>`;
+            if(f.isMapping) return `<tr style="border-bottom:1px solid var(--line)">
+              <td style="padding:8px;font-weight:800">${f.family} <span class="muted" style="font-size:10px">(mapping)</span></td>
+              <td style="padding:8px;text-align:right;font-weight:900">${f.count}</td>
+              <td style="padding:8px;text-align:right">${f.cols}</td>
+              <td colspan="3" style="padding:8px;color:var(--muted);font-size:12px">Structure mapping — pas de check image</td>
+            </tr>`;
+            const barColor = f.imgPct >= 90 ? '#00BC70' : f.imgPct >= 60 ? '#F59E0B' : '#DC2626';
+            return `<tr style="border-bottom:1px solid var(--line)">
+              <td style="padding:8px;font-weight:800">${f.family}</td>
+              <td style="padding:8px;text-align:right;font-weight:900">${f.count}</td>
+              <td style="padding:8px;text-align:right">${f.cols}</td>
+              <td style="padding:8px;text-align:right;color:${f.noImg > 0 ? '#DC2626' : 'inherit'};font-weight:${f.noImg > 0 ? '900' : 'normal'}">${f.noImg}</td>
+              <td style="padding:8px;text-align:right;color:${f.noName > 0 ? '#F59E0B' : 'inherit'}">${f.noName}</td>
+              <td style="padding:8px;width:180px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <div style="flex:1;background:rgba(0,0,0,.06);border-radius:4px;height:16px;overflow:hidden">
+                    <div style="width:${f.imgPct}%;height:100%;background:${barColor};border-radius:4px"></div>
+                  </div>
+                  <span style="font-weight:900;font-size:12px;width:32px;text-align:right">${f.imgPct}%</span>
+                </div>
+              </td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+    
+    // Produits incomplets
+    const missingDiv = $("#healthMissing");
+    if(missingProducts.length === 0){
+      missingDiv.innerHTML = '<div style="color:#00BC70;font-weight:800">✅ Tous les produits sont complets !</div>';
+    } else {
+      const shown = missingProducts.slice(0, 50);
+      missingDiv.innerHTML = `
+        <div style="margin-bottom:8px;font-size:12px;color:var(--muted)">${missingProducts.length} produits avec donnees manquantes${missingProducts.length > 50 ? ` (50 premiers affiches)` : ''}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px">
+          ${shown.map(p => `
+            <div style="padding:8px 12px;border-radius:8px;border:1px solid var(--line);font-size:12px;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <span style="font-weight:900">${p.id}</span>
+                <span class="muted" style="margin-left:4px">${p.family}</span>
+              </div>
+              <div style="display:flex;gap:4px">
+                ${p.issues.map(i => `<span style="padding:2px 6px;border-radius:4px;font-size:10px;font-weight:800;background:${i.includes('image') ? 'rgba(220,38,38,.1);color:#DC2626' : 'rgba(245,158,11,.1);color:#92400e'}">${i}</span>`).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>`;
+    }
+  }
+  
+  const btnHealth = $("#btnRefreshHealth");
+  if(btnHealth) btnHealth.addEventListener("click", refreshHealth);
 
   // ==================== INIT ====================
   checkAuth();
