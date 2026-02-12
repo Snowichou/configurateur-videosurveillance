@@ -1334,6 +1334,7 @@ const KPI = (() => {
         id: cam.id,
         name: cam.name || "",
         qty: Number(l.qty || 0) || 0,
+        range: cam.brand_range || null,
         objective: ans.objective || null,
         emplacement: ans.emplacement || null,
         distance: Number(ans.distance || ans.distance_m || 0) || null,

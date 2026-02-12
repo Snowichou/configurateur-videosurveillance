@@ -1064,10 +1064,12 @@
           const qty = Number(cam.qty) || 1;
           cameraCount[id] = (cameraCount[id] || 0) + qty;
           
-          // Gamme
-          const range = id.includes("NEXT") ? "NEXT" : 
-                        id.includes("ADVANCE") ? "ADVANCE" : 
-                        id.includes("EASY") ? "EASY" : "Autre";
+          // Gamme — utiliser brand_range si disponible, sinon fallback ID
+          const range = cam.range || (
+            id.includes("NEXT") ? "NEXT" : 
+            id.includes("ADVANCE") ? "ADVANCE" : 
+            id.includes("EASY") ? "EASY" : "Autre"
+          );
           rangeCount[range] = (rangeCount[range] || 0) + qty;
           
           // DORI — extraire des caméras
