@@ -30,7 +30,6 @@ document.querySelector("#app").innerHTML = `
     <div class="brandCenter" aria-label="COMELIT">
       <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
       <div class="brandTitle">Configurateur Vidéosurveillance</div>
-      <div class="brandTagline">With you always</div>
     </div>
   </header>
 
@@ -58,12 +57,12 @@ document.querySelector("#app").innerHTML = `
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="3">
           <div class="stepperDot"><span>4</span></div>
-          <div class="stepperLabel">NVR</div>
+          <div class="stepperLabel">Archivage</div>
         </div>
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="4">
           <div class="stepperDot"><span>5</span></div>
-          <div class="stepperLabel">Stockage</div>
+          <div class="stepperLabel">Système</div>
         </div>
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="5">

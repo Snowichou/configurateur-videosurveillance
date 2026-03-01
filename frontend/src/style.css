@@ -4090,3 +4090,189 @@ header .brandCenter,
   color: var(--muted);
   line-height: 1.4;
 }
+
+/* ============================================================
+   TOOLTIP INFO (ℹ️)
+   ============================================================ */
+.infoTip{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(0,188,112,.12);
+  color: #00BC70;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: help;
+  position: relative;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.infoTip::after{
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1C1F2A;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 8px 12px;
+  border-radius: 10px;
+  white-space: normal;
+  width: max-content;
+  max-width: 280px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease, transform .15s ease;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.infoTip:hover::after{
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* Flèche */
+.infoTip::before{
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1C1F2A;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+  z-index: 101;
+}
+.infoTip:hover::before{
+  opacity: 1;
+}
+
+/* ============================================================
+   TECHNICAL VALIDATION BADGES
+   ============================================================ */
+.techBadge{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.techBadgeOk{
+  background: rgba(0,188,112,.08);
+  color: #166534;
+  border: 1px solid rgba(0,188,112,.2);
+}
+.techBadgeWarn{
+  background: rgba(245,158,11,.08);
+  color: #92400e;
+  border: 1px solid rgba(245,158,11,.2);
+}
+.techBadgeDanger{
+  background: rgba(220,38,38,.08);
+  color: #991b1b;
+  border: 1px solid rgba(220,38,38,.2);
+}
+
+/* ============================================================
+   SUMMARY ACTIONS
+   ============================================================ */
+.summaryActions{
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; border-radius: var(--r16);
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.95);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(2,6,23,.06);
+  position: sticky; top: 86px; z-index: 5;
+}
+.summaryActionsRow{
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.summaryActionsUtils{
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+@media(max-width:768px){
+  .summaryActionsRow{ flex-direction: column; }
+  .exportBtn{ width: 100%; justify-content: center; }
+}
+
+/* Summary banner */
+.summaryBanner{
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; border-radius: var(--r16);
+  border: 1px solid rgba(0,188,112,.25);
+  background: linear-gradient(135deg, rgba(0,188,112,.06) 0%, rgba(0,188,112,.02) 100%);
+}
+.summaryBanner.warn{
+  border-color: rgba(245,158,11,.3);
+  background: linear-gradient(135deg, rgba(245,158,11,.06) 0%, rgba(245,158,11,.02) 100%);
+}
+.summaryBannerIcon{ font-size: 28px; flex-shrink: 0; }
+.summaryBannerTitle{ font-weight: 950; font-size: 15px; color: var(--cosmos); }
+.summaryBannerSub{ font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+/* Export buttons */
+.exportBtn{
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 12px; border: 1px solid var(--line);
+  background: #fff; font-weight: 800; font-size: 13px;
+  cursor: pointer; transition: all .15s ease; white-space: nowrap;
+  flex: 1; justify-content: center;
+}
+.exportBtn:hover{
+  border-color: rgba(0,188,112,.35);
+  box-shadow: 0 4px 16px rgba(0,188,112,.10);
+  transform: translateY(-1px);
+}
+.exportBtn:active{ transform: translateY(0); }
+.exportBtnIcon{ font-size: 16px; }
+
+.exportBtnMain{
+  background: linear-gradient(135deg, #00BC70 0%, #00a863 100%);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 4px 16px rgba(0,188,112,.25);
+}
+.exportBtnMain:hover{ box-shadow: 0 6px 24px rgba(0,188,112,.35); border-color: transparent; }
+.exportBtnSecondary{ background: #fff; color: var(--cosmos); }
+.exportBtnGhost{ background: transparent; border-color: transparent; color: var(--muted); }
+.exportBtnGhost:hover{ background: rgba(0,0,0,.03); color: var(--cosmos); border-color: transparent; box-shadow: none; }
+
+.exportBtnCommercial{
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 4px 16px rgba(59,130,246,.25);
+}
+.exportBtnCommercial:hover{ box-shadow: 0 6px 24px rgba(59,130,246,.35); border-color: transparent; }
+
+/* NVR alt card hover */
+.nvrAltCard:hover{
+  background: rgba(0,188,112,.03);
+  border-color: rgba(0,188,112,.3) !important;
+}
+
+/* NVR Alternative Cards */
+.nvrAltCard{
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.nvrAltCard:last-child{ border-bottom: none; }
+.nvrAltCard:hover{
+  background: rgba(0,188,112,.04);
+}
