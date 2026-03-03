@@ -1383,12 +1383,13 @@ const KPI = (() => {
 })();
 
   const STEPS = [
-    { id: "project", title: "Projet", badge: "1/6", help: "Définition du périmètre et du contexte de l'installation." },
-    { id: "cameras", title: "Conception", badge: "2/6", help: "Sélection des caméras par zone selon les objectifs DORI." },
-    { id: "mounts", title: "Intégration", badge: "3/6", help: "Accessoires de montage et d'installation recommandés." },
-    { id: "storage", title: "Archivage", badge: "4/6", help: "Paramètres d'enregistrement et calcul du stockage nécessaire." },
-    { id: "nvr_network", title: "Système", badge: "5/6", help: "NVR adapté au stockage, infrastructure réseau PoE." },
-    { id: "summary", title: "Validation", badge: "6/6", help: "Validation finale, export et transmission du projet." },
+    { id: "project", title: "Projet", badge: "1/7", help: "On commence par identifier votre site pour adapter nos recommandations." },
+    { id: "cameras", title: "Caméras", badge: "2/7", help: "Choisissez vos caméras zone par zone. On vous guide selon vos besoins." },
+    { id: "mounts", title: "Fixations", badge: "3/7", help: "Supports et boîtiers de raccordement adaptés à chaque caméra." },
+    { id: "storage", title: "Stockage", badge: "4/7", help: "Combien de jours garder les images ? On calcule l'espace disque." },
+    { id: "nvr_network", title: "Enregistreur", badge: "5/7", help: "Le cerveau du système : il enregistre, stocke et distribue les images." },
+    { id: "complements", title: "Options", badge: "6/7", help: "Écran, protection, signalisation : les extras pour une installation complète." },
+    { id: "summary", title: "Récapitulatif", badge: "7/7", help: "Vérifiez tout, puis exportez votre rapport PDF en un clic." },
   ];
 
 // ✅ Expose STEPS pour le récap flottant
@@ -2376,13 +2377,21 @@ function invalidateIfNeeded(block, reason = "Modification") {
     return { nvr: best.nvr, reason: reasons.join(" — "), alternatives };
   }
 
-  function planPoESwitches(totalCameras, reservePct = 10) {
-    const required = totalCameras >= 16;
+  function planPoESwitches(totalCameras, reservePct = 10, nvr = null) {
+    // Le NVR a des ports PoE intégrés — on n'a besoin de switches que pour les caméras au-delà
+    const nvrPoePorts = nvr?.poe_ports ?? 0;
+    const camerasNeedingSwitch = Math.max(0, totalCameras - nvrPoePorts);
+    
+    // Switch obligatoire si le NVR ne couvre pas toutes les caméras
+    const required = camerasNeedingSwitch > 0;
     if (!required) {
-      return { required: false, portsNeeded: 0, totalPorts: 0, plan: [], surplusPorts: 0 };
+      return { required: false, portsNeeded: 0, totalPorts: 0, plan: [], surplusPorts: 0, nvrPoePorts, camerasOnNvr: totalCameras, camerasOnSwitches: 0 };
     }
 
-    const portsNeeded = Math.ceil(totalCameras * (1 + reservePct / 100));
+    // Toutes les caméras passent par les switches (le NVR 32/64/128 n'a pas de ports PoE)
+    // On dimensionne pour TOUTES les caméras si le NVR n'a pas de ports PoE
+    const camerasViaSwitch = nvrPoePorts > 0 ? camerasNeedingSwitch : totalCameras;
+    const portsNeeded = Math.ceil(camerasViaSwitch * (1 + reservePct / 100));
 
     const catalog = (CATALOG.SWITCHES && CATALOG.SWITCHES.length)
       ? CATALOG.SWITCHES
@@ -2414,16 +2423,23 @@ function invalidateIfNeeded(block, reason = "Modification") {
       for (const sw of catalog) {
         const surplus = sw.poe_ports - remaining;
         if (surplus >= 0) {
-          if (
-            !best ||
-            surplus < best.surplus ||
-            (surplus === best.surplus && sw.poe_ports < best.item.poe_ports)
-          ) {
+          if (!best || surplus < best.surplus || (surplus === best.surplus && sw.poe_ports < best.item.poe_ports)) {
             best = { item: sw, surplus };
           }
         }
       }
       if (best) plan.push({ item: best.item, qty: 1 });
+    }
+
+    // Calculer la répartition des caméras par switch (pour le synoptique)
+    const cameraDistribution = [];
+    let camerasLeft = camerasViaSwitch;
+    for (const p of plan) {
+      for (let i = 0; i < p.qty; i++) {
+        const onThisSwitch = Math.min(camerasLeft, p.item.poe_ports);
+        cameraDistribution.push({ switch: p.item, camerasConnected: onThisSwitch, totalPorts: p.item.poe_ports });
+        camerasLeft -= onThisSwitch;
+      }
     }
 
     const totalPorts = plan.reduce((s, p) => s + p.item.poe_ports * p.qty, 0);
@@ -2433,6 +2449,10 @@ function invalidateIfNeeded(block, reason = "Modification") {
       totalPorts,
       plan,
       surplusPorts: totalPorts - portsNeeded,
+      nvrPoePorts,
+      camerasOnNvr: nvrPoePorts > 0 ? Math.min(totalCameras, nvrPoePorts) : 0,
+      camerasOnSwitches: camerasViaSwitch,
+      cameraDistribution,
     };
   }
 
@@ -2611,7 +2631,7 @@ function computePerCameraBitrates() {
   const alerts = [];
 
   // -----------------------------
-  // Paramètres d'enregistrement (source de vérité)
+  // Réglages d'enregistrement (source de vérité)
   // -----------------------------
   const rec = MODEL?.recording || {};
   const hoursPerDay = clampNum(rec.hoursPerDay, 1, 24, 24);
@@ -2724,7 +2744,7 @@ function computePerCameraBitrates() {
   const disks = nvrPick.nvr ? pickDisks(requiredTB, nvrPick.nvr) : null;
 
   // Switches
-  const switches = planPoESwitches(totalCameras, rec.reservePortsPct);
+  const switches = planPoESwitches(totalCameras, rec.reservePortsPct, nvrPick.nvr);
 
   const swBudget = (switches.plan || []).reduce(
     (t, p) => t + (Number(p?.item?.poe_budget_w || 0) * (p.qty || 0)),
@@ -3535,10 +3555,16 @@ function imgTag(family, ref) {
   const nvrRows = nvr ? row4(1, nvr.id, nvr.name, "nvrs") : "";
 
   const swRows = proj?.switches?.required
-    ? (proj?.switches?.plan || [])
-        .map((p) => row4(p.qty || 0, p?.item?.id || "—", p?.item?.name || "", "switches"))
-        .filter(Boolean)
-        .join("")
+    ? (() => {
+        // Consolider par référence
+        const map = new Map();
+        for (const p of (proj?.switches?.plan || [])) {
+          const id = p?.item?.id || "—";
+          if (map.has(id)) { map.get(id).qty += (p.qty || 0); }
+          else { map.set(id, { qty: p.qty || 0, item: p.item }); }
+        }
+        return [...map.values()].map(p => row4(p.qty, p.item?.id || "—", p.item?.name || "", "switches")).filter(Boolean).join("");
+      })()
     : "";
 
   const disk = proj?.disks || null;
@@ -4021,26 +4047,41 @@ const buildSynopticHtml = (proj) => {
   };
 
   // -----------------------------
-  // 3) Allocation blocs -> switches
+  // 3) Allocation blocs -> switches — split les gros blocs sur plusieurs switches
   // -----------------------------
   const allocateBlocksToSwitches = (camBlocks, switches) => {
     if (!switches.length) return [];
     const buckets = switches.map((sw) => ({ sw, blocks: [], used: 0 }));
-    let si = 0;
 
+    // Aplatir : si un bloc a plus de caméras que le switch peut accueillir, on le split
+    const flatItems = [];
     for (const b of camBlocks) {
-      if (si >= buckets.length) si = Math.max(0, buckets.length - 1);
-
-      while (
-        si < buckets.length - 1 &&
-        buckets[si].used + b.qty > buckets[si].sw.portsCap &&
-        buckets[si].used > 0
-      ) {
-        si++;
+      let remaining = b.qty;
+      while (remaining > 0) {
+        flatItems.push({ ...b, qty: remaining, originalQty: b.qty });
+        remaining = 0; // on poussera la quantité réelle dans le bucket
       }
+    }
 
-      buckets[si].blocks.push(b);
-      buckets[si].used += b.qty;
+    let si = 0;
+    for (const item of flatItems) {
+      let remaining = item.qty;
+      while (remaining > 0 && si < buckets.length) {
+        const bucket = buckets[si];
+        const available = bucket.sw.portsCap - bucket.used;
+        if (available <= 0) { si++; continue; }
+        const take = Math.min(remaining, available);
+        bucket.blocks.push({ ...item, qty: take });
+        bucket.used += take;
+        remaining -= take;
+        if (bucket.used >= bucket.sw.portsCap && si < buckets.length - 1) si++;
+      }
+      // Si plus de place, empile sur le dernier switch
+      if (remaining > 0 && buckets.length > 0) {
+        const last = buckets[buckets.length - 1];
+        last.blocks.push({ ...item, qty: remaining });
+        last.used += remaining;
+      }
     }
     return buckets;
   };
@@ -4052,8 +4093,12 @@ const buildSynopticHtml = (proj) => {
   const switches = expandSwitches();
   const alloc = allocateBlocksToSwitches(camBlocks, switches);
 
+  // Filtrer les switches vides (pas de caméras allouées)
+  const allocUsed = alloc.filter(b => b.used > 0);
+  const swUsed = allocUsed.map(b => b.sw);
+
   const camCount = Math.max(1, camBlocks.length);
-  const swCount = Math.max(0, switches.length);
+  const swCount = Math.max(0, swUsed.length);
 
   const nvr = proj?.nvrPick?.nvr || proj?.nvrPick?.item || proj?.nvr || null;
   const nvrId = String(toId(nvr) || "—");
@@ -4245,10 +4290,10 @@ const buildSynopticHtml = (proj) => {
   // 6) Nodes & images
   // -----------------------------
   const camCardW = 240;
-  const swCardW = 210;
+  const swCardW = 240;
 
   const blockToSwitch = new Map();
-  alloc.forEach((b) => (b.blocks || []).forEach((blk) => blockToSwitch.set(blk.blockId, b.sw.idx)));
+  allocUsed.forEach((b) => (b.blocks || []).forEach((blk) => blockToSwitch.set(blk.blockId, b.sw.idx)));
 
   const camNodes = camBlocks.map((b, i) => ({
     ...b,
@@ -4257,7 +4302,7 @@ const buildSynopticHtml = (proj) => {
     img: typeof getThumbSrc === "function" ? getThumbSrc("cameras", b.primaryRef) : "",
   }));
 
-  const swNodes = switches.map((sw, i) => ({
+  const swNodes = swUsed.map((sw, i) => ({
     ...sw,
     x: swX,
     y: swYs[i] || swYs[swYs.length - 1],
@@ -4385,6 +4430,9 @@ const buildSynopticHtml = (proj) => {
     .map((c) => {
       const refLine =
         c.refs && c.refs.length > 1 ? `${c.refs[0]} + …` : c.refs?.[0] || c.primaryRef || "—";
+      // Trouver sur quel(s) switch(s) ce bloc est câblé
+      const swTarget = blockToSwitch.get(c.blockId);
+      const swLabel = swTarget && swNodes.length ? ` → SW${swTarget}` : "";
       return card({
         x: c.x,
         y: c.y,
@@ -4392,7 +4440,7 @@ const buildSynopticHtml = (proj) => {
         h: 96,
         barColor: COMELIT_GREEN,
         title: c.label,
-        line1: `${refLine} • ${c.qty} cam`,
+        line1: `${refLine} • ${c.qty} cam${swLabel}`,
         line2: "",
         imgSrc: c.img,
       });
@@ -4401,17 +4449,20 @@ const buildSynopticHtml = (proj) => {
 
   const swCards = swNodes
     .map((sw) => {
-      const bucket = alloc.find((a) => a.sw.idx === sw.idx);
+      const bucket = allocUsed.find((a) => a.sw.idx === sw.idx);
       const used = bucket ? Number(bucket.used || 0) : 0;
+      const free = Math.max(0, sw.portsCap - used);
+      const details = (bucket?.blocks || []).map(b => `${b.qty}× ${(b.label || '').substring(0, 12)}`);
+      const detailStr = details.length > 2 ? details.slice(0, 2).join(', ') + '…' : details.join(', ');
       return card({
         x: sw.x,
         y: sw.y,
         w: swCardW,
         h: 96,
-        barColor: "",
-        title: `Switch ${sw.idx}`,
-        line1: `${sw.id} • ${used}/${sw.portsCap} ports`,
-        line2: "⚡ 230V",
+        barColor: "#F59E0B",
+        title: `SW${sw.idx} — ${sw.id}`,
+        line1: `${used}/${sw.portsCap} ports • ${free} libres`,
+        line2: detailStr || "⚡ 230V",
         imgSrc: sw.img,
       });
     })
@@ -4428,6 +4479,9 @@ const buildSynopticHtml = (proj) => {
     (hddId && typeof getThumbSrc === "function" ? getThumbSrc("hdds", hddId) : "");
 
   const hddLabel = hddId ? `${Math.max(1, hddQty || 1)}× ${hddId}` : "HDD : —";
+  const storageTB = Number(proj?.requiredTB ?? 0).toFixed(1);
+  const nvrChannels = nvr?.channels || "?";
+  const totalCams = sumCams();
 
   const nvrCardHtml = `
     <div class="synCard synNvr" style="left:${pctX(nvrCardX)}; top:${pctY(nvrCardY)}; width:${pctW(nvrCardW)}; height:${pctH(nvrCardH)};">
@@ -4437,9 +4491,9 @@ const buildSynopticHtml = (proj) => {
           ${nvrImg ? `<img class="synImg" src="${nvrImg}" alt="" loading="lazy">` : `<div class="synImgPh"></div>`}
         </div>
         <div class="synTxt">
-          <div class="synT">NVR</div>
-          <div class="synL1">${safe(nvrId)}</div>
-          <div class="synL2">${safe(nvrName)}</div>
+          <div class="synT">NVR — ${safe(nvrId)}</div>
+          <div class="synL1">${safe(nvrName)}</div>
+          <div class="synL2">${totalCams}/${nvrChannels} canaux • ${storageTB} To</div>
           <div class="synL2">⚡ 230V</div>
 
           <div class="synHddMini">
@@ -4487,13 +4541,14 @@ const buildSynopticHtml = (proj) => {
   `;
 
   const projectNameDisplay = String(MODEL?.project?.name || proj?.projectName || "—");
+  const totalCamsDisplay = sumCams();
   const synHeaderHtml = `
     <div class="synHeader">
       <div class="synH1">Synoptique — Installation & câblage</div>
-      <div class="synMeta">Projet : ${safe(projectNameDisplay)}</div>
+      <div class="synMeta">Projet : ${safe(projectNameDisplay)} • ${totalCamsDisplay} caméras</div>
       <div class="synMeta">Débit ~${Number(proj?.totalInMbps ?? 0).toFixed(1)} Mbps • Stockage ~${Number(
         proj?.requiredTB ?? 0
-      ).toFixed(1)} To</div>
+      ).toFixed(1)} To • ${swCount ? swCount + ' switch' + (swCount > 1 ? 'es' : '') : 'PoE direct NVR'}</div>
     </div>
   `;
 
@@ -4559,10 +4614,10 @@ const buildSynopticHtml = (proj) => {
         .synIconBig{ width:78px; height:78px; border-radius:16px; }
         .synImg{ width:100%; height:100%; object-fit:contain; display:block; }
         .synImgPh{ width:100%; height:100%; background:#f8fafc; }
-        .synTxt{ min-width:0; }
-        .synT{ font-size:12px; font-weight:900; color:${COMELIT_BLUE}; }
-        .synL1{ margin-top:4px; font-size:10px; font-weight:800; color:#475569; }
-        .synL2{ margin-top:3px; font-size:10px; font-weight:800; color:#b45309; }
+        .synTxt{ min-width:0; flex:1; overflow:hidden; }
+        .synT{ font-size:12px; font-weight:900; color:${COMELIT_BLUE}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .synL1{ margin-top:4px; font-size:10px; font-weight:800; color:#475569; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .synL2{ margin-top:3px; font-size:9px; font-weight:800; color:#b45309; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 
         .synNvr{ background:#f8fafc; }
         .synHddMini{
@@ -4846,8 +4901,9 @@ const buildSynopticHtml = (proj) => {
     }
 
     .section{
-      margin-top:10px;          /* ✅ avant 7 */
-      padding:12px;             /* ✅ avant 8 */
+      margin-top:10px;
+      padding:10px;
+      overflow:hidden;
       border:1px solid var(--c-line);
       border-radius:14px;
       background:#fff;
@@ -4865,15 +4921,17 @@ const buildSynopticHtml = (proj) => {
     .tbl{
       width:100%;
       border-collapse:collapse;
-      font-size:12px;         /* ✅ + lisible */
+      font-size:12px;
       table-layout:fixed;
       overflow-wrap:anywhere;
+      word-break:break-word;
     }
 
     .tbl th, .tbl td{
       border:1px solid var(--c-line);
-      padding:9px 10px;         /* ✅ avant 7/8 */
+      padding:9px 10px;
       vertical-align:top;
+      overflow:hidden;
     }
 
     .tbl th{
@@ -4883,9 +4941,9 @@ const buildSynopticHtml = (proj) => {
       color:var(--c-blue);
     }
 
-    .colQty{ width:62px; }      /* ✅ avant 54 */
-    .colRef{ width:150px; }     /* ✅ avant 130 */
-    .colImg{ width:96px; text-align:center; } /* ✅ avant 76 */
+    .colQty{ width:50px; }
+    .colRef{ width:130px; }
+    .colImg{ width:80px; text-align:center; }
 
       .thumb{
         width:58px;             /* ✅ + grand */
@@ -5334,7 +5392,7 @@ if (btnPrev) {
   DOM.btnCompute.disabled = false;
 
   // Optionnel: libellés contextuels
-  if (stepId === "nvr_network") DOM.btnCompute.textContent = "Finaliser & Voir le résumé";
+  if (stepId === "complements") DOM.btnCompute.textContent = "Finaliser & Voir le résumé";
   else DOM.btnCompute.textContent = "Suivant";
 }
 
@@ -5951,17 +6009,17 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
               ${useCases.map(u => `<option value="${safeHtml(u)}" ${useCase === u ? "selected" : ""}>${safeHtml(u)}</option>`).join("")}
             </select>
             <div class="muted" style="margin-top:6px">
-              Ce choix pré-filtrera les caméras adaptées à votre environnement.
+              Cela nous permet de proposer les caméras les mieux adaptées à votre environnement.
             </div>
           </div>
 
           ${!isComplete ? `
             <div class="alert warn" style="margin-top:14px">
-              ⚠️ Veuillez remplir tous les champs obligatoires (*) pour continuer.
+              ⚠️ Remplissez les deux champs ci-dessus pour passer à la suite.
             </div>
           ` : `
             <div class="alert ok" style="margin-top:14px">
-              ✅ Informations complètes. Vous pouvez passer à l'étape suivante.
+              ✅ Parfait ! Cliquez sur Suivant pour choisir vos caméras.
             </div>
           `}
         </div>
@@ -6064,8 +6122,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiStepIntro">
         <div class="uiStepIntroIcon">🔩</div>
         <div>
-          <div class="uiStepIntroTitle">Accessoires par zone</div>
-          <div class="uiStepIntroMsg">Proposition automatique par bloc caméra. Vous pouvez ajuster les quantités ou supprimer.</div>
+          <div class="uiStepIntroTitle">Fixations et raccordement</div>
+          <div class="uiStepIntroMsg">Chaque caméra a besoin d'un support et d'un boîtier de raccordement. Tout est pré-sélectionné, ajustez si besoin.</div>
         </div>
         <button data-action="recalcAccessories" type="button" class="uiBtn uiBtnSm">♻️ Recalculer</button>
       </div>
@@ -6090,10 +6148,10 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         <div class="uiSectionIcon">🎥</div>
         <div>
           <div class="uiSectionTitle">${safeHtml(nvr.id)}</div>
-          <div class="uiSectionMeta">${safeHtml(nvr.name)}${isManual ? ' <em style="color:#3B82F6">(sélection manuelle)</em>' : ''}</div>
+          <div class="uiSectionMeta">${safeHtml(nvr.name)}${isManual ? ' <em style="color:#3B82F6">(manuel)</em>' : ''}</div>
         </div>
         <div style="display:flex;gap:6px;align-items:center">
-          ${isAdvance ? '<span class="techBadge" style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:#4338ca;font-weight:900">🤖 IA ADVANCE</span>' : ''}
+          ${isAdvance ? '<span class="techBadge" style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:#4338ca;font-weight:900">🤖 IA</span>' : ''}
           <div class="uiBadge uiBadgeGreen">NVR</div>
         </div>
       </div>
@@ -6105,25 +6163,31 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           </div>
           <div class="uiKpiCard">
             <div class="uiKpiValue">${proj.totalInMbps.toFixed(0)} / ${nvr.max_in_mbps || "—"}</div>
-            <div class="uiKpiLabel">Mbps utilisé / max</div>
+            <div class="uiKpiLabel">Mbps</div>
           </div>
           <div class="uiKpiCard">
-            <div class="uiKpiValue">${nvr.hdd_bays}</div>
-            <div class="uiKpiLabel">Baies HDD</div>
+            <div class="uiKpiValue">${proj.disks ? proj.disks.count + ' × ' + proj.disks.sizeTB + ' To' : '—'}</div>
+            <div class="uiKpiLabel">Disques (${nvr.hdd_bays} baies)</div>
+          </div>
+          <div class="uiKpiCard">
+            <div class="uiKpiValue">${(proj.rawRequiredTB || proj.requiredTB).toFixed(1)} To</div>
+            <div class="uiKpiLabel">${proj.storageCapped ? "Stockage bridé ⚠️" : "Stockage"}</div>
           </div>
         </div>
-        <div class="techValidation" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
-          ${proj.totalCameras <= nvr.channels
-            ? '<span class="techBadge techBadgeOk">✅ Capacité conforme</span>'
-            : '<span class="techBadge techBadgeWarn">⚠️ Capacité dépassée</span>'}
-          ${proj.totalInMbps <= (nvr.max_in_mbps || 256)
-            ? '<span class="techBadge techBadgeOk">✅ Bande passante OK</span>'
-            : '<span class="techBadge techBadgeWarn">⚠️ Bande passante limite</span>'}
+        ${proj.storageCapped ? `
+        <div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.2);font-size:12px;color:#991b1b">
+          ⚠️ Le stockage est bridé à ${proj.disks ? proj.disks.maxTotalTB : "—"} To (${nvr.hdd_bays} baies). Réduisez la rétention/FPS à l'étape Archivage ou changez de NVR.
+        </div>` : ""}
+        <div class="techValidation" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+          ${proj.totalCameras <= nvr.channels ? '<span class="techBadge techBadgeOk">✅ Canaux</span>' : '<span class="techBadge techBadgeWarn">⚠️ Canaux</span>'}
+          ${proj.totalInMbps <= (nvr.max_in_mbps || 256) ? '<span class="techBadge techBadgeOk">✅ Débit</span>' : '<span class="techBadge techBadgeWarn">⚠️ Débit</span>'}
+          ${!proj.storageCapped ? '<span class="techBadge techBadgeOk">✅ Stockage</span>' : '<span class="techBadge techBadgeWarn">⚠️ Stockage</span>'}
         </div>
-        ${nvr.image_url ? `<div style="text-align:center;margin:12px 0"><img style="max-height:120px;border-radius:8px" src="${nvr.image_url}" alt="" loading="lazy"></div>` : ""}
-        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-          ${nvr.datasheet_url ? `<a class="uiLink" href="${nvr.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
-          ${isManual ? '<button data-action="resetNvr" class="uiLink" style="background:none;border:none;cursor:pointer;color:#DC2626;font-size:12px;font-weight:700">✕ Revenir à la sélection auto</button>' : ""}
+        ${nvr.image_url ? `<div style="text-align:center;margin:10px 0"><img style="max-height:100px;border-radius:8px" src="${nvr.image_url}" alt="" loading="lazy"></div>` : ""}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+          ${nvr.datasheet_url ? `<a class="uiLink" href="${nvr.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche</a>` : ""}
+          ${proj.disks?.hddRef?.datasheet_url ? `<a class="uiLink" href="${proj.disks.hddRef.datasheet_url}" target="_blank" rel="noreferrer">💾 HDD ${safeHtml(proj.disks.hddRef.id || "")}</a>` : ""}
+          ${isManual ? '<button data-action="resetNvr" class="uiLink" style="background:none;border:none;cursor:pointer;color:#DC2626;font-size:12px;font-weight:700">✕ Auto</button>' : ""}
         </div>
       </div>
     </div>
@@ -6133,8 +6197,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">🔄</div>
         <div>
-          <div class="uiSectionTitle">Changer de NVR</div>
-          <div class="uiSectionMeta">Cliquez pour reconfigurer automatiquement le système</div>
+          <div class="uiSectionTitle">Alternatives</div>
         </div>
       </div>
       <div class="uiSectionBody" style="padding:0">
@@ -6168,7 +6231,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         <div class="uiSectionIcon">🎥</div>
         <div>
           <div class="uiSectionTitle">Enregistreur (NVR)</div>
-          <div class="uiSectionMeta">Aucun modèle compatible</div>
+          <div class="uiSectionMeta">Aucun enregistreur trouvé</div>
         </div>
         <div class="uiBadge">NVR</div>
       </div>
@@ -6180,147 +6243,31 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
     const sw = proj.switches;
 
-    // Produits complémentaires (déplacés depuis Archivage)
-    const complementsHtml = `
-    <div class="uiSection" style="margin-top:12px">
-      <div class="uiSectionHeader">
-        <div class="uiSectionIcon">🛒</div>
-        <div>
-          <div class="uiSectionTitle">Produits complémentaires</div>
-          <div class="uiSectionMeta">Optionnel — écran, boîtier de protection, signalisation</div>
-        </div>
-      </div>
-      <div class="uiSectionBody">
-        <!-- ÉCRAN -->
-        <div class="uiComplementRow">
-          <div class="uiComplementInfo">
-            <div class="uiProductTitle">🖥 Écran de supervision</div>
-            <div class="uiProductMeta">Visualisation en direct des caméras</div>
-          </div>
-          <div class="uiComplementControls">
-            <button data-action="screenToggle" data-value="${MODEL.complements.screen.enabled ? '0' : '1'}"
-              class="uiBtn uiBtnSm ${MODEL.complements.screen.enabled ? 'uiBtnActive' : ''}">
-              ${MODEL.complements.screen.enabled ? '✅ Activé' : '❌ Désactivé'}
-            </button>
-          </div>
-        </div>
-        ${MODEL.complements.screen.enabled ? (() => {
-          const scrSel = typeof getSelectedOrRecommendedScreen === "function" ? getSelectedOrRecommendedScreen(proj)?.selected : null;
-          return '<div class="uiComplementDetail">'
-            + '<div class="uiFormGrid" style="grid-template-columns:1fr 1fr">'
-            + '<div class="uiFormField"><label class="uiInputLabel">Taille</label><select data-action="screenSize" class="uiInput">'
-            + CONFIG.screenSizes.map(s => '<option value="' + s + '"' + (MODEL.complements.screen.sizeInch === s ? ' selected' : '') + '>' + s + '"</option>').join('')
-            + '</select></div>'
-            + '<div class="uiFormField"><label class="uiInputLabel">Quantité</label><input data-action="screenQty" type="number" min="1" max="10" value="' + (MODEL.complements.screen.qty || 1) + '" class="uiInput" /></div>'
-            + '</div>'
-            + (scrSel ? '<div class="uiProductCard" style="margin-top:8px"><div class="uiProductMain"><div class="uiProductInfo"><div class="uiProductTitle">' + safeHtml(scrSel.id) + '</div><div class="uiProductMeta">' + safeHtml(scrSel.name || '') + '</div></div>' + (scrSel.image_url ? '<img class="uiProductImg" src="' + scrSel.image_url + '" alt="" loading="lazy">' : '<div class="uiProductImgPh">🖥</div>') + '</div></div>' : '')
-            + '</div>';
-        })() : ""}
+    // Section Câblage réseau (PoE)
+    const swHtml = (() => {
+      if (!sw || !sw.required) {
+        const nvrPoe = sw?.nvrPoePorts || 0;
+        return nvrPoe > 0 ? '<div class="uiSection" style="margin-top:12px"><div class="uiSectionHeader"><div class="uiSectionIcon">🔌</div><div><div class="uiSectionTitle">Réseau PoE</div><div class="uiSectionMeta">Caméras sur les ' + nvrPoe + ' ports PoE du NVR</div></div></div></div>' : '';
+      }
+      const dist = sw.cameraDistribution || [];
+      return '<div class="uiSection" style="margin-top:12px">'
+        + '<div class="uiSectionHeader"><div class="uiSectionIcon">🔌</div><div><div class="uiSectionTitle">Réseau PoE</div>'
+        + '<div class="uiSectionMeta">' + (sw.camerasOnSwitches || proj.totalCameras) + ' caméras • ' + sw.totalPorts + ' ports</div></div></div>'
+        + '<div class="uiSectionBody">'
+        + dist.map((d, i) => {
+            const item = d.switch;
+            return '<div class="uiProductCard" style="margin-top:' + (i ? '6' : '0') + 'px"><div class="uiProductMain"><div class="uiProductInfo">'
+              + '<div class="uiProductTitle">' + safeHtml(item.id || item.name || 'Switch') + '</div>'
+              + '<div class="uiProductMeta">' + d.camerasConnected + ' cam / ' + d.totalPorts + ' ports PoE'
+              + (item.poe_budget_w ? ' • ' + item.poe_budget_w + 'W' : '') + '</div>'
+              + '</div>'
+              + (item.image_url ? '<img class="uiProductImg" src="' + item.image_url + '" alt="" loading="lazy">' : '<div class="uiProductImgPh">🔌</div>')
+              + '</div></div>';
+          }).join('')
+        + '</div></div>';
+    })();
 
-        <!-- BOÎTIER NVR -->
-        <div class="uiComplementRow">
-          <div class="uiComplementInfo">
-            <div class="uiProductTitle">🔒 Boîtier NVR</div>
-            <div class="uiProductMeta">Protection physique de l'enregistreur</div>
-          </div>
-          <div class="uiComplementControls">
-            <button data-action="enclosureToggle" data-value="${MODEL.complements.enclosure.enabled ? '0' : '1'}"
-              class="uiBtn uiBtnSm ${MODEL.complements.enclosure.enabled ? 'uiBtnActive' : ''}">
-              ${MODEL.complements.enclosure.enabled ? '✅ Activé' : '❌ Désactivé'}
-            </button>
-          </div>
-        </div>
-        ${MODEL.complements.enclosure.enabled ? (() => {
-          const encSel = typeof getSelectedOrRecommendedEnclosure === "function" ? getSelectedOrRecommendedEnclosure()?.selected : null;
-          return '<div class="uiComplementDetail">'
-            + '<div class="uiFormGrid" style="grid-template-columns:1fr"><div class="uiFormField"><label class="uiInputLabel">Quantité</label><input data-action="enclosureQty" type="number" min="1" max="10" value="' + (MODEL.complements.enclosure.qty || 1) + '" class="uiInput" /></div></div>'
-            + (encSel ? '<div class="uiProductCard" style="margin-top:8px"><div class="uiProductMain"><div class="uiProductInfo"><div class="uiProductTitle">' + safeHtml(encSel.id) + '</div><div class="uiProductMeta">' + safeHtml(encSel.name || '') + '</div></div>' + (encSel.image_url ? '<img class="uiProductImg" src="' + encSel.image_url + '" alt="" loading="lazy">' : '<div class="uiProductImgPh">🔒</div>') + '</div></div>' : '')
-            + '</div>';
-        })() : ""}
-
-        <!-- PANNEAU SIGNALISATION -->
-        <div class="uiComplementRow">
-          <div class="uiComplementInfo">
-            <div class="uiProductTitle">⚠️ Panneau de signalisation</div>
-            <div class="uiProductMeta">Obligation légale : signaler la vidéosurveillance</div>
-          </div>
-          <div class="uiComplementControls">
-            <button data-action="signageToggle" data-value="${MODEL.complements.signage?.enabled ? '0' : '1'}"
-              class="uiBtn uiBtnSm ${MODEL.complements.signage?.enabled ? 'uiBtnActive' : ''}">
-              ${MODEL.complements.signage?.enabled ? '✅ Activé' : '❌ Désactivé'}
-            </button>
-          </div>
-        </div>
-        ${MODEL.complements.signage?.enabled ? (() => {
-          const signSel = typeof getSelectedOrRecommendedSign === "function" ? getSelectedOrRecommendedSign()?.sign : null;
-          return '<div class="uiComplementDetail">'
-            + '<div class="uiFormGrid" style="grid-template-columns:1fr 1fr">'
-            + '<div class="uiFormField"><label class="uiInputLabel">Portée</label><select data-action="signageScope" class="uiInput"><option value="Public"' + (MODEL.complements.signage.scope === 'Public' ? ' selected' : '') + '>Public</option><option value="Privé"' + (MODEL.complements.signage.scope === 'Privé' ? ' selected' : '') + '>Privé</option></select></div>'
-            + '<div class="uiFormField"><label class="uiInputLabel">Quantité</label><input data-action="signageQty" type="number" min="1" max="20" value="' + (MODEL.complements.signage.qty || 1) + '" class="uiInput" /></div>'
-            + '</div>'
-            + (signSel ? '<div class="uiProductCard" style="margin-top:8px"><div class="uiProductMain"><div class="uiProductInfo"><div class="uiProductTitle">' + safeHtml(signSel.id) + '</div><div class="uiProductMeta">' + safeHtml(signSel.name || '') + '</div></div>' + (signSel.image_url ? '<img class="uiProductImg" src="' + signSel.image_url + '" alt="" loading="lazy">' : '<div class="uiProductImgPh">⚠️</div>') + '</div></div>' : '')
-            + '</div>';
-        })() : ""}
-      </div>
-    </div>
-    `;
-
-    const switchLineCard = (p) => {
-      const item = p.item;
-      const ref = item.id || "";
-      const name = item.name || ref || "Switch";
-      const ports = item.poe_ports ?? 0;
-      const budget = item.poe_budget_w ?? null;
-
-      return `
-      <div class="uiProductCard">
-        <div class="uiProductMain">
-          <div class="uiProductInfo">
-            <div class="uiProductTitle">${p.qty} × ${safeHtml(ref ? `${ref} — ${name}` : name)}</div>
-            <div class="uiProductMeta">
-              ${ports} ports PoE${budget != null ? ` • Budget ${budget} W` : ""}${item.uplink_gbps != null ? ` • Uplink ${item.uplink_gbps} Gb` : ""}
-            </div>
-            ${item.uplink_gbps != null && item.uplink_gbps < 1 && proj.totalInMbps > 95
-              ? `<div class="techBadge techBadgeDanger" style="margin-top:6px">⚠️ Risque bottleneck : uplink 100 Mbps < débit total ${proj.totalInMbps.toFixed(0)} Mbps</div>`
-              : ""}
-            ${item.datasheet_url ? `<a class="uiLink" href="${item.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
-          </div>
-          ${item.image_url ? `<img class="uiProductImg" src="${item.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🔌</div>`}
-        </div>
-      </div>
-    `;
-    };
-
-    const swHtml = !sw.required
-      ? `
-    <div class="uiSection" style="margin-top:12px">
-      <div class="uiSectionHeader">
-        <div class="uiSectionIcon">🔌</div>
-        <div>
-          <div class="uiSectionTitle">Réseau PoE</div>
-          <div class="uiSectionMeta">Switch non obligatoire (&lt; 16 caméras)</div>
-        </div>
-        <div class="uiBadge">PoE</div>
-      </div>
-    </div>
-  `
-      : `
-    <div class="uiSection" style="margin-top:12px">
-      <div class="uiSectionHeader">
-        <div class="uiSectionIcon">🔌</div>
-        <div>
-          <div class="uiSectionTitle">Réseau PoE (obligatoire)</div>
-          <div class="uiSectionMeta">Ports requis: ${sw.portsNeeded} • Proposés: ${sw.totalPorts} • Surplus: ${sw.surplusPorts}</div>
-        </div>
-        <div class="uiBadge uiBadgeGreen">PoE</div>
-      </div>
-      <div class="uiSectionBody">
-        ${sw.plan.map(switchLineCard).join("")}
-      </div>
-    </div>
-  `;
-
-    return `${nvrHtml}${swHtml}${complementsHtml}`;
+    return `${nvrHtml}${swHtml}`;
   }
 
   function renderStepStorage() {
@@ -6332,8 +6279,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     <div class="uiStepIntro">
       <div class="uiStepIntroIcon">💾</div>
       <div>
-        <div class="uiStepIntroTitle">Paramètres d'archivage</div>
-        <div class="uiStepIntroMsg">Ces paramètres déterminent le stockage nécessaire. L'enregistreur sera dimensionné automatiquement à l'étape suivante.</div>
+        <div class="uiStepIntroTitle">Durée de conservation</div>
+        <div class="uiStepIntroMsg">Combien de temps garder vos enregistrements ? On calcule l'espace disque nécessaire.</div>
       </div>
     </div>
 
@@ -6342,30 +6289,30 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         <div class="uiSectionIcon">⚙️</div>
         <div>
           <div class="uiSectionTitle">Paramètres d'enregistrement</div>
-          <div class="uiSectionMeta">Survolez les titres pour plus d'explications</div>
+          <div class="uiSectionMeta">Chaque réglage influence le stockage. Les valeurs par défaut conviennent à la plupart des installations.</div>
         </div>
       </div>
       <div class="uiSectionBody">
         <div class="uiFormGrid">
           <div class="uiFormField">
-            <label class="uiInputLabel">📅 Jours de conservation <span class="infoTip" data-tip="Durée de conservation des enregistrements. Maximum légal en France : 30 jours (CNIL). Au-delà, autorisation préfectorale requise.">i</span></label>
+            <label class="uiInputLabel">📅 Durée de conservation <span class="infoTip" data-tip="Combien de jours garder les images ? La loi (CNIL) limite à 30 jours maximum. 14 jours est le standard.">i</span></label>
             <input data-action="recDays" type="number" min="1" max="30" value="${rec.daysRetention}" class="uiInput" />
             <div class="uiHint">⚖️ Maximum légal : 30 jours</div>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">⏰ Heures / jour <span class="infoTip" data-tip="Nombre d'heures d'enregistrement quotidien. 24h = enregistrement permanent. Réduire diminue le stockage nécessaire proportionnellement.">i</span></label>
+            <label class="uiInputLabel">⏰ Heures par jour <span class="infoTip" data-tip="24h = enregistrement non-stop jour et nuit. Réduire diminue le stockage proportionnellement.">i</span></label>
             <input data-action="recHours" type="number" min="1" max="24" value="${rec.hoursPerDay}" class="uiInput" />
             <div class="uiHint">24h = enregistrement permanent</div>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">🎬 FPS <span class="infoTip" data-tip="Images par seconde. 25 FPS = fluidité TV. 15 FPS = bon compromis stockage/qualité. Plus de FPS = plus de stockage nécessaire.">i</span></label>
+            <label class="uiInputLabel">🎬 Images/seconde <span class="infoTip" data-tip="25 FPS = fluidité TV. 15 FPS suffit pour la surveillance courante. Plus = meilleure fluidité mais plus de stockage.">i</span></label>
             <select data-action="recFps" class="uiInput">
               ${CONFIG.fpsOptions.map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " ★" : ""}</option>`).join("")}
             </select>
             <div class="uiHint">25 FPS recommandé</div>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">🗜️ Codec <span class="infoTip" data-tip="H.265 réduit le stockage de ~50% par rapport au H.264 à qualité égale. Recommandé pour toute installation neuve.">i</span></label>
+            <label class="uiInputLabel">🗜️ Compression <span class="infoTip" data-tip="Le codec compresse la vidéo. H.265 est deux fois plus efficace que H.264 à qualité égale. Toujours recommandé.">i</span></label>
             <select data-action="recCodec" class="uiInput">
               <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé)</option>
               <option value="h264" ${rec.codec === "h264" ? "selected" : ""}>H.264</option>
@@ -6391,8 +6338,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">📊</div>
         <div>
-          <div class="uiSectionTitle">Besoin en stockage</div>
-          <div class="uiSectionMeta">Recalculé en temps réel — l'enregistreur sera dimensionné à l'étape suivante</div>
+          <div class="uiSectionTitle">Résultat du calcul</div>
+          <div class="uiSectionMeta">Se met à jour en temps réel — l'enregistreur sera dimensionné à l'étape suivante</div>
         </div>
       </div>
       <div class="uiSectionBody">
@@ -6417,6 +6364,110 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     </div>
     `;
   }
+  function renderStepComplements() {
+    const proj = getProjectCached();
+    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">Calcul impossible</div></div>`;
+
+    // Écran
+    const scrEnabled = !!MODEL.complements.screen.enabled;
+    const scrSel = scrEnabled && typeof getSelectedOrRecommendedScreen === "function" ? getSelectedOrRecommendedScreen(proj)?.selected : null;
+
+    // Boîtier + compatibilité écran
+    const encEnabled = !!MODEL.complements.enclosure.enabled;
+    const screenForEnc = scrEnabled ? (typeof pickScreenBySize === "function" ? pickScreenBySize(MODEL.complements.screen.sizeInch) : scrSel) : null;
+    const encResult = encEnabled && typeof pickBestEnclosure === "function" ? pickBestEnclosure(proj, screenForEnc) : null;
+    const encSel = encResult?.enclosure || (encEnabled && typeof getSelectedOrRecommendedEnclosure === "function" ? getSelectedOrRecommendedEnclosure(proj)?.selected : null);
+    const screenInsideOk = encResult?.screenInsideOk || false;
+
+    // Signalisation
+    const signEnabled = !!MODEL.complements.signage?.enabled;
+    const signSel = signEnabled && typeof getSelectedOrRecommendedSign === "function" ? getSelectedOrRecommendedSign()?.sign : null;
+
+    // Helper : option card
+    const optionCard = (icon, title, desc, enabled, toggleAction, toggleValue, body) => `
+      <div class="optCard ${enabled ? 'optCardActive' : ''}">
+        <div class="optHeader">
+          <div class="optHeaderLeft">
+            <div class="optIcon">${icon}</div>
+            <div class="optHeaderTxt">
+              <div class="optTitle">${title}</div>
+              <div class="optDesc">${desc}</div>
+            </div>
+          </div>
+          <button data-action="${toggleAction}" data-value="${toggleValue}" class="optToggle ${enabled ? 'optToggleOn' : ''}">
+            <span class="optToggleDot"></span>
+          </button>
+        </div>
+        ${enabled ? '<div class="optBody">' + body + '</div>' : ''}
+      </div>`;
+
+    // Helper : product row
+    const productRow = (ref, name, imgUrl, imgFallback, badges) => {
+      const badgesHtml = (badges || []).map(b => 
+        '<span class="optBadge' + (b.type === 'ok' ? ' optBadgeOk' : b.type === 'warn' ? ' optBadgeWarn' : '') + '">' + b.text + '</span>'
+      ).join('');
+      return `<div class="optProduct">
+        <div class="optProductInfo">
+          <div class="optProductRef">${safeHtml(ref)}</div>
+          <div class="optProductName">${safeHtml(name)}</div>
+          ${badgesHtml ? '<div class="optBadges">' + badgesHtml + '</div>' : ''}
+        </div>
+        ${imgUrl ? '<img class="optProductImg" src="' + imgUrl + '" alt="" loading="lazy">' : '<div class="optProductImgPh">' + imgFallback + '</div>'}
+      </div>`;
+    };
+
+    // Écran body
+    const screenBody = '<div class="optForm">'
+      + '<div class="optFormRow">'
+      + '<div class="optFormField"><label class="optLabel">Taille</label><select data-action="screenSize" class="optInput">'
+      + CONFIG.screenSizes.map(s => '<option value="' + s + '"' + (MODEL.complements.screen.sizeInch === s ? ' selected' : '') + '>' + s + '"</option>').join('')
+      + '</select></div>'
+      + '<div class="optFormField"><label class="optLabel">Quantité</label><input data-action="screenQty" type="number" min="1" max="10" value="' + (MODEL.complements.screen.qty || 1) + '" class="optInput optInputNarrow" /></div>'
+      + '</div></div>'
+      + (scrSel ? productRow(scrSel.id, scrSel.name || '', scrSel.image_url, '🖥', []) : '');
+
+    // Boîtier body — avec compatibilité écran
+    const encBadges = [];
+    if (encEnabled && scrEnabled) {
+      encBadges.push(screenInsideOk
+        ? { type: 'ok', text: '✅ Écran intégrable dans le boîtier' }
+        : { type: 'warn', text: '⚠️ Écran trop grand pour le boîtier — installation séparée' }
+      );
+    }
+    const encBody = '<div class="optForm">'
+      + '<div class="optFormRow">'
+      + '<div class="optFormField"><label class="optLabel">Quantité</label><input data-action="enclosureQty" type="number" min="1" max="10" value="' + (MODEL.complements.enclosure.qty || 1) + '" class="optInput optInputNarrow" /></div>'
+      + '</div></div>'
+      + (encSel ? productRow(encSel.id, encSel.name || '', encSel.image_url, '🔒', encBadges) : (!encEnabled ? '' : '<div class="optNoProduct">Aucun boîtier compatible avec ce NVR</div>'));
+
+    // Signalisation body
+    const signBody = '<div class="optForm">'
+      + '<div class="optFormRow">'
+      + '<div class="optFormField"><label class="optLabel">Portée</label><select data-action="signageScope" class="optInput">'
+      + '<option value="Public"' + ((MODEL.complements.signage?.scope || 'Public') === 'Public' ? ' selected' : '') + '>Public</option>'
+      + '<option value="Privé"' + (MODEL.complements.signage?.scope === 'Privé' ? ' selected' : '') + '>Privé</option>'
+      + '</select></div>'
+      + '<div class="optFormField"><label class="optLabel">Quantité</label><input data-action="signageQty" type="number" min="1" max="20" value="' + (MODEL.complements.signage?.qty || 1) + '" class="optInput optInputNarrow" /></div>'
+      + '</div></div>'
+      + (signSel ? productRow(signSel.id, signSel.name || '', signSel.image_url, '⚠️', []) : '');
+
+    return `
+    <div class="uiStepIntro">
+      <div class="uiStepIntroIcon">🛒</div>
+      <div>
+        <div class="uiStepIntroTitle">Options & finitions</div>
+        <div class="uiStepIntroMsg">Les extras pour une installation complète : écran, coffret de sécurité, panneau réglementaire.</div>
+      </div>
+    </div>
+    <div class="optGrid">
+      ${optionCard('🖥', 'Écran de supervision', 'Pour visualiser les images en direct', scrEnabled, 'screenToggle', scrEnabled ? '0' : '1', screenBody)}
+      ${optionCard('🔒', 'Boîtier de protection', 'Sécurité physique du NVR' + (scrEnabled ? ' et de l\'écran' : ''), encEnabled, 'enclosureToggle', encEnabled ? '0' : '1', encBody)}
+      ${optionCard('⚠️', 'Signalisation', 'Panneau obligatoire — vidéosurveillance', signEnabled, 'signageToggle', signEnabled ? '0' : '1', signBody)}
+    </div>
+    `;
+  }
+
+
 function renderStepSummary() {
   const proj = LAST_PROJECT;
 
@@ -6471,7 +6522,7 @@ function renderStepSummary() {
           <div class="summaryBannerTitle">${proj ? "Configuration finalisée" : "Configuration incomplète"}</div>
           <div class="summaryBannerSub">${proj
             ? "Exporte le PDF ou ajuste ta configuration."
-            : "Reviens à l'étape Système et clique Finaliser."}</div>
+            : "Reviens à l'étape Options et clique Finaliser."}</div>
         </div>
       </div>
 
@@ -6498,9 +6549,9 @@ function bindSummaryButtons() {
   if (btnBack && !btnBack.dataset.bound) {
     btnBack.dataset.bound = "1";
     btnBack.addEventListener("click", () => {
-      const nvrIdx = STEPS.findIndex(s => s.id === "nvr_network");
-      if (nvrIdx >= 0) {
-        MODEL.stepIndex = nvrIdx;
+      const compIdx = STEPS.findIndex(s => s.id === "complements");
+      if (compIdx >= 0) {
+        MODEL.stepIndex = compIdx;
         MODEL.ui.resultsShown = false;
         syncResultsUI();
         render();
@@ -6751,6 +6802,8 @@ function render() {
     html = renderStepNvrNetwork();
   } else if (stepId === "storage") {
     html = renderStepStorage();
+  } else if (stepId === "complements") {
+    html = renderStepComplements();
   } else if (stepId === "summary") {
     html = renderStepSummary();
   } else {
@@ -8573,13 +8626,22 @@ bind(DOM.btnCompute, "click", () => {
     return;
   }
 
-  // 5) NVR + Réseau => FINALISE + va sur la page Résumé
+  // 5) NVR + Réseau => passage vers Compléments
   if (stepId === "nvr_network") {
     const errs = validateStep("nvr_network");
     if (errs.length) {
       showStepValidationErrors(errs);
       return;
     }
+    MODEL.stepIndex++;
+    MODEL.ui.resultsShown = false;
+    syncResultsUI();
+    render();
+    return;
+  }
+
+  // 6) Compléments => FINALISE + va sur la page Résumé
+  if (stepId === "complements") {
     let proj = null;
     try {
       proj = computeProject();
@@ -8597,7 +8659,7 @@ bind(DOM.btnCompute, "click", () => {
     return;
   }
 
-  // 6) Résumé => ne “reboucle” pas sur stockage via Suivant
+  // 7) Résumé => ne “reboucle” pas sur stockage via Suivant
   if (stepId === "summary") {
     // No-op : c’est la dernière page.
     // (Le bouton "Modifier la configuration" gère le retour en arrière)

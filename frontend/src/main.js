@@ -52,22 +52,27 @@ document.querySelector("#app").innerHTML = `
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="2">
           <div class="stepperDot"><span>3</span></div>
-          <div class="stepperLabel">Supports</div>
+          <div class="stepperLabel">Fixations</div>
         </div>
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="3">
           <div class="stepperDot"><span>4</span></div>
-          <div class="stepperLabel">Archivage</div>
+          <div class="stepperLabel">Stockage</div>
         </div>
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="4">
           <div class="stepperDot"><span>5</span></div>
-          <div class="stepperLabel">Système</div>
+          <div class="stepperLabel">Enregistreur</div>
         </div>
         <div class="stepperLine"></div>
         <div class="stepperStep" data-step="5">
           <div class="stepperDot"><span>6</span></div>
-          <div class="stepperLabel">Résumé</div>
+          <div class="stepperLabel">Options</div>
+        </div>
+        <div class="stepperLine"></div>
+        <div class="stepperStep" data-step="6">
+          <div class="stepperDot"><span>7</span></div>
+          <div class="stepperLabel">Récapitulatif</div>
         </div>
       </div>
     </div>
