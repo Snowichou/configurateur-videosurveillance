@@ -1,5 +1,6 @@
 import "./style.css";
 import "./optimisations.css";
+import "./i18n.js";
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -31,6 +32,7 @@ document.querySelector("#app").innerHTML = `
       <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
       <div class="brandTitle">Configurateur Vidéosurveillance</div>
     </div>
+    <div id="langSelectorWrap" style="position:absolute;top:12px;right:16px"></div>
   </header>
 
   <!-- SECTION STEPPER : Titre étape + Stepper + Boutons -->
@@ -131,4 +133,14 @@ document.querySelector("#app").innerHTML = `
 
 import("./app.js").then(() => {
   import("./optimisations.js");
+  // i18n : injecter le sélecteur de langue + appliquer la langue détectée
+  const langWrap = document.getElementById("langSelectorWrap");
+  if (langWrap && typeof getLangSelectorHtml === "function") {
+    langWrap.innerHTML = getLangSelectorHtml();
+    langWrap.querySelector("#langSelector")?.addEventListener("change", (e) => {
+      setLang(e.target.value);
+    });
+  }
+  if (typeof updateStepperLabels === "function") updateStepperLabels();
+  if (typeof updateNavButtons === "function") updateNavButtons();
 });

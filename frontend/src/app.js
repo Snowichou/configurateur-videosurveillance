@@ -803,7 +803,7 @@ function interpretScoreForBlock(block, cam){
   }
 
   const ansObj = String(ans.objective || "").toLowerCase();
-  const objectiveLbl = (() => { try { return objectiveLabel(ansObj) || "Objectif"; } catch { return "Objectif"; } })();
+  const objectiveLbl = (() => { try { return objectiveLabel(ansObj) || T("cam_objective"); } catch { return T("cam_objective"); } })();
   const emplLbl = empl === "exterieur" ? "extérieur" : "intérieur";
   const dist = Number(sc.required || 0);
   const mp = getMpFromCam(cam);
@@ -844,7 +844,7 @@ function interpretScoreForBlock(block, cam){
     } else if (score >= 90) {
       message = `Choix optimal pour ${objLow} à ${dist}m en ${emLow}.`;
     } else if (score >= 80) {
-      message = `Très bon choix pour ${objLow} à ${dist}m.`;
+      message = `${T("cam_good_choice").replace("{0}", objLow).replace("{1}", dist)}`;
     } else if (score >= 70) {
       message = `Bonne option. Portée DORI suffisante pour ${dist}m.`;
     } else if (score >= 60) {
@@ -927,24 +927,24 @@ function computeMainReason(block, cam, sc){
 
 function objectiveLabel(obj){
   const labels = {
-    detection: "Détection",
-    observation: "Observation",
-    reconnaissance: "Reconnaissance",
-    identification: "Identification",
-    dissuasion: "Observation", // rétrocompat
+    detection: T("cam_detection").split("(")[0].trim(),
+    observation: T("cam_observation").split("(")[0].trim(),
+    reconnaissance: T("cam_recognition").split("(")[0].trim(),
+    identification: T("cam_identification").split("(")[0].trim(),
+    dissuasion: T("cam_observation").split("(")[0].trim(),
   };
-  return labels[obj] || "Identification";
+  return labels[obj] || T("cam_identification").split("(")[0].trim();
 }
 
 function mountingLabel(m){
-  return ({ wall: "Mur", ceiling: "Plafond" }[m] || "Mur");
+  return ({ wall: T("cam_wall"), ceiling: T("cam_ceiling") }[m] || T("cam_wall"));
 }
 
 function accessoryTypeLabel(t){
   return ({
-    junction_box: "Boîtier de connexion",
-    wall_mount: "Support mural",
-    ceiling_mount: "Support plafond",
+    junction_box: T("mount_junction"),
+    wall_mount: T("mount_bracket"),
+    ceiling_mount: T("cam_ceiling") + " " + T("mount_bracket").toLowerCase(),
   }[t] || t);
 }
 
@@ -1168,7 +1168,7 @@ const CONFIG = Object.freeze({
   // Scoring
   scoring: {
     levels: {
-      ok:   { icon: "✅", label: "Recommandée", color: COLORS.green,  bg: COLORS.okBg },
+      ok:   { icon: "✅", label: T("cam_recommended"), color: COLORS.green,  bg: COLORS.okBg },
       warn: { icon: "⚠️", label: "Acceptable",  color: COLORS.warn,   bg: COLORS.warnBg },
       bad:  { icon: "❌", label: "Non adaptée",  color: COLORS.danger, bg: COLORS.dangerBg },
     }
@@ -1383,13 +1383,13 @@ const KPI = (() => {
 })();
 
   const STEPS = [
-    { id: "project", title: "Projet", badge: "1/7", help: "On commence par identifier votre site pour adapter nos recommandations." },
-    { id: "cameras", title: "Caméras", badge: "2/7", help: "Choisissez vos caméras zone par zone. On vous guide selon vos besoins." },
-    { id: "mounts", title: "Fixations", badge: "3/7", help: "Supports et boîtiers de raccordement adaptés à chaque caméra." },
-    { id: "storage", title: "Stockage", badge: "4/7", help: "Combien de jours garder les images ? On calcule l'espace disque." },
-    { id: "nvr_network", title: "Enregistreur", badge: "5/7", help: "Le cerveau du système : il enregistre, stocke et distribue les images." },
-    { id: "complements", title: "Options", badge: "6/7", help: "Écran, protection, signalisation : les extras pour une installation complète." },
-    { id: "summary", title: "Récapitulatif", badge: "7/7", help: "Vérifiez tout, puis exportez votre rapport PDF en un clic." },
+    { id: "project", get title(){ return T("step_project"); }, badge: "1/7", get help(){ return T("step_project_help"); } },
+    { id: "cameras", get title(){ return T("step_cameras"); }, badge: "2/7", get help(){ return T("step_cameras_help"); } },
+    { id: "mounts", get title(){ return T("step_mounts"); }, badge: "3/7", get help(){ return T("step_mounts_help"); } },
+    { id: "storage", get title(){ return T("step_storage"); }, badge: "4/7", get help(){ return T("step_storage_help"); } },
+    { id: "nvr_network", get title(){ return T("step_nvr"); }, badge: "5/7", get help(){ return T("step_nvr_help"); } },
+    { id: "complements", get title(){ return T("step_options"); }, badge: "6/7", get help(){ return T("step_options_help"); } },
+    { id: "summary", get title(){ return T("step_summary"); }, badge: "7/7", get help(){ return T("step_summary_help"); } },
   ];
 
 // ✅ Expose STEPS pour le récap flottant
@@ -1447,7 +1447,7 @@ const DOM = {
 
   return {
     id: String(raw.id ?? "").trim(),
-    name: raw.name || "",
+    name: localizedName(raw) || "",
     brand_range: raw.brand_range || "",
     family: raw.family || "standard",
     type: raw.form_factor || raw.type || "",
@@ -1497,7 +1497,7 @@ const DOM = {
   function normalizeNvr(raw) {
   return {
     id: raw.id,
-    name: raw.name,
+    name: localizedName(raw),
     channels: toNum(raw.channels) ?? 0,
     max_in_mbps: toNum(raw.max_in_mbps) ?? 0,
     nvr_output: clampInt(raw.nvr_output ?? 1, 1, 8), // ✅ raw
@@ -1514,7 +1514,7 @@ const DOM = {
   function normalizeHdd(raw) {
     return {
       id: raw.id,
-      name: raw.name,
+      name: localizedName(raw),
       capacity_tb: toNum(raw.capacity_tb),
       image_url: raw.image_url || "",
       datasheet_url: raw.datasheet_url || "",
@@ -1524,7 +1524,7 @@ const DOM = {
   function normalizeSwitch(raw) {
     return {
       id: raw.id,
-      name: raw.name,
+      name: localizedName(raw),
       poe_ports: toNum(raw.poe_ports) ?? 0,
       poe_budget_w: toNum(raw.poe_budget_w) ?? null,
       uplink_gbps: toNum(raw.uplink_gbps) ?? null,
@@ -1537,6 +1537,30 @@ const DOM = {
 
   function safeStr(v) {
   return (v ?? "").toString().trim();
+}
+
+// i18n: Get localized product name from CSV row
+function localizedName(raw, field) {
+  field = field || "name";
+  const lang = (typeof _currentLang !== "undefined") ? _currentLang : "fr";
+  if (lang !== "fr") {
+    const localized = raw[field + "_" + lang];
+    if (localized && localized !== "false" && localized.trim()) return localized.trim();
+  }
+  return (raw[field] ?? "").toString().trim();
+}
+
+// i18n: Adapt datasheet URL locale (/fr_FR/ or /fr-fr/ → /xx_XX/ or /xx-xx/)
+function localizedDatasheetUrl(url) {
+  if (!url || url === "false") return url;
+  const lang = (typeof _currentLang !== "undefined") ? _currentLang : "fr";
+  const localeMap = { fr: "fr_FR", en: "en_GB", it: "it_IT", es: "es_ES" };
+  const localeMapDash = { fr: "fr-fr", en: "en-gb", it: "it-it", es: "es-es" };
+  const targetLocale = localeMap[lang] || "fr_FR";
+  const targetLocaleDash = localeMapDash[lang] || "fr-fr";
+  let result = url.replace(/\/fr_FR\//g, "/" + targetLocale + "/");
+  result = result.replace(/\/fr-fr\//g, "/" + targetLocaleDash + "/");
+  return result;
 }
 
 function safeNum(v) {
@@ -1561,7 +1585,7 @@ function parsePipeList(v) {
 
     return {
       id,
-      name: safeStr(row.name) || id || "—",
+      name: localizedName(row) || id || "—",
 
       // important : null si invalide (pas 0)
       size_inch: size,
@@ -1581,7 +1605,7 @@ function parsePipeList(v) {
   const id = safeStr(row.id);
   return {
     id,
-    name: safeStr(row.name) || id || "—",
+    name: localizedName(row) || id || "—",
 
     // peut être vide, ou une ref unique, ou plusieurs refs séparées par |
     screen_compatible_with: parsePipeList(row.screen_compatible_with),
@@ -1685,7 +1709,7 @@ function parsePipeList(v) {
 
     const junction = normalizeMappedAccessory({
       id: raw.junction_box_id,
-      name: raw.junction_box_name,
+      name: localizedName(raw, "junction_box_name"),
       type: "junction_box",
       image_url: raw.image_url_junction_box,
       datasheet_url: raw.datasheet_url_junction_box,
@@ -1694,7 +1718,7 @@ function parsePipeList(v) {
 
     const wall = normalizeMappedAccessory({
       id: raw.wall_mount_id,
-      name: raw.wall_mount_name,
+      name: localizedName(raw, "wall_mount_name"),
       type: "wall_mount",
       image_url: raw.image_url_wall_mount,
       datasheet_url: raw.datasheet_url_wall_mount,
@@ -1703,7 +1727,7 @@ function parsePipeList(v) {
 
     const ceiling = normalizeMappedAccessory({
       id: raw.ceiling_mount_id,
-      name: raw.ceiling_mount_name,
+      name: localizedName(raw, "ceiling_mount_name"),
       type: "ceiling_mount",
       image_url: raw.image_url_ceiling_mount,
       datasheet_url: raw.datasheet_url_ceiling_mount,
@@ -1930,7 +1954,7 @@ window._getCameraById = getCameraById;
       return {
         primary: null, alternatives: [],
         reasons: [
-          "Aucune caméra ne correspond à ces critères.",
+          T("err_no_camera_match"),
           "Suggestions : réduire la distance, passer en détection/dissuasion, ou envisager un emplacement extérieur avec PTZ.",
         ],
       };
@@ -1946,7 +1970,7 @@ window._getCameraById = getCameraById;
     // ── Sélection : primary + alternatives diversifiées ──
     const primary = allScored[0];
     if (!primary) {
-      return { primary: null, alternatives: [], reasons: ["Aucune caméra adaptée."] };
+      return { primary: null, alternatives: [], reasons: [T("err_no_camera_adapted")] };
     }
 
     const primaryType = primary.camType || "";
@@ -2359,7 +2383,7 @@ function invalidateIfNeeded(block, reason = "Modification") {
       return { nvr, score, baysOk, mbpsOk, sameRange };
     }).sort((a, b) => b.score - a.score || (a.nvr.channels - b.nvr.channels));
 
-    if (!scored.length) return { nvr: null, reason: "Aucun NVR ne couvre le nombre de caméras", alternatives: [] };
+    if (!scored.length) return { nvr: null, reason: T("err_no_nvr_channels"), alternatives: [] };
 
     const best = scored[0];
     const reasons = [];
@@ -2764,12 +2788,12 @@ function computePerCameraBitrates() {
   if (totalCameras <= 0) {
     alerts.push({
       level: "danger",
-      text: "Valide au moins 1 caméra (bouton 'Je valide cette caméra') pour ajouter des caméras au panier.",
+      text: T("err_validate_camera"),
     });
   }
 
   if (!nvrPick.nvr) {
-    alerts.push({ level: "danger", text: "Aucun NVR compatible. Vérifie nvrs.csv (channels / max_in_mbps)." });
+    alerts.push({ level: "danger", text: T("err_no_nvr_csv") });
   }
 
   if (nvrPick.nvr && safeIn > Number(nvrPick.nvr.max_in_mbps || 0)) {
@@ -2794,7 +2818,7 @@ function computePerCameraBitrates() {
   if (disks && requiredTB > disks.maxTotalTB) {
     alerts.push({
       level: "danger",
-      text: `Stockage requis ~${requiredTB.toFixed(1)} TB > capacité max NVR (${disks.maxTotalTB} TB). Le stockage est bridé à ${disks.maxTotalTB} TB.`,
+      text: `${T("pdf_required_storage")} ~${requiredTB.toFixed(1)} TB > capacité max NVR (${disks.maxTotalTB} TB). Le stockage est bridé à ${disks.maxTotalTB} TB.`,
     });
   }
 
@@ -3136,7 +3160,7 @@ function getSelectedOrRecommendedEnclosure(proj) {
 
   const swHtml = swRows.length
     ? `<div class="sumList">${swRows.join("")}</div>`
-    : `<div class="sumEmpty">• (non obligatoire)</div>`;
+    : `<div class="sumEmpty">• ${T("pdf_not_required")}</div>`;
 
   // Stockage
   const disk = proj ? proj.disks : null;
@@ -3202,8 +3226,8 @@ function getSelectedOrRecommendedEnclosure(proj) {
     <div class="recoCard finalSummary">
       <div class="recoHeader">
         <div>
-          <div class="recoName">Résumé de la solution</div>
-          <div class="muted">Format devis (Qté × Réf — Désignation)</div>
+          <div class="recoName">${T("sum_solution")}</div>
+          <div class="muted">${T("pdf_format_devis")}</div>
         </div>
 
         <div class="score">
@@ -3216,7 +3240,7 @@ function getSelectedOrRecommendedEnclosure(proj) {
         <div class="finalCard">
           <div class="finalCardHead">
             <div class="finalCardTitle">Caméras</div>
-            <div class="finalChip">${camRows.length} ligne(s)</div>
+            <div class="finalChip">${camRows.length} ${T("sum_lines")}</div>
           </div>
           ${camsHtml}
         </div>
@@ -3231,23 +3255,23 @@ function getSelectedOrRecommendedEnclosure(proj) {
 
         <div class="finalCard">
           <div class="finalCardHead">
-            <div class="finalCardTitle">Supports / accessoires</div>
-            <div class="finalChip">${accRows.length} ligne(s)</div>
+            <div class="finalCardTitle">${T("sum_accessories")}</div>
+            <div class="finalChip">${accRows.length} ${T("sum_lines")}</div>
           </div>
           ${accsHtml}
         </div>
 
         <div class="finalCard">
           <div class="finalCardHead">
-            <div class="finalCardTitle">Switch PoE</div>
-            <div class="finalChip">${swRows.length ? `${swRows.length} ligne(s)` : "—"}</div>
+            <div class="finalCardTitle">${T("sum_switch_poe")}</div>
+            <div class="finalChip">${swRows.length ? `${swRows.length} ${T("sum_lines")}` : "—"}</div>
           </div>
           ${swHtml}
         </div>
 
         <div class="finalCard">
           <div class="finalCardHead">
-            <div class="finalCardTitle">Stockage</div>
+            <div class="finalCardTitle">${T("sum_storage_section2")}</div>
             <div class="finalChip">${disk ? "1 ligne" : "—"}</div>
           </div>
           ${hddHtml}
@@ -3255,22 +3279,22 @@ function getSelectedOrRecommendedEnclosure(proj) {
 
         <div class="finalCard">
           <div class="finalCardHead">
-            <div class="finalCardTitle">Produits complémentaires</div>
-            <div class="finalChip">optionnel</div>
+            <div class="finalCardTitle">${T("sum_complements")}</div>
+            <div class="finalChip">${T("sum_optional")}</div>
           </div>
 
           <div class="finalSub">
-            <div class="finalSubTitle">Écran</div>
+            <div class="finalSubTitle">${T("sum_screen")}</div>
             ${screenHtml}
           </div>
 
           <div class="finalSub">
-            <div class="finalSubTitle">Boîtier NVR</div>
+            <div class="finalSubTitle">${T("sum_enclosure_nvr")}</div>
             ${enclosureHtml}
           </div>
 
           <div class="finalSub">
-            <div class="finalSubTitle">Panneau de signalisation</div>
+            <div class="finalSubTitle">${T("sum_signage_panel")}</div>
             ${signageHtml}
           </div>
         </div>
@@ -3278,11 +3302,11 @@ function getSelectedOrRecommendedEnclosure(proj) {
 
       <div class="finalKpis">
         <div class="kpiTile">
-          <div class="kpiLabel">Débit total estimé</div>
+          <div class="kpiLabel">${T("pdf_total_bitrate")}</div>
           <div class="kpiValue">${safe(totalMbps)} <span class="kpiUnit">Mbps</span></div>
         </div>
         <div class="kpiTile">
-          <div class="kpiLabel">Stockage requis</div>
+          <div class="kpiLabel">${T("pdf_required_storage")}</div>
           <div class="kpiValue">~${safe(reqTb)} <span class="kpiUnit">TB</span></div>
         </div>
       </div>
@@ -3365,6 +3389,7 @@ function getDatasheetSrc(family, ref) {
 }
 
 // ✅ Force le catalogue à utiliser les médias locaux (images + fiches)
+// NOTE: Ne PAS écraser datasheet_url si elle existe déjà (URL Comelit multilingue du CSV)
 function applyLocalMediaToCatalog() {
   const apply = (familyKey, list) => {
     if (!Array.isArray(list)) return;
@@ -3373,7 +3398,10 @@ function applyLocalMediaToCatalog() {
       const id = String(it?.id || "").trim();
       if (!id) continue;
       it.image_url = getThumbSrc(fam, id);
-      it.datasheet_url = getDatasheetSrc(fam, id);
+      // Garder l'URL datasheet du CSV (Comelit multilingue) si elle existe
+      if (!it.datasheet_url || it.datasheet_url === "false") {
+        it.datasheet_url = getDatasheetSrc(fam, id);
+      }
     }
   };
 
@@ -3397,7 +3425,8 @@ function imgTag(family, ref) {
 
   function buildPdfHtml(proj) {
   const now = new Date();
-  const dateStr = now.toLocaleString("fr-FR");
+  const langLocale = { fr: "fr-FR", en: "en-GB", it: "it-IT", es: "es-ES" };
+  const dateStr = now.toLocaleString(langLocale[_currentLang] || "fr-FR");
 
   const safe = (v) =>
     typeof safeHtml === "function" ? safeHtml(String(v ?? "")) : String(v ?? "");
@@ -3484,10 +3513,10 @@ function imgTag(family, ref) {
       <table class="tbl">
         <thead>
           <tr>
-            <th class="colQty">Qté</th>
-            <th class="colRef">Référence</th>
-            <th class="colName">Désignation</th>
-            <th class="colImg">Image</th>
+            <th class="colQty">${T("pdf_qty")}</th>
+            <th class="colRef">${T("pdf_ref")}</th>
+            <th class="colName">${T("pdf_designation")}</th>
+            <th class="colImg">${T("pdf_image")}</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>
@@ -3681,24 +3710,24 @@ function imgTag(family, ref) {
 
     <div class="kpiRow">
       <div class="kpiBox">
-        <div class="kpiLabel">Débit total estimé</div>
+        <div class="kpiLabel">${T("pdf_total_bitrate")}</div>
         <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
         <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
       </div>
       <div class="kpiBox">
-        <div class="kpiLabel">Stockage requis</div>
+        <div class="kpiLabel">${T("pdf_required_storage")}</div>
         <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
-        <div class="muted">Détail dans l'Annexe 1.</div>
+        <div class="muted">${T("pdf_detail_annex")}</div>
       </div>
       <div class="kpiBox">
-        <div class="kpiLabel">Paramètres d'enregistrement</div>
+        <div class="kpiLabel">${T("pdf_rec_params")}</div>
         <div class="kpiValue">${safe(daysRetention)} jours</div>
         <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
       </div>
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Détail par zone</div>
+      <div class="sectionTitle">${T("pdf_detail_zone")}</div>
       ${table4(currentRows.join(""))}
     </div>
 
@@ -3711,7 +3740,7 @@ function imgTag(family, ref) {
   <div class="pdfPage">
     ${headerHtml(subtitle)}
     <div class="section">
-      <div class="sectionTitle">Détail par zone (suite)</div>
+      <div class="sectionTitle">${T("pdf_detail_zone_cont")}</div>
       ${table4(currentRows.join(""))}
     </div>
     <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
@@ -3770,29 +3799,29 @@ function imgTag(family, ref) {
     if (pages.length === 0) {
       pages.push(`
   <div class="pdfPage">
-    ${headerHtml("Caméras & accessoires caméras")}
+    ${headerHtml(T("pdf_cameras_accessories"))}
 
     <div class="kpiRow">
       <div class="kpiBox">
-        <div class="kpiLabel">Débit total estimé</div>
+        <div class="kpiLabel">${T("pdf_total_bitrate")}</div>
         <div class="kpiValue">${safe(totalMbps.toFixed(1))} Mbps</div>
         <div class="muted">Basé sur le débit typique du catalogue quand disponible.</div>
       </div>
       <div class="kpiBox">
-        <div class="kpiLabel">Stockage requis</div>
+        <div class="kpiLabel">${T("pdf_required_storage")}</div>
         <div class="kpiValue">~${safe(requiredTB.toFixed(1))} To</div>
-        <div class="muted">Détail dans l'Annexe 1.</div>
+        <div class="muted">${T("pdf_detail_annex")}</div>
       </div>
       <div class="kpiBox">
-        <div class="kpiLabel">Paramètres d'enregistrement</div>
+        <div class="kpiLabel">${T("pdf_rec_params")}</div>
         <div class="kpiValue">${safe(daysRetention)} jours</div>
         <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
       </div>
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Détail par zone</div>
-      <div class="muted">Aucune caméra configurée</div>
+      <div class="sectionTitle">${T("pdf_detail_zone")}</div>
+      <div class="muted">${T("err_no_camera_config")}</div>
     </div>
 
     <div class="footerLine"><span class="footLeft">Comelit — With you always</span><span class="footRight">${safe(dateStr)}</span></div>
@@ -4520,7 +4549,7 @@ const buildSynopticHtml = (proj) => {
               ${scrImg ? `<img class="synImg" src="${scrImg}" alt="" loading="lazy">` : `<div class="synImgPh"></div>`}
             </div>
             <div class="synTxt">
-              <div class="synT">Écran</div>
+              <div class="synT">${T("sum_screen")}</div>
               <div class="synL1">${safe(screenId)}</div>
               <div class="synL2">⚡ 230V</div>
             </div>
@@ -4544,7 +4573,7 @@ const buildSynopticHtml = (proj) => {
   const totalCamsDisplay = sumCams();
   const synHeaderHtml = `
     <div class="synHeader">
-      <div class="synH1">Synoptique — Installation & câblage</div>
+      <div class="synH1">${T("pdf_synoptic")}</div>
       <div class="synMeta">Projet : ${safe(projectNameDisplay)} • ${totalCamsDisplay} caméras</div>
       <div class="synMeta">Débit ~${Number(proj?.totalInMbps ?? 0).toFixed(1)} Mbps • Stockage ~${Number(
         proj?.requiredTB ?? 0
@@ -5140,7 +5169,7 @@ const buildSynopticHtml = (proj) => {
 
   <!-- ✅ PAGE 0 : SYNTHÈSE DU PROJET -->
   <div class="pdfPage">
-    ${headerHtml("Synthèse du projet")}
+    ${headerHtml(T("pdf_project_summary"))}
 
     <div class="projectCard">
       <div class="projectLabel">Projet</div>
@@ -5152,42 +5181,42 @@ const buildSynopticHtml = (proj) => {
         <div class="dashIcon">📹</div>
         <div class="dashData">
           <div class="dashValue">${safe((MODEL.cameraLines || []).reduce((s,l) => s + (l.qty || 0), 0))}</div>
-          <div class="dashLabel">Caméras</div>
+          <div class="dashLabel">${T("pdf_cameras")}</div>
         </div>
       </div>
       <div class="dashCard">
         <div class="dashIcon">📍</div>
         <div class="dashData">
           <div class="dashValue">${safe(blockGroups.length)}</div>
-          <div class="dashLabel">Zones configurées</div>
+          <div class="dashLabel">${T("pdf_zones")}</div>
         </div>
       </div>
       <div class="dashCard">
         <div class="dashIcon">💾</div>
         <div class="dashData">
           <div class="dashValue">${safe(requiredTB.toFixed(1))} To</div>
-          <div class="dashLabel">Stockage requis</div>
+          <div class="dashLabel">${T("pdf_required_storage")}</div>
         </div>
       </div>
       <div class="dashCard">
         <div class="dashIcon">📡</div>
         <div class="dashData">
           <div class="dashValue">${safe(totalMbps.toFixed(1))} Mbps</div>
-          <div class="dashLabel">Débit total</div>
+          <div class="dashLabel">${T("pdf_total_bitrate")}</div>
         </div>
       </div>
       <div class="dashCard">
         <div class="dashIcon">🎥</div>
         <div class="dashData">
           <div class="dashValue">${safe(nvr?.id || "—")}</div>
-          <div class="dashLabel">Enregistreur (NVR)</div>
+          <div class="dashLabel">${T("pdf_nvr")}</div>
         </div>
       </div>
       <div class="dashCard">
         <div class="dashIcon">⏱</div>
         <div class="dashData">
           <div class="dashValue">${safe(daysRetention)}j • ${safe(codec)} • ${safe(ips)} IPS</div>
-          <div class="dashLabel">Enregistrement</div>
+          <div class="dashLabel">${T("pdf_recording")}</div>
         </div>
       </div>
     </div>
@@ -5208,25 +5237,25 @@ const buildSynopticHtml = (proj) => {
 
   <!-- ✅ PAGE 2 -->
   <div class="pdfPage">
-    ${headerHtml("Équipements & options (NVR / réseau / stockage / compléments)")}
+    ${headerHtml(T("pdf_equipment"))}
 
     <div class="section">
-      <div class="sectionTitle">Enregistreur (NVR)</div>
+      <div class="sectionTitle">${T("pdf_nvr_section")}</div>
       ${table4(nvrRows)}
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Commutateurs PoE</div>
-      ${proj?.switches?.required ? table4(swRows) : `<div class="muted">(non obligatoire)</div>`}
+      <div class="sectionTitle">${T("pdf_switches")}</div>
+      ${proj?.switches?.required ? table4(swRows) : `<div class="muted">${T("pdf_not_required")}</div>`}
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Stockage</div>
+      <div class="sectionTitle">${T("pdf_storage")}</div>
       ${table4(hddRows)}
     </div>
 
     <div class="section">
-      <div class="sectionTitle">Produits complémentaires</div>
+      <div class="sectionTitle">${T("pdf_complements")}</div>
       ${table4(compRows)}
       ${!signageEnabled ? `<div class="muted" style="margin-top:6px">Panneau de signalisation : (désactivé)</div>` : ``}
     </div>
@@ -5236,16 +5265,16 @@ const buildSynopticHtml = (proj) => {
 
   <!-- ✅ PAGE 3 -->
   <div class="pdfPage">
-    ${headerHtml("Annexe 1 — Dimensionnement du stockage")}
+    ${headerHtml(T("pdf_annex1"))}
 
     <div class="annexGrid">
       <div class="annexColL">
         <div class="section">
-          <div class="sectionTitle">Hypothèses</div>
+          <div class="sectionTitle">${T("pdf_hypotheses")}</div>
           <table class="tblAnnex">
-            <thead><tr><th>Paramètre</th><th>Valeur</th></tr></thead>
+            <thead><tr><th>${T("pdf_param")}</th><th>${T("pdf_value")}</th></tr></thead>
             <tbody>
-              <tr><td>Jours de conservation</td><td>${safe(daysRetention)}</td></tr>
+              <tr><td>${T("pdf_days_retention")}</td><td>${safe(daysRetention)}</td></tr>
               <tr><td>Heures / jour</td><td>${safe(hoursPerDay)}</td></tr>
               <tr><td>Mode d’enregistrement</td><td>${safe(mode)}</td></tr>
               <tr><td>Codec</td><td>${safe(codec)}</td></tr>
@@ -5256,20 +5285,20 @@ const buildSynopticHtml = (proj) => {
         </div>
 
         <div class="section">
-          <div class="sectionTitle">Formule (présentation)</div>
+          <div class="sectionTitle">${T("pdf_formula")}</div>
           <div class="muted">
             To ≈ (Débit total (Mbps) × 3600 × Heures/jour × Jours) ÷ (8 × 1024 × 1024) × (1 + Marge)
           </div>
           <div class="muted" style="margin-top:8px">
-            Débit total estimé : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong><br>
-            Stockage requis : <strong>~${safe(requiredTB.toFixed(2))} To</strong>
+            ${T("pdf_total_bitrate")} : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong><br>
+            ${T("pdf_required_storage")} : <strong>~${safe(requiredTB.toFixed(2))} To</strong>
           </div>
         </div>
       </div>
 
       <div class="annexColR">
         <div class="section">
-          <div class="sectionTitle">Débit par caméra (détail)</div>
+          <div class="sectionTitle">${T("pdf_bitrate_detail")}</div>
 
           ${
             perCamRows
@@ -5277,18 +5306,18 @@ const buildSynopticHtml = (proj) => {
                 <table class="tblAnnex">
                   <thead>
                     <tr>
-                      <th class="aQty">Qté</th>
-                      <th class="aRef">Référence</th>
-                      <th class="aName">Désignation</th>
-                      <th class="aNum">Mbps/cam</th>
-                      <th class="aNum">Mbps total</th>
+                      <th class="aQty">${T("pdf_qty")}</th>
+                      <th class="aRef">${T("pdf_ref")}</th>
+                      <th class="aName">${T("pdf_designation")}</th>
+                      <th class="aNum">${T("pdf_mbps_cam")}</th>
+                      <th class="aNum">${T("pdf_mbps_total")}</th>
                     </tr>
                   </thead>
                   <tbody>${perCamRows}</tbody>
                 </table>
                 ${
                   perCamHiddenCount > 0
-                    ? `<div class="muted" style="margin-top:6px">… + ${safe(perCamHiddenCount)} ligne(s) supplémentaires non affichées (pour tenir sur 1 page)</div>`
+                    ? `<div class="muted" style="margin-top:6px">… + ${safe(perCamHiddenCount)} ${T("sum_lines")} supplémentaires non affichées (pour tenir sur 1 page)</div>`
                     : ``
                 }
                 <div class="muted" style="margin-top:6px">
@@ -5310,7 +5339,7 @@ const buildSynopticHtml = (proj) => {
 
   <!-- ✅ PAGE 4 : SYNOPTIQUE -->
   <div class="pdfPage pdfPageLandscape">
-    ${headerHtml("Annexe 2 — Synoptique de l’installation")}
+    ${headerHtml(T("pdf_annex2"))}
     <div class="landscapeBody">
       ${buildSynopticHtml(proj)}
     </div>
@@ -5376,7 +5405,7 @@ if (btnPrev) {
 
   if (stepId === "summary") {
     DOM.btnCompute.disabled = true;
-    DOM.btnCompute.textContent = "Terminé";
+    DOM.btnCompute.textContent = T("sum_finished");
     return;
   }
 
@@ -5392,8 +5421,8 @@ if (btnPrev) {
   DOM.btnCompute.disabled = false;
 
   // Optionnel: libellés contextuels
-  if (stepId === "complements") DOM.btnCompute.textContent = "Finaliser & Voir le résumé";
-  else DOM.btnCompute.textContent = "Suivant";
+  if (stepId === "complements") DOM.btnCompute.textContent = T("btn_finalize");
+  else DOM.btnCompute.textContent = T("btn_next");
 }
 
 
@@ -5511,7 +5540,7 @@ function camPickCardHTML(blk, cam, label) {
   // Config niveau — avec nuances selon le score
   const score = interp.score ?? 0;
   const levelConfig = {
-    ok:   { icon: "✅", label: score >= 90 ? "Choix optimal" : score >= 80 ? "Recommandée" : "Bonne option", color: CLR.green, bg: CLR.okBg },
+    ok:   { icon: "✅", label: score >= 90 ? T("cam_optimal") : score >= 80 ? T("cam_recommended") : T("cam_good_option"), color: CLR.green, bg: CLR.okBg },
     warn: { icon: "⚠️", label: score >= 60 ? "Utilisable" : "Limite", color: "#F59E0B", bg: "rgba(245,158,11,.1)" },
     bad:  { icon: "❌", label: "Non adaptée", color: CLR.danger, bg: CLR.dangerBg }
   };
@@ -5570,12 +5599,12 @@ function camPickCardHTML(blk, cam, label) {
 
           <!-- Specs clés en badges -->
           <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px">
-            <span class="badgePill" style="background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:#1d4ed8;font-weight:900">${({"turret":"Tourelle","dome":"Dôme","bullet":"Bullet","ptz":"PTZ","fish-eye":"Fisheye","lpr":"LPR"})[String(cam.type||"").toLowerCase()] || cam.type || "—"}</span>
+            <span class="badgePill" style="background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:#1d4ed8;font-weight:900">${({"turret":"Turret","dome":"Dome","bullet":"Bullet","ptz":"PTZ","fish-eye":"Fisheye","lpr":"LPR"})[String(cam.type||"").toLowerCase()] || cam.type || "—"}</span>
             <span class="badgePill" style="font-weight:900">${mp} MP</span>
             <span class="badgePill">IR ${ir}m</span>
             ${ip ? `<span class="badgePill">${ip}</span>` : ""}
             ${ik ? `<span class="badgePill">${ik}</span>` : ""}
-            ${aiLabel ? `<span class="badgePill" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);color:#4338ca">🤖 ${aiLabel}</span>` : ""}            ${isValidated ? `<span class="badgePill" style="background:rgba(0,188,112,.15);border-color:rgba(0,188,112,.4);color:#065f46">✓ Sélectionnée</span>` : ""}
+            ${aiLabel ? `<span class="badgePill" style="background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);color:#4338ca">🤖 ${aiLabel}</span>` : ""}            ${isValidated ? `<span class="badgePill" style="background:rgba(0,188,112,.15);border-color:rgba(0,188,112,.4);color:#065f46">${T("cam_selected")}</span>` : ""}
           </div>
 
           <!-- Actions -->
@@ -5587,16 +5616,16 @@ function camPickCardHTML(blk, cam, label) {
               style="flex:1;min-width:140px"
             >
               ${isValidated 
-                ? "✓ Caméra sélectionnée" 
+                ? T("cam_camera_selected") 
                 : interp.level === "ok" 
-                  ? "Choisir cette caméra" 
-                  : "Sélectionner quand même"
+                  ? T("cam_choose_camera") 
+                  : T("cam_choose_camera")
               }
             </button>
 
             ${cam.datasheet_url ? `
-              <a class="btnGhost btnDatasheet" href="${cam.datasheet_url}" target="_blank" rel="noreferrer" style="text-decoration:none">
-                📄 Fiche
+              <a class="btnGhost btnDatasheet" href="${localizedDatasheetUrl(cam.datasheet_url)}" target="_blank" rel="noreferrer" style="text-decoration:none">
+                ${T("btn_datasheet")}
               </a>
             ` : ""}
           </div>
@@ -5604,7 +5633,7 @@ function camPickCardHTML(blk, cam, label) {
           <!-- Détails (accordéon) -->
           <details style="margin-top:10px">
             <summary style="cursor:pointer;font-size:12px;font-weight:900;color:var(--muted);padding:6px 0">
-              + Voir les détails techniques
+              + ${T("cam_see_details")}
             </summary>
             <div style="padding:10px;margin-top:6px;background:var(--panel2);border-radius:10px;font-size:12px">
               ${interp.message ? `<div style="margin-bottom:8px">${safeHtml(interp.message)}</div>` : ""}
@@ -5649,18 +5678,18 @@ function camPickCardHTML(blk, cam, label) {
           <div class="recoHeader">
             <div>
               <div class="recoName">
-                Bloc caméra ${idx + 1}
+                ${T("cam_block")} ${idx + 1}
                 ${blk.label ? `• ${safeHtml(blk.label)}` : ""}
-                • ${blk.validated ? "✅ Validé" : "⏳ En cours"}
-                ${isActive ? `<span style="margin-left:8px" class="badgePill">Actif</span>` : ""}
+                • ${blk.validated ? T("cam_validated_label") : T("cam_in_progress")}
+                ${isActive ? `<span style="margin-left:8px" class="badgePill">${T("cam_active")}</span>` : ""}
               </div>
-              <div class="muted">Remplis ici → puis choisis/valides la caméra à droite</div>
+              <div class="muted">${T("cam_fill_hint")}</div>
             </div>
             <div class="score">${blk.qty || 1}x</div>
           </div>
 
                     <div style="margin-top:10px">
-            <strong>Nom du bloc (zone)</strong>
+            <strong>${T("cam_block_name")}</strong>
             <input
               data-action="inputBlockLabel"
               data-bid="${safeHtml(blk.id)}"
@@ -5675,61 +5704,61 @@ function camPickCardHTML(blk, cam, label) {
           <div class="kv" style="margin-top:12px">
             <div>
               <strong>
-                📍 Emplacement <span class="fieldRequired">*</span>
+                📍 ${T("cam_placement")} <span class="fieldRequired">*</span>
                 <span class="infoTip" data-tip="Intérieur ou extérieur ? Cela détermine la protection IP nécessaire et les caméras compatibles.">i</span>
               </strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="emplacement"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.emplacement ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
                 <option value="">— Choisir l'emplacement —</option>
-                <option value="interieur" ${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>🏠 Intérieur</option>
-                <option value="exterieur" ${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>🌳 Extérieur</option>
+                <option value="interieur" ${normalizeEmplacement(ans.emplacement) === "interieur" ? "selected" : ""}>${"🏠 " + T("cam_interior")}</option>
+                <option value="exterieur" ${normalizeEmplacement(ans.emplacement) === "exterieur" ? "selected" : ""}>${"🌳 " + T("cam_exterior")}</option>
               </select>
             </div>
 
             <div>
               <strong>
-                🎯 Objectif DORI <span class="fieldRequired">*</span>
+                🎯 ${T("cam_objective")} <span class="fieldRequired">*</span>
                 <span class="infoTip" data-tip="Norme EN 62676-4 : Détection = présence humaine | Observation = détails d'une scène | Reconnaissance = distinguer une personne | Identification = reconnaître un visage.">i</span>
               </strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="objective"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.objective ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)">
-                <option value="">— Choisir l'objectif —</option>
-                <option value="detection" ${ans.objective === "detection" ? "selected" : ""}>📡 Détection (présence humaine à distance)</option>
-                <option value="observation" ${ans.objective === "observation" || ans.objective === "dissuasion" ? "selected" : ""}>👁️ Observation (voir les détails d'une scène)</option>
-                <option value="reconnaissance" ${ans.objective === "reconnaissance" ? "selected" : ""}>🚶 Reconnaissance (distinguer une personne)</option>
-                <option value="identification" ${ans.objective === "identification" ? "selected" : ""}>🔍 Identification (reconnaître un visage)</option>
+                <option value="">${T("cam_choose_objective")}</option>
+                <option value="detection" ${ans.objective === "detection" ? "selected" : ""}>${"📡 " + T("cam_detection_long")}</option>
+                <option value="observation" ${ans.objective === "observation" || ans.objective === "dissuasion" ? "selected" : ""}>${"👁️ " + T("cam_observation_long")}</option>
+                <option value="reconnaissance" ${ans.objective === "reconnaissance" ? "selected" : ""}>${"🚶 " + T("cam_recognition_long")}</option>
+                <option value="identification" ${ans.objective === "identification" ? "selected" : ""}>${"🔍 " + T("cam_identification_long")}</option>
               </select>
             </div>
 
             <div>
               <strong>
-                📏 Distance maximale (m) <span class="fieldRequired">*</span>
-                <span class="infoTip" data-tip="Distance entre la caméra et le point le plus éloigné à surveiller. Plus la distance est grande, plus la focale et la résolution nécessaires augmentent.">i</span>
+                📏 ${T("cam_distance")} <span class="fieldRequired">*</span>
+                <span class="infoTip" data-tip="${T("cam_tip_distance")}">i</span>
               </strong>
               <input data-action="inputBlockField" data-bid="${safeHtml(blk.id)}" data-field="distance_m" type="number" min="1" max="999"
                 value="${safeHtml(ans.distance_m ?? "")}" placeholder="Ex: 15"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid ${ans.distance_m ? 'var(--line)' : 'rgba(220,38,38,.4)'};background:var(--panel2);color:var(--text)" />
               <div class="muted" style="margin-top:6px">
-                Norme DORI : ${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
+                ${T("cam_dori_norm")} : ${safeHtml(ans.objective ? objectiveLabel(ans.objective) : "—")}
               </div>
             </div>
 
             <div>
               <strong>
-                🔧 Type de pose
-                <span class="infoTip" data-tip="Mur = fixation murale (bullet, turret). Plafond = fixation en hauteur (dôme, turret). Détermine les accessoires de montage recommandés.">i</span>
+                🔧 ${T("cam_mount_type")}
+                <span class="infoTip" data-tip="${T("cam_tip_mounting")}">i</span>
               </strong>
               <select data-action="changeBlockField" data-bid="${safeHtml(blk.id)}" data-field="mounting"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-                <option value="wall" ${ans.mounting === "wall" ? "selected" : ""}>🧱 Mur</option>
-                <option value="ceiling" ${ans.mounting === "ceiling" ? "selected" : ""}>⬆️ Plafond</option>
+                <option value="wall" ${ans.mounting === "wall" ? "selected" : ""}>${"🧱 " + T("cam_wall_option")}</option>
+                <option value="ceiling" ${ans.mounting === "ceiling" ? "selected" : ""}>${"⬆️ " + T("cam_ceiling_option")}</option>
               </select>
             </div>
 
             <div>
               <strong>
-                🔢 Quantité
-                <span class="infoTip" data-tip="Nombre de caméras identiques pour cette zone. Si vous avez des besoins différents (distance, objectif), créez un bloc séparé.">i</span>
+                🔢 ${T("cam_quantity")}
+                <span class="infoTip" data-tip="${T("cam_tip_quantity")}">i</span>
               </strong>
               <input data-action="inputBlockQty" data-bid="${safeHtml(blk.id)}" type="number" min="1" max="999"
                 value="${safeHtml(blk.qty ?? 1)}"
@@ -5738,29 +5767,29 @@ function camPickCardHTML(blk, cam, label) {
             </div>
 
             <div>
-              <strong title="Plus la qualité est élevée, plus l'image est nette mais plus l'espace de stockage nécessaire est important">
-                ⭐ Qualité d'image
+              <strong title="${T("cam_quality_title_full")}">
+                ⭐ ${T("cam_quality")}
               </strong>
               <select data-action="changeBlockQuality" data-bid="${safeHtml(blk.id)}"
-                title="Économique = moins de stockage | Standard = bon compromis | Haute = meilleure qualité mais plus de stockage"
+                title="${T("cam_quality_title")}"
                 style="width:100%;margin-top:6px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text)">
-                <option value="low" ${blk.quality === "low" ? "selected" : ""}>💚 Économique</option>
-                <option value="standard" ${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>💛 Standard (recommandé)</option>
-                <option value="high" ${blk.quality === "high" ? "selected" : ""}>🔴 Haute définition</option>
+                <option value="low" ${blk.quality === "low" ? "selected" : ""}>${"💚 " + T("cam_quality_economic")}</option>
+                <option value="standard" ${(!blk.quality || blk.quality === "standard") ? "selected" : ""}>${"💛 " + T("cam_quality_standard")}</option>
+                <option value="high" ${blk.quality === "high" ? "selected" : ""}>🔴 ${T("cam_hd")}</option>
               </select>
             </div>
           </div>
           <div class="reasons" style="margin-top:12px">
             ${
               canRecommendBlock(blk)
-                ? `✅ Critères OK → recommandations disponibles à droite.`
+                ? `✅ ${T("cam_criteria_ok")}`
                 : `⚠️ Remplis les champs obligatoires (<span style="color:#DC2626">*</span>) pour voir les propositions.`
             }
           </div>
 
           <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap">
-            ${blk.validated ? `<button data-action="unvalidateBlock" data-bid="${safeHtml(blk.id)}" class="btnGhost" type="button">Annuler validation</button>` : ``}
-            <button data-action="removeBlock" data-bid="${safeHtml(blk.id)}" class="btnGhost" type="button">Supprimer bloc</button>
+            ${blk.validated ? `<button data-action="unvalidateBlock" data-bid="${safeHtml(blk.id)}" class="btnGhost" type="button">${T("cam_cancel_validation")}</button>` : ``}
+            <button data-action="removeBlock" data-bid="${safeHtml(blk.id)}" class="btnGhost" type="button">${T("cam_remove_block")}</button>
           </div>
         </div>
       `;
@@ -5774,9 +5803,9 @@ function camPickCardHTML(blk, cam, label) {
       <div class="recoCard" style="padding:12px">
         <div class="proposalsTitle">
           <div>
-            <div class="recoName">Propositions caméra</div>
+            <div class="recoName">${T("cam_proposals")}</div>
             <div class="muted">
-              Bloc actif :
+              ${T("cam_active_block")} :
               <strong>${safeHtml(ansA.use_case || "—")}</strong> •
               ${safeHtml(normalizeEmplacement(ansA.emplacement) || "—")} •
               ${safeHtml(ansA.objective || "—")} •
@@ -5789,7 +5818,7 @@ function camPickCardHTML(blk, cam, label) {
     `;
 
     if (!canRecommendBlock(activeBlock)) {
-      rightHtml += `<div class="recoCard" style="padding:12px"><div class="muted">⚠️ Remplis les champs obligatoires (<span style="color:#DC2626">*</span>) : <strong>Emplacement</strong>, <strong>Objectif</strong> et <strong>Distance</strong> pour voir les propositions.</div></div>`;
+      rightHtml += `<div class="recoCard" style="padding:12px"><div class="muted">⚠️ ${T("cam_fill_required")}</div></div>`;
     } else {
       const primary = reco?.primary?.camera || null;
       const alternatives = (reco?.alternatives || []).map((x) => x.camera).filter(Boolean);
@@ -5798,7 +5827,7 @@ function camPickCardHTML(blk, cam, label) {
         rightHtml += `
           <div class="recoCard" style="padding:12px">
             <div class="reasons">
-              <strong>Aucune caméra compatible</strong><br>
+              <strong>${T("err_no_camera_compatible")}</strong><br>
               ${(reco?.reasons || []).map((r) => `• ${safeHtml(r)}`).join("<br>")}
             </div>
           </div>
@@ -5849,10 +5878,10 @@ function camPickCardHTML(blk, cam, label) {
     <div class="compareCard">
       <div class="compareHead">
         <div>
-          <div class="compareTitle">Comparatif rapide</div>
-          <div class="muted">Deux caméras sélectionnées • compare les points clés en 10 secondes.</div>
+          <div class="compareTitle">${T("cam_compare")}</div>
+          <div class="muted">${T("cam_compare")}</div>
         </div>
-        <button class="btnGhost btnSmall" data-action="uiClearCompare" type="button">Vider</button>
+        <button class="btnGhost btnSmall" data-action="uiClearCompare" type="button">${T("btn_reset")}</button>
       </div>
       <div class="compareGrid">
         <div class="compareCol">
@@ -5906,8 +5935,8 @@ const cardsHtml = shown.length
       <div class="muted">
         ${
           MODEL.ui.onlyFavs
-            ? "Aucune caméra dans tes favoris pour ce bloc. Désactive le filtre ⭐ pour revoir toutes les propositions."
-            : "Aucune caméra à afficher."
+            ? T("err_no_fav")
+            : T("err_no_camera_display")
         }
       </div>
     </div>
@@ -5924,15 +5953,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           ${leftBlocks}
 
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
-            <button data-action="addBlock" class="btnGhost" type="button">+ Ajouter un autre modèle de caméra</button>
-          </div>
-
-          <div class="reasons" style="margin-top:12px">
-            <strong>Résumé (panier validé) :</strong><br>
-            • Blocs validés : ${validatedCount} / ${MODEL.cameraBlocks.length}<br>
-            • Total caméras : ${totalCams}<br>
-            • Débit total estimé : ${totals.totalInMbps.toFixed(1)} Mbps<br>
-            • PoE total (approx.) : ${totals.totalPoeW.toFixed(0)} W
+            <button data-action="addBlock" class="btnGhost" type="button">+ ${T("cam_add_block")}</button>
           </div>
         </div>
 
@@ -5960,12 +5981,12 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     const svC = (savedCfg.cameraLines || []).reduce((a, l) => a + (Number(l.qty) || 0), 0);
     const svB = (savedCfg.cameraBlocks || []).filter(b => b.validated).length;
     saveCardHtml = '<div class="recoCard" style="padding:14px;border:1.5px solid rgba(0,188,112,.3);background:rgba(0,188,112,.03);margin-bottom:10px">'
-      + '<div class="recoName">💾 Sauvegarde disponible</div>'
+      + '<div class="recoName">💾 ${T("proj_save_available")}</div>'
       + '<div class="muted" style="margin-top:4px"><strong>' + svN + '</strong><br>'
       + (svD ? svD + '<br>' : '')
       + svB + ' bloc(s) · ' + svC + ' caméra(s)</div>'
       + '<div style="display:flex;gap:8px;margin-top:10px">'
-      + '<button class="btn primary" data-action="restoreSave" type="button" style="flex:1">📥 Charger</button>'
+      + '<button class="btn primary" data-action="restoreSave" type="button" style="flex:1">📥 ${T("proj_save_load")}</button>'
       + '<button class="btnGhost" data-action="deleteSave" type="button">🗑️</button>'
       + '</div></div>';
   }
@@ -5976,7 +5997,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         <div class="recoCard" style="padding:14px">
           <div class="recoHeader">
             <div>
-              <div class="recoName">Informations projet</div>
+              <div class="recoName">${T("proj_title")}</div>
               <div class="muted">Définition du périmètre et du contexte de l'installation.</div>
             </div>
             <div class="score">📝</div>
@@ -5984,7 +6005,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
           <!-- Nom du projet -->
           <div style="margin-top:14px">
-            <strong>Nom du projet <span style="color:#DC2626">*</span></strong>
+            <strong>${T("proj_name")} <span style="color:#DC2626">*</span></strong>
             <input
               data-action="projName"
               type="text"
@@ -6000,26 +6021,26 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
           <!-- Use Case global -->
           <div style="margin-top:14px">
-            <strong>Type de site <span style="color:#DC2626">*</span></strong>
+            <strong>${T("proj_type")} <span style="color:#DC2626">*</span></strong>
             <select
               data-action="projUseCase"
               style="width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1px solid ${useCase.trim() ? 'var(--line)' : 'rgba(220,38,38,.5)'};background:var(--panel2);color:var(--text)"
             >
-              <option value="">— Sélectionner le type de site —</option>
+              <option value="">${T("proj_type_select")}</option>
               ${useCases.map(u => `<option value="${safeHtml(u)}" ${useCase === u ? "selected" : ""}>${safeHtml(u)}</option>`).join("")}
             </select>
             <div class="muted" style="margin-top:6px">
-              Cela nous permet de proposer les caméras les mieux adaptées à votre environnement.
+              ${T("proj_type_hint")}
             </div>
           </div>
 
           ${!isComplete ? `
             <div class="alert warn" style="margin-top:14px">
-              ⚠️ Remplissez les deux champs ci-dessus pour passer à la suite.
+              ⚠️ ${T("proj_incomplete")}
             </div>
           ` : `
             <div class="alert ok" style="margin-top:14px">
-              ✅ Parfait ! Cliquez sur Suivant pour choisir vos caméras.
+              ✅ ${T("proj_complete")}
             </div>
           `}
         </div>
@@ -6028,23 +6049,23 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="proposalsCol">
         ${saveCardHtml}
         <div class="recoCard" style="padding:14px">
-          <div class="recoName">Aperçu</div>
+          <div class="recoName">${T("proj_preview")}</div>
           <div class="muted" style="margin-top:6px">
-            Le PDF commencera par une page "Informations projet" avec :<br>
-            • Nom du projet<br>
-            • Type de site<br>
-            • Date de génération<br>
-            • Score projet
+            ${T("proj_pdf_intro").replace("{0}", T("proj_title"))}<br>
+            • ${T("proj_site_name")}<br>
+            • ${T("proj_site_type_label")}<br>
+            • ${T("proj_gen_date")}<br>
+            • ${T("proj_score_label")}
           </div>
         </div>
 
         <div class="recoCard" style="padding:14px;margin-top:10px">
-          <div class="recoName">Pourquoi le type de site ?</div>
+          <div class="recoName">${T("proj_why_type")}</div>
           <div class="muted" style="margin-top:6px">
-            Le type de site permet de :<br>
-            • Filtrer les caméras adaptées<br>
-            • Pré-configurer les paramètres<br>
-            • Optimiser les recommandations
+            ${T("proj_why_type_desc")}<br>
+            • ${T("proj_filter_cameras")}<br>
+            • ${T("proj_preconfig")}<br>
+            • ${T("proj_optimize")}
           </div>
         </div>
       </div>
@@ -6059,8 +6080,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       return `
         <div class="uiEmptyState">
           <div class="uiEmptyIcon">🔩</div>
-          <div class="uiEmptyTitle">Aucun bloc validé</div>
-          <div class="uiEmptyMsg">Retourne à l'étape Caméras et valide au moins un bloc pour voir les accessoires recommandés.</div>
+          <div class="uiEmptyTitle">${T("err_no_block")}</div>
+          <div class="uiEmptyMsg">${T("err_no_block")}</div>
         </div>
       `;
     }
@@ -6070,7 +6091,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         const camLine = MODEL.cameraLines.find((cl) => cl.fromBlockId === blk.id);
         const cam = camLine ? getCameraById(camLine.cameraId) : null;
         const lines = blk.accessories || [];
-        const emplLabel = normalizeEmplacement(blk.answers.emplacement) === "exterieur" ? "Extérieur" : "Intérieur";
+        const emplLabel = normalizeEmplacement(blk.answers.emplacement) === "exterieur" ? T("cam_exterior") : T("cam_interior");
 
         const linesHtml = lines.length
           ? lines
@@ -6081,18 +6102,18 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
                 <div class="uiProductInfo">
                   <div class="uiProductTitle">${safeHtml(acc.name || acc.accessoryId)}</div>
                   <div class="uiProductMeta">${safeHtml(accessoryTypeLabel(acc.type))}${acc.accessoryId ? ` • <strong>${safeHtml(acc.accessoryId)}</strong>` : ""}</div>
-                  ${acc.datasheet_url ? `<a class="uiLink" href="${acc.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche technique</a>` : ""}
+                  ${acc.datasheet_url ? `<a class="uiLink" href="${localizedDatasheetUrl(acc.datasheet_url)}" target="_blank" rel="noreferrer">${T("btn_datasheet")}</a>` : ""}
                 </div>
                 ${acc.image_url ? `<img class="uiProductImg" src="${acc.image_url}" alt="" loading="lazy">` : `<div class="uiProductImgPh">🔩</div>`}
               </div>
               <div class="uiProductActions">
                 <div class="uiInputGroup">
-                  <label class="uiInputLabel">Quantité</label>
+                  <label class="uiInputLabel">${T('opt_qty')}</label>
                   <input data-action="accQty" data-bid="${safeHtml(blk.id)}" data-li="${li}"
                     type="number" min="1" max="999" value="${acc.qty}" class="uiInput uiInputSm" />
                 </div>
                 <button data-action="accDelete" data-bid="${safeHtml(blk.id)}" data-li="${li}"
-                  class="uiBtnGhost uiBtnDanger" type="button">🗑 Supprimer</button>
+                  class="uiBtnGhost uiBtnDanger" type="button">${T("btn_remove")}</button>
               </div>
             </div>
           `
@@ -6122,10 +6143,10 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiStepIntro">
         <div class="uiStepIntroIcon">🔩</div>
         <div>
-          <div class="uiStepIntroTitle">Fixations et raccordement</div>
-          <div class="uiStepIntroMsg">Chaque caméra a besoin d'un support et d'un boîtier de raccordement. Tout est pré-sélectionné, ajustez si besoin.</div>
+          <div class="uiStepIntroTitle">${T("mount_title")}</div>
+          <div class="uiStepIntroMsg">${T("mount_desc")}</div>
         </div>
-        <button data-action="recalcAccessories" type="button" class="uiBtn uiBtnSm">♻️ Recalculer</button>
+        <button data-action="recalcAccessories" type="button" class="uiBtn uiBtnSm">${"♻️ " + T("mount_recalculate")}</button>
       </div>
 
       <div class="uiSectionsGrid">
@@ -6136,7 +6157,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
   function renderStepNvrNetwork() {
     const proj = getProjectCached();
-    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">Calcul impossible</div><div class="uiEmptyMsg">Vérifiez que vous avez au moins une caméra validée.</div></div>`;
+    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">${T("err_compute")}</div><div class="uiEmptyMsg">${T("err_no_camera")}</div></div>`;
     const nvr = proj.nvrPick?.nvr;
     const isAdvance = nvr && (nvr.brand_range || "").toUpperCase() === "ADVANCE";
     const isManual = !!MODEL.overrideNvrId;
@@ -6159,24 +6180,24 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         <div class="uiKpiRow">
           <div class="uiKpiCard">
             <div class="uiKpiValue">${proj.totalCameras} / ${nvr.channels}</div>
-            <div class="uiKpiLabel">Caméras / Canaux</div>
+            <div class="uiKpiLabel">${T("nvr_channels")}</div>
           </div>
           <div class="uiKpiCard">
             <div class="uiKpiValue">${proj.totalInMbps.toFixed(0)} / ${nvr.max_in_mbps || "—"}</div>
-            <div class="uiKpiLabel">Mbps</div>
+            <div class="uiKpiLabel">${T("stor_bitrate")}</div>
           </div>
           <div class="uiKpiCard">
             <div class="uiKpiValue">${proj.disks ? proj.disks.count + ' × ' + proj.disks.sizeTB + ' To' : '—'}</div>
-            <div class="uiKpiLabel">Disques (${nvr.hdd_bays} baies)</div>
+            <div class="uiKpiLabel">${T("nvr_disks").replace("{0}", nvr.hdd_bays)}</div>
           </div>
           <div class="uiKpiCard">
             <div class="uiKpiValue">${(proj.rawRequiredTB || proj.requiredTB).toFixed(1)} To</div>
-            <div class="uiKpiLabel">${proj.storageCapped ? "Stockage bridé ⚠️" : "Stockage"}</div>
+            <div class="uiKpiLabel">${proj.storageCapped ? T("nvr_storage_limited") + " ⚠️" : T("pdf_storage")}</div>
           </div>
         </div>
         ${proj.storageCapped ? `
         <div style="margin-top:8px;padding:8px 12px;border-radius:8px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.2);font-size:12px;color:#991b1b">
-          ⚠️ Le stockage est bridé à ${proj.disks ? proj.disks.maxTotalTB : "—"} To (${nvr.hdd_bays} baies). Réduisez la rétention/FPS à l'étape Archivage ou changez de NVR.
+          ⚠️ ${T("nvr_storage_capped").replace("{0}", proj.disks ? proj.disks.maxTotalTB : "—").replace("{1}", nvr.hdd_bays)}
         </div>` : ""}
         <div class="techValidation" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
           ${proj.totalCameras <= nvr.channels ? '<span class="techBadge techBadgeOk">✅ Canaux</span>' : '<span class="techBadge techBadgeWarn">⚠️ Canaux</span>'}
@@ -6185,8 +6206,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
         </div>
         ${nvr.image_url ? `<div style="text-align:center;margin:10px 0"><img style="max-height:100px;border-radius:8px" src="${nvr.image_url}" alt="" loading="lazy"></div>` : ""}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-          ${nvr.datasheet_url ? `<a class="uiLink" href="${nvr.datasheet_url}" target="_blank" rel="noreferrer">📄 Fiche</a>` : ""}
-          ${proj.disks?.hddRef?.datasheet_url ? `<a class="uiLink" href="${proj.disks.hddRef.datasheet_url}" target="_blank" rel="noreferrer">💾 HDD ${safeHtml(proj.disks.hddRef.id || "")}</a>` : ""}
+          ${nvr.datasheet_url ? `<a class="uiLink" href="${localizedDatasheetUrl(nvr.datasheet_url)}" target="_blank" rel="noreferrer">${T("nvr_datasheet")}</a>` : ""}
+          ${proj.disks?.hddRef?.datasheet_url ? `<a class="uiLink" href="${localizedDatasheetUrl(proj.disks.hddRef.datasheet_url)}" target="_blank" rel="noreferrer">💾 HDD ${safeHtml(proj.disks.hddRef.id || "")}</a>` : ""}
           ${isManual ? '<button data-action="resetNvr" class="uiLink" style="background:none;border:none;cursor:pointer;color:#DC2626;font-size:12px;font-weight:700">✕ Auto</button>' : ""}
         </div>
       </div>
@@ -6197,7 +6218,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">🔄</div>
         <div>
-          <div class="uiSectionTitle">Alternatives</div>
+          <div class="uiSectionTitle">${T("nvr_alternatives")}</div>
         </div>
       </div>
       <div class="uiSectionBody" style="padding:0">
@@ -6206,16 +6227,16 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           const hasMoreCh = alt.channels > nvr.channels;
           const hasMoreBays = alt.hdd_bays > nvr.hdd_bays;
           const why = altIsAdvance && !isAdvance ? "🤖 Gamme ADVANCE — analytics IA embarquée"
-            : hasMoreCh ? "📈 Capacité supérieure (" + alt.channels + " canaux)"
-            : hasMoreBays ? "💾 Plus de stockage (" + alt.hdd_bays + " baies HDD)"
-            : "🔄 Alternative compatible";
+            : hasMoreCh ? T("nvr_capacity_higher").replace("{0}", alt.channels)
+            : hasMoreBays ? T("nvr_more_storage").replace("{0}", alt.hdd_bays)
+            : T("nvr_alt_compatible");
           return '<div class="nvrAltCard" data-action="selectNvr" data-nvrid="' + safeHtml(alt.id) + '">'
             + '<div style="flex:1">'
             + '<div style="display:flex;align-items:center;gap:8px">'
             + '<strong style="font-size:14px">' + safeHtml(alt.id) + '</strong>'
             + (altIsAdvance ? '<span class="techBadge" style="padding:2px 6px;font-size:10px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:#4338ca">🤖 IA</span>' : '')
             + '</div>'
-            + '<div class="uiMuted" style="font-size:12px;margin-top:2px">' + alt.channels + ' canaux • ' + alt.max_in_mbps + ' Mbps • ' + alt.hdd_bays + ' baies</div>'
+            + '<div class="uiMuted" style="font-size:12px;margin-top:2px">' + alt.channels + ' ' + T("nvr_channels_label") + ' • ' + alt.max_in_mbps + ' Mbps • ' + alt.hdd_bays + ' ' + T("nvr_bays") + '</div>'
             + '<div style="font-size:11px;color:#3B82F6;margin-top:4px">' + why + '</div>'
             + '</div>'
             + '<span style="font-size:20px;color:var(--muted);padding:0 8px">›</span>'
@@ -6230,8 +6251,8 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">🎥</div>
         <div>
-          <div class="uiSectionTitle">Enregistreur (NVR)</div>
-          <div class="uiSectionMeta">Aucun enregistreur trouvé</div>
+          <div class="uiSectionTitle">${T("nvr_title")}</div>
+          <div class="uiSectionMeta">${T("nvr_none")}</div>
         </div>
         <div class="uiBadge">NVR</div>
       </div>
@@ -6247,12 +6268,12 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     const swHtml = (() => {
       if (!sw || !sw.required) {
         const nvrPoe = sw?.nvrPoePorts || 0;
-        return nvrPoe > 0 ? '<div class="uiSection" style="margin-top:12px"><div class="uiSectionHeader"><div class="uiSectionIcon">🔌</div><div><div class="uiSectionTitle">Réseau PoE</div><div class="uiSectionMeta">Caméras sur les ' + nvrPoe + ' ports PoE du NVR</div></div></div></div>' : '';
+        return nvrPoe > 0 ? '<div class="uiSection" style="margin-top:12px"><div class="uiSectionHeader"><div class="uiSectionIcon">🔌</div><div><div class="uiSectionTitle">' + T('nvr_poe') + '</div><div class="uiSectionMeta">Caméras sur les ' + nvrPoe + ' ports PoE du NVR</div></div></div></div>' : '';
       }
       const dist = sw.cameraDistribution || [];
       return '<div class="uiSection" style="margin-top:12px">'
-        + '<div class="uiSectionHeader"><div class="uiSectionIcon">🔌</div><div><div class="uiSectionTitle">Réseau PoE</div>'
-        + '<div class="uiSectionMeta">' + (sw.camerasOnSwitches || proj.totalCameras) + ' caméras • ' + sw.totalPorts + ' ports</div></div></div>'
+        + '<div class="uiSectionHeader"><div class="uiSectionIcon">🔌</div><div><div class="uiSectionTitle">' + T('nvr_poe') + '</div>'
+        + '<div class="uiSectionMeta">' + (sw.camerasOnSwitches || proj.totalCameras) + ' ' + T('nvr_poe_cameras') + ' • ' + sw.totalPorts + ' ' + T('nvr_poe_ports') + '</div></div></div>'
         + '<div class="uiSectionBody">'
         + dist.map((d, i) => {
             const item = d.switch;
@@ -6272,15 +6293,15 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
 
   function renderStepStorage() {
     const proj = getProjectCached();
-    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">Calcul impossible</div><div class="uiEmptyMsg">Vérifiez que vous avez au moins une caméra validée.</div></div>`;
+    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">${T("err_compute")}</div><div class="uiEmptyMsg">${T("err_no_camera")}</div></div>`;
     const rec = MODEL.recording;
     
     return `
     <div class="uiStepIntro">
       <div class="uiStepIntroIcon">💾</div>
       <div>
-        <div class="uiStepIntroTitle">Durée de conservation</div>
-        <div class="uiStepIntroMsg">Combien de temps garder vos enregistrements ? On calcule l'espace disque nécessaire.</div>
+        <div class="uiStepIntroTitle">${T("stor_title")}</div>
+        <div class="uiStepIntroMsg">${T("stor_desc")}</div>
       </div>
     </div>
 
@@ -6288,47 +6309,47 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">⚙️</div>
         <div>
-          <div class="uiSectionTitle">Paramètres d'enregistrement</div>
-          <div class="uiSectionMeta">Chaque réglage influence le stockage. Les valeurs par défaut conviennent à la plupart des installations.</div>
+          <div class="uiSectionTitle">${T("pdf_rec_params")}</div>
+          <div class="uiSectionMeta">${T("stor_settings_desc")}</div>
         </div>
       </div>
       <div class="uiSectionBody">
         <div class="uiFormGrid">
           <div class="uiFormField">
-            <label class="uiInputLabel">📅 Durée de conservation <span class="infoTip" data-tip="Combien de jours garder les images ? La loi (CNIL) limite à 30 jours maximum. 14 jours est le standard.">i</span></label>
+            <label class="uiInputLabel">📅 ${T("stor_days")} <span class="infoTip" data-tip="${T("stor_days_tip")}">i</span></label>
             <input data-action="recDays" type="number" min="1" max="30" value="${rec.daysRetention}" class="uiInput" />
-            <div class="uiHint">⚖️ Maximum légal : 30 jours</div>
+            <div class="uiHint">⚖️ ${T("stor_hint_max_legal")}</div>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">⏰ Heures par jour <span class="infoTip" data-tip="24h = enregistrement non-stop jour et nuit. Réduire diminue le stockage proportionnellement.">i</span></label>
+            <label class="uiInputLabel">⏰ ${T("stor_hours")} <span class="infoTip" data-tip="${T("stor_hours_tip")}">i</span></label>
             <input data-action="recHours" type="number" min="1" max="24" value="${rec.hoursPerDay}" class="uiInput" />
-            <div class="uiHint">24h = enregistrement permanent</div>
+            <div class="uiHint">${T("stor_hint_24h")}</div>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">🎬 Images/seconde <span class="infoTip" data-tip="25 FPS = fluidité TV. 15 FPS suffit pour la surveillance courante. Plus = meilleure fluidité mais plus de stockage.">i</span></label>
+            <label class="uiInputLabel">🎬 ${T("stor_fps")} <span class="infoTip" data-tip="${T("stor_fps_tip")}">i</span></label>
             <select data-action="recFps" class="uiInput">
               ${CONFIG.fpsOptions.map((v) => `<option value="${v}" ${rec.fps === v ? "selected" : ""}>${v} FPS${v === 15 ? " ★" : ""}</option>`).join("")}
             </select>
-            <div class="uiHint">25 FPS recommandé</div>
+            <div class="uiHint">${T("stor_hint_fps")}</div>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">🗜️ Compression <span class="infoTip" data-tip="Le codec compresse la vidéo. H.265 est deux fois plus efficace que H.264 à qualité égale. Toujours recommandé.">i</span></label>
+            <label class="uiInputLabel">🗜️ ${T("stor_codec")} <span class="infoTip" data-tip="${T("stor_codec_tip")}">i</span></label>
             <select data-action="recCodec" class="uiInput">
-              <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>H.265 (recommandé)</option>
+              <option value="h265" ${rec.codec === "h265" ? "selected" : ""}>${T("stor_codec_h265")}</option>
               <option value="h264" ${rec.codec === "h264" ? "selected" : ""}>H.264</option>
             </select>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">⏺️ Mode <span class="infoTip" data-tip="Continu = enregistrement permanent. Sur détection = enregistre uniquement lors d'un mouvement, réduit le stockage d'environ 50%.">i</span></label>
+            <label class="uiInputLabel">⏺️ Mode <span class="infoTip" data-tip="${T("stor_mode_tip_full")}">i</span></label>
             <select data-action="recMode" class="uiInput">
-              <option value="continuous" ${rec.mode === "continuous" ? "selected" : ""}>⏺️ Continu</option>
-              <option value="motion" ${rec.mode === "motion" ? "selected" : ""}>👁️ Sur détection (-50%)</option>
+              <option value="continuous" ${rec.mode === "continuous" ? "selected" : ""}>${T("stor_mode_continuous")}</option>
+              <option value="motion" ${rec.mode === "motion" ? "selected" : ""}>${T("stor_mode_motion")}</option>
             </select>
           </div>
           <div class="uiFormField">
-            <label class="uiInputLabel">📊 Marge (%) <span class="infoTip" data-tip="Marge de sécurité sur le calcul de stockage. Compense les pics de débit et l'overhead filesystem. 20% est la valeur standard.">i</span></label>
+            <label class="uiInputLabel">📊 ${T("nvr_margin_label")} <span class="infoTip" data-tip="Marge de sécurité sur le calcul de stockage. Compense les pics de débit et l'overhead filesystem. 20% est la valeur standard.">i</span></label>
             <input data-action="recOver" type="number" min="0" max="50" value="${rec.overheadPct}" class="uiInput" />
-            <div class="uiHint">Recommandé : 20%</div>
+            <div class="uiHint">${T("stor_hint_margin")}</div>
           </div>
         </div>
       </div>
@@ -6338,27 +6359,27 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
       <div class="uiSectionHeader">
         <div class="uiSectionIcon">📊</div>
         <div>
-          <div class="uiSectionTitle">Résultat du calcul</div>
-          <div class="uiSectionMeta">Se met à jour en temps réel — l'enregistreur sera dimensionné à l'étape suivante</div>
+          <div class="uiSectionTitle">${T("stor_result")}</div>
+          <div class="uiSectionMeta">${T("stor_result_desc")} — l'enregistreur sera dimensionné à l'étape suivante</div>
         </div>
       </div>
       <div class="uiSectionBody">
         <div class="uiKpiRow">
           <div class="uiKpiCard uiKpiCardAccent">
             <div class="uiKpiValue">${(proj.rawRequiredTB || proj.requiredTB).toFixed(1)} To</div>
-            <div class="uiKpiLabel">Stockage nécessaire</div>
+            <div class="uiKpiLabel">${T("stor_required")}</div>
           </div>
           <div class="uiKpiCard">
             <div class="uiKpiValue">${proj.totalInMbps.toFixed(1)} Mbps</div>
-            <div class="uiKpiLabel">Débit total</div>
+            <div class="uiKpiLabel">${T("stor_bitrate")}</div>
           </div>
           <div class="uiKpiCard">
             <div class="uiKpiValue">${proj.totalCameras}</div>
-            <div class="uiKpiLabel">Caméras</div>
+            <div class="uiKpiLabel">${T("stor_cameras")}</div>
           </div>
         </div>
         <div class="uiMuted" style="margin-top:8px">
-          💡 À l'étape suivante, un enregistreur (NVR) sera automatiquement sélectionné en fonction de ce besoin en stockage, du nombre de caméras et du débit total.
+          💡 ${T("stor_next_step")}
         </div>
       </div>
     </div>
@@ -6366,7 +6387,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
   }
   function renderStepComplements() {
     const proj = getProjectCached();
-    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">Calcul impossible</div></div>`;
+    if (!proj) return `<div class="uiEmptyState"><div class="uiEmptyIcon">⚠️</div><div class="uiEmptyTitle">${T("err_compute")}</div></div>`;
 
     // Écran
     const scrEnabled = !!MODEL.complements.screen.enabled;
@@ -6419,10 +6440,10 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     // Écran body
     const screenBody = '<div class="optForm">'
       + '<div class="optFormRow">'
-      + '<div class="optFormField"><label class="optLabel">Taille</label><select data-action="screenSize" class="optInput">'
+      + '<div class="optFormField"><label class="optLabel">' + T('opt_screen_size') + '</label><select data-action="screenSize" class="optInput">'
       + CONFIG.screenSizes.map(s => '<option value="' + s + '"' + (MODEL.complements.screen.sizeInch === s ? ' selected' : '') + '>' + s + '"</option>').join('')
       + '</select></div>'
-      + '<div class="optFormField"><label class="optLabel">Quantité</label><input data-action="screenQty" type="number" min="1" max="10" value="' + (MODEL.complements.screen.qty || 1) + '" class="optInput optInputNarrow" /></div>'
+      + '<div class="optFormField"><label class="optLabel">' + T('opt_qty') + '</label><input data-action="screenQty" type="number" min="1" max="10" value="' + (MODEL.complements.screen.qty || 1) + '" class="optInput optInputNarrow" /></div>'
       + '</div></div>'
       + (scrSel ? productRow(scrSel.id, scrSel.name || '', scrSel.image_url, '🖥', []) : '');
 
@@ -6430,24 +6451,24 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     const encBadges = [];
     if (encEnabled && scrEnabled) {
       encBadges.push(screenInsideOk
-        ? { type: 'ok', text: '✅ Écran intégrable dans le boîtier' }
-        : { type: 'warn', text: '⚠️ Écran trop grand pour le boîtier — installation séparée' }
+        ? { type: 'ok', text: T('opt_enclosure_screen_ok') }
+        : { type: 'warn', text: T('opt_enclosure_screen_no') }
       );
     }
     const encBody = '<div class="optForm">'
       + '<div class="optFormRow">'
-      + '<div class="optFormField"><label class="optLabel">Quantité</label><input data-action="enclosureQty" type="number" min="1" max="10" value="' + (MODEL.complements.enclosure.qty || 1) + '" class="optInput optInputNarrow" /></div>'
+      + '<div class="optFormField"><label class="optLabel">' + T('opt_qty') + '</label><input data-action="enclosureQty" type="number" min="1" max="10" value="' + (MODEL.complements.enclosure.qty || 1) + '" class="optInput optInputNarrow" /></div>'
       + '</div></div>'
-      + (encSel ? productRow(encSel.id, encSel.name || '', encSel.image_url, '🔒', encBadges) : (!encEnabled ? '' : '<div class="optNoProduct">Aucun boîtier compatible avec ce NVR</div>'));
+      + (encSel ? productRow(encSel.id, encSel.name || '', encSel.image_url, '🔒', encBadges) : (!encEnabled ? '' : '<div class="optNoProduct">' + T('opt_enclosure_none') + '</div>'));
 
     // Signalisation body
     const signBody = '<div class="optForm">'
       + '<div class="optFormRow">'
-      + '<div class="optFormField"><label class="optLabel">Portée</label><select data-action="signageScope" class="optInput">'
-      + '<option value="Public"' + ((MODEL.complements.signage?.scope || 'Public') === 'Public' ? ' selected' : '') + '>Public</option>'
-      + '<option value="Privé"' + (MODEL.complements.signage?.scope === 'Privé' ? ' selected' : '') + '>Privé</option>'
+      + '<div class="optFormField"><label class="optLabel">' + T('opt_sign_scope') + '</label><select data-action="signageScope" class="optInput">'
+      + '<option value="Public"' + ((MODEL.complements.signage?.scope || 'Public') === 'Public' ? ' selected' : '') + '>' + T('opt_sign_public') + '</option>'
+      + '<option value="Privé"' + (MODEL.complements.signage?.scope === 'Privé' ? ' selected' : '') + '>' + T('opt_sign_private') + '</option>'
       + '</select></div>'
-      + '<div class="optFormField"><label class="optLabel">Quantité</label><input data-action="signageQty" type="number" min="1" max="20" value="' + (MODEL.complements.signage?.qty || 1) + '" class="optInput optInputNarrow" /></div>'
+      + '<div class="optFormField"><label class="optLabel">' + T('opt_qty') + '</label><input data-action="signageQty" type="number" min="1" max="20" value="' + (MODEL.complements.signage?.qty || 1) + '" class="optInput optInputNarrow" /></div>'
       + '</div></div>'
       + (signSel ? productRow(signSel.id, signSel.name || '', signSel.image_url, '⚠️', []) : '');
 
@@ -6455,14 +6476,14 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
     <div class="uiStepIntro">
       <div class="uiStepIntroIcon">🛒</div>
       <div>
-        <div class="uiStepIntroTitle">Options & finitions</div>
-        <div class="uiStepIntroMsg">Les extras pour une installation complète : écran, coffret de sécurité, panneau réglementaire.</div>
+        <div class="uiStepIntroTitle">${T("opt_title")}</div>
+        <div class="uiStepIntroMsg">${T("opt_desc")}</div>
       </div>
     </div>
     <div class="optGrid">
-      ${optionCard('🖥', 'Écran de supervision', 'Pour visualiser les images en direct', scrEnabled, 'screenToggle', scrEnabled ? '0' : '1', screenBody)}
-      ${optionCard('🔒', 'Boîtier de protection', 'Sécurité physique du NVR' + (scrEnabled ? ' et de l\'écran' : ''), encEnabled, 'enclosureToggle', encEnabled ? '0' : '1', encBody)}
-      ${optionCard('⚠️', 'Signalisation', 'Panneau obligatoire — vidéosurveillance', signEnabled, 'signageToggle', signEnabled ? '0' : '1', signBody)}
+      ${optionCard('🖥', T('opt_screen'), T('opt_screen_desc'), scrEnabled, 'screenToggle', scrEnabled ? '0' : '1', screenBody)}
+      ${optionCard('🔒', T('opt_enclosure'), T('opt_enclosure_desc_full') + (scrEnabled ? ' et de l\'écran' : ''), encEnabled, 'enclosureToggle', encEnabled ? '0' : '1', encBody)}
+      ${optionCard('⚠️', T('opt_sign'), T('opt_sign_desc'), signEnabled, 'signageToggle', signEnabled ? '0' : '1', signBody)}
     </div>
     `;
   }
@@ -6476,39 +6497,39 @@ function renderStepSummary() {
       <div class="summaryActionsRow">
         <button class="exportBtn exportBtnMain" id="btnExportPdf">
           <span class="exportBtnIcon">📄</span>
-          <span class="exportBtnLabel">Exporter PDF</span>
+          <span class="exportBtnLabel">${T("sum_export_pdf")}</span>
         </button>
         <button class="exportBtn exportBtnSecondary" id="btnExportPdfPack">
           <span class="exportBtnIcon">📦</span>
-          <span class="exportBtnLabel">PDF + Fiches</span>
+          <span class="exportBtnLabel">${T("sum_export_pack")}</span>
         </button>
         <button class="exportBtn exportBtnSecondary" id="btnPreviewPdf">
           <span class="exportBtnIcon">👁</span>
-          <span class="exportBtnLabel">Aperçu</span>
+          <span class="exportBtnLabel">${T("proj_preview")}</span>
         </button>
       </div>
       <div class="summaryActionsRow">
         <button class="exportBtn exportBtnCommercial" id="btnRequestQuote">
           <span class="exportBtnIcon">📨</span>
-          <span class="exportBtnLabel">Demander un devis</span>
+          <span class="exportBtnLabel">${T("sum_request_quote")}</span>
         </button>
         <button class="exportBtn exportBtnSecondary" id="btnSendToDistributor">
           <span class="exportBtnIcon">🏢</span>
-          <span class="exportBtnLabel">Transmettre à un distributeur</span>
+          <span class="exportBtnLabel">${T("sum_send_distributor")}</span>
         </button>
       </div>
       <div class="summaryActionsRow summaryActionsUtils">
         <button class="exportBtn exportBtnSecondary" id="btnSaveConfig">
           <span class="exportBtnIcon">💾</span>
-          <span class="exportBtnLabel">Sauvegarder</span>
+          <span class="exportBtnLabel">${T("sum_save")}</span>
         </button>
         <button class="exportBtn exportBtnSecondary" id="btnShareConfig">
           <span class="exportBtnIcon">🔗</span>
-          <span class="exportBtnLabel">Partager</span>
+          <span class="exportBtnLabel">${T("sum_share")}</span>
         </button>
         <button class="exportBtn exportBtnGhost" id="btnBackToEdit">
           <span class="exportBtnIcon">✏️</span>
-          <span class="exportBtnLabel">Modifier la configuration</span>
+          <span class="exportBtnLabel">${T("btn_edit_config")}</span>
         </button>
       </div>
     </div>
@@ -6519,9 +6540,9 @@ function renderStepSummary() {
       <div class="summaryBanner ${proj ? "ok" : "warn"}">
         <div class="summaryBannerIcon">${proj ? "✅" : "⚠️"}</div>
         <div class="summaryBannerText">
-          <div class="summaryBannerTitle">${proj ? "Configuration finalisée" : "Configuration incomplète"}</div>
+          <div class="summaryBannerTitle">${proj ? T("sum_config_done") : T("sum_config_incomplete")}</div>
           <div class="summaryBannerSub">${proj
-            ? "Exporte le PDF ou ajuste ta configuration."
+            ? T("sum_config_done_desc")
             : "Reviens à l'étape Options et clique Finaliser."}</div>
         </div>
       </div>
@@ -6574,7 +6595,7 @@ function bindSummaryButtons() {
     btnPreview.dataset.bound = "1";
     btnPreview.addEventListener("click", () => {
       if (typeof showPdfPreview === "function") showPdfPreview();
-      else alert("Aperçu PDF indisponible.");
+      else alert(T("sum_preview") + " — N/A");
     });
   }
 
@@ -6661,10 +6682,10 @@ const SAVE_KEY = "comelit_cfg_save";
 
 function saveConfigToLocalStorage() {
   const snap = snapshotForSave();
-  if (!snap) { showToast("❌ Impossible de sauvegarder.", "danger"); return; }
+  if (!snap) { showToast("❌ " + T("err_save_fail"), "danger"); return; }
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(snap));
-    showToast("💾 Configuration sauvegardée !", "ok");
+    showToast("💾 " + T("msg_saved"), "ok");
   } catch (e) { showToast("❌ Erreur : " + e.message, "danger"); }
 }
 
@@ -6703,12 +6724,12 @@ function requestQuote() {
     "Je souhaite obtenir un devis pour la configuration suivante :\n\n" +
     "━━━ PROJET ━━━\n" +
     "Nom : " + (MODEL.projectName || "—") + "\n" +
-    "Type de site : " + (MODEL.projectUseCase || "—") + "\n\n" +
+    T("proj_site_type_label") + " : " + (MODEL.projectUseCase || "—") + "\n\n" +
     "━━━ CAMÉRAS (" + cams + ") ━━━\n" +
     camDetails + "\n\n" +
     "━━━ ENREGISTREMENT ━━━\n" +
     "NVR : " + nvrId + "\n" +
-    "Stockage requis : " + (proj.requiredTB?.toFixed(1) || "—") + " To\n" +
+    T("pdf_required_storage") + " : " + (proj.requiredTB?.toFixed(1) || "—") + " To\n" +
     "Codec : " + (MODEL.recording?.codec || "h265").toUpperCase() + " • " + (MODEL.recording?.fps || 25) + " FPS\n" +
     "Rétention : " + (MODEL.recording?.daysRetention || 30) + " jours\n\n" +
     "━━━ RÉSEAU ━━━\n" +
@@ -6999,7 +7020,7 @@ function showPdfPreview() {
     </style>
 
     <div class="prevToolbar">
-      <span class="prevTitle">👁 Aperçu PDF</span>
+      <span class="prevTitle">${"👁 " + T("sum_preview") + " PDF"}</span>
       <button class="prevBtnExport" id="previewExportBtn">📄 Exporter PDF</button>
       <button class="prevBtnClose" id="previewCloseBtn">✕ Fermer</button>
     </div>
@@ -7324,7 +7345,7 @@ function renderCameraPickCard(cam, blk, sc, mainReason) {
 
   // Icône et couleur selon le niveau
   const levelConfig = {
-    ok: { icon: "✅", label: "Recommandée", color: "var(--comelit-green)" },
+    ok: { icon: "✅", label: T("cam_recommended"), color: "var(--comelit-green)" },
     warn: { icon: "⚠️", label: "Acceptable", color: "#F59E0B" },
     bad: { icon: "❌", label: "Non adaptée", color: CLR.danger }
   };
@@ -7378,12 +7399,12 @@ function renderCameraPickCard(cam, blk, sc, mainReason) {
               class="btnPrimary"
               style="flex:1"
             >
-              ${isValidated ? "✓ Caméra validée" : interp.level === "ok" ? "Sélectionner cette caméra" : "Sélectionner quand même"}
+              ${isValidated ? T("cam_camera_selected") : interp.level === "ok" ? T("cam_choose_camera") : T("cam_choose_camera")}
             </button>
 
             ${cam.datasheet_url ? `
-              <a class="btnGhost btnDatasheet" href="${cam.datasheet_url}" target="_blank" rel="noreferrer">
-                📄 Fiche
+              <a class="btnGhost btnDatasheet" href="${localizedDatasheetUrl(cam.datasheet_url)}" target="_blank" rel="noreferrer">
+                ${T("btn_datasheet")}
               </a>
             ` : ""}
           </div>
@@ -7441,9 +7462,9 @@ function onStepsClick(e) {
   }
 
   if (action === "deleteSave") {
-    if (confirm("Supprimer la sauvegarde locale ?")) {
+    if (confirm(T("err_save_fail"))) {
       localStorage.removeItem(SAVE_KEY); render();
-      showToast("🗑️ Sauvegarde supprimée.", "ok");
+      showToast("🗑️ " + T("msg_loaded"), "ok");
     }
     return;
   }
@@ -7573,7 +7594,7 @@ if (action === "projUseCase") {
     } else {
       alertEl.className = "alert warn";
       alertEl.style.marginTop = "14px";
-      alertEl.innerHTML = "⚠️ Veuillez remplir tous les champs obligatoires (*) pour continuer.";
+      alertEl.innerHTML = "⚠️ " + T("proj_incomplete");
     }
   }
   
@@ -8105,7 +8126,7 @@ function collectDatasheetUrlsFromProject(proj) {
     if (cam?.datasheet_url) {
       items.push({
         url: cam.datasheet_url,
-        path: `fiches_techniques/cameras/${sanitizeFilename(cam.id)}.pdf`,
+        path: `datasheets/cameras/${sanitizeFilename(cam.id)}.pdf`,
       });
     }
   }
@@ -8115,7 +8136,7 @@ function collectDatasheetUrlsFromProject(proj) {
   if (nvr?.datasheet_url) {
     items.push({
       url: nvr.datasheet_url,
-      path: `fiches_techniques/nvr/${sanitizeFilename(nvr.id)}.pdf`,
+      path: `datasheets/nvr/${sanitizeFilename(nvr.id)}.pdf`,
     });
   }
 
@@ -8124,7 +8145,7 @@ function collectDatasheetUrlsFromProject(proj) {
   if (hdd?.datasheet_url) {
     items.push({
       url: hdd.datasheet_url,
-      path: `fiches_techniques/hdd/${sanitizeFilename(hdd.id)}.pdf`,
+      path: `datasheets/hdd/${sanitizeFilename(hdd.id)}.pdf`,
     });
   }
 
@@ -8134,7 +8155,7 @@ function collectDatasheetUrlsFromProject(proj) {
     if (sw?.datasheet_url) {
       items.push({
         url: sw.datasheet_url,
-        path: `fiches_techniques/switches/${sanitizeFilename(sw.id)}.pdf`,
+        path: `datasheets/switches/${sanitizeFilename(sw.id)}.pdf`,
       });
     }
   }
@@ -8145,7 +8166,7 @@ function collectDatasheetUrlsFromProject(proj) {
       const id = a.accessoryId || a.id || "accessoire";
       items.push({
         url: a.datasheet_url,
-        path: `fiches_techniques/accessoires/${sanitizeFilename(id)}.pdf`,
+        path: `datasheets/accessories/${sanitizeFilename(id)}.pdf`,
       });
     }
   }
@@ -8156,7 +8177,7 @@ function collectDatasheetUrlsFromProject(proj) {
     if (scr?.datasheet_url) {
       items.push({
         url: scr.datasheet_url,
-        path: `fiches_techniques/ecrans/${sanitizeFilename(scr.id)}.pdf`,
+        path: `datasheets/screens/${sanitizeFilename(scr.id)}.pdf`,
       });
     }
   } catch {}
@@ -8166,7 +8187,7 @@ function collectDatasheetUrlsFromProject(proj) {
     if (enc?.datasheet_url) {
       items.push({
         url: enc.datasheet_url,
-        path: `fiches_techniques/boitiers/${sanitizeFilename(enc.id)}.pdf`,
+        path: `datasheets/enclosures/${sanitizeFilename(enc.id)}.pdf`,
       });
     }
   } catch {}
@@ -8177,13 +8198,19 @@ function collectDatasheetUrlsFromProject(proj) {
       if (sign?.datasheet_url && MODEL?.complements?.signage?.enabled) {
         items.push({
           url: sign.datasheet_url,
-          path: `fiches_techniques/panneaux/${sanitizeFilename(sign.id)}.pdf`,
+          path: `datasheets/signage/${sanitizeFilename(sign.id)}.pdf`,
         });
       }
     }
   } catch {}
 
-  return dedupByUrl(items);
+  // i18n: localiser toutes les URLs de fiches techniques selon la langue active
+  const localizedItems = items.map(item => ({
+    ...item,
+    url: localizedDatasheetUrl(item.url)
+  }));
+
+  return dedupByUrl(localizedItems);
 }
 
 // Helper pour collecter les IDs produits
@@ -8282,20 +8309,24 @@ async function exportProjectPdfWithLocalDatasheetsZip() {
 
   // Collecter les IDs produits
   const product_ids = collectProductIdsForPack(proj);
+  
+  // Collecter les URLs de fiches techniques (localisées selon la langue)
+  const datasheet_items = collectDatasheetUrlsFromProject(proj);
 
   // ✅ Générer le nom du fichier ZIP basé sur le nom du projet
   const projectSlugZip = (MODEL?.projectName || "")
     .trim()
     .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")  // Retire les accents
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .slice(0, 40) || "projet";
 
-  // ✅ Construire le payload (APRÈS avoir déclaré projectSlugZip)
+  // ✅ Construire le payload
   const payload = {
     pdf_base64,
     product_ids,
+    datasheet_urls: datasheet_items.map(d => ({ url: d.url, path: d.path })),
     zip_name: `${projectSlugZip}_${day}.zip`,
   };
 
@@ -8326,8 +8357,65 @@ async function exportProjectPdfWithLocalDatasheetsZip() {
   }
 
   if (!response) {
-    alert("Export pack indisponible.\nDétail : " + lastError);
-    return;
+    // ======== FALLBACK CLIENT : construire le ZIP côté navigateur ========
+    console.log("[ZIP] Server unavailable, building ZIP client-side...");
+    try {
+      // Charger JSZip dynamiquement si pas déjà chargé
+      if (typeof JSZip === "undefined") {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+          s.onload = resolve;
+          s.onerror = () => reject(new Error("JSZip load failed"));
+          document.head.appendChild(s);
+        });
+      }
+
+      const zip = new JSZip();
+
+      // Ajouter le PDF principal
+      const pdfBytes = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
+      zip.file(`${projectSlugZip}_${day}.pdf`, pdfBytes);
+
+      // Télécharger les fiches techniques en parallèle
+      const fetchPromises = datasheet_items.map(async (item) => {
+        try {
+          const resp = await fetch(item.url, { mode: "cors" });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const contentType = resp.headers.get("content-type") || "";
+          if (!contentType.includes("pdf")) {
+            console.warn(`[ZIP] Skipping non-PDF: ${item.url}`);
+            return;
+          }
+          const blob = await resp.blob();
+          if (blob.size > 500) {
+            zip.file(item.path, blob);
+            console.log(`[ZIP] Added: ${item.path}`);
+          }
+        } catch (e) {
+          console.warn(`[ZIP] Failed to fetch: ${item.url}`, e.message);
+        }
+      });
+
+      await Promise.allSettled(fetchPromises);
+
+      // Générer et télécharger le ZIP
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = payload.zip_name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      console.log("[ZIP] Client-side export OK:", payload.zip_name);
+      return;
+    } catch (clientErr) {
+      console.error("[ZIP] Client-side fallback failed:", clientErr);
+      alert("Export pack indisponible.\nDétail : " + lastError + "\nFallback: " + clientErr.message);
+      return;
+    }
   }
 
   // Télécharger le ZIP
@@ -8373,7 +8461,7 @@ function ensurePdfPackButton() {
   packBtn.id = "btnExportPdfPack";
   packBtn.type = "button";
   packBtn.className = (pdfBtn.className || "btn").replace("primary", "secondary");
-  packBtn.textContent = "PDF + Fiches techniques";
+  packBtn.textContent = T("sum_export_pack");
   packBtn.style.marginLeft = "8px";
 
   pdfBtn.insertAdjacentElement("afterend", packBtn);
@@ -8386,7 +8474,7 @@ function ensurePdfPackButton() {
       await exportProjectPdfWithLocalDatasheetsZip();
     } finally {
       packBtn.disabled = false;
-      packBtn.textContent = "PDF + Fiches techniques";
+      packBtn.textContent = T("sum_export_pack");
     }
   });
 
@@ -8429,7 +8517,7 @@ function ensurePdfPackButton() {
     packBtn = document.createElement("button");
     packBtn.id = "btnExportPdfPackSummary"; // ✅ ton id actuel
     packBtn.type = "button";
-    packBtn.textContent = "PDF + Fiches techniques";
+    packBtn.textContent = T("sum_export_pack");
 
     // copie du style du bouton PDF
     packBtn.className = pdfBtn.className || "";
@@ -8513,7 +8601,7 @@ function validateStep(stepId) {
       
     case "storage": {
       const rec = MODEL.recording;
-      if (!rec.daysRetention || rec.daysRetention < 1) errors.push("Jours de conservation invalides (min. 1).");
+      if (!rec.daysRetention || rec.daysRetention < 1) errors.push(T("pdf_days_retention") + " invalides (min. 1).");
       if (rec.daysRetention > 30) errors.push("La loi limite la conservation à 30 jours maximum.");
       if (!rec.hoursPerDay || rec.hoursPerDay < 1) errors.push("Heures/jour invalides (min. 1).");
       break;
@@ -8717,8 +8805,8 @@ bind(DOM.btnDemo, "click", () => {
 
   // ✅ Démo : nom de projet ET type de site
   MODEL.project = MODEL.project || {};
-  MODEL.project.name = "Résidence Les Music-Hall";
-  MODEL.projectName = "Résidence Les Music-Hall";
+  MODEL.project.name = T("demo_project_name");
+  MODEL.projectName = T("demo_project_name");
   
   const useCases = getAllUseCases();
   const demoUseCase = useCases.find(u => u.toLowerCase().includes("résidentiel") || u.toLowerCase().includes("residential")) 
@@ -8729,7 +8817,7 @@ bind(DOM.btnDemo, "click", () => {
   MODEL.projectUseCase = demoUseCase;  // ✅ NOUVEAU
 
   const b1 = createEmptyCameraBlock();
-  b1.label = "Parking sous-sol";
+  b1.label = T("demo_block1");
   b1.qty = 4;
   b1.quality = "high";
   b1.answers.use_case = demoUseCase;
@@ -8739,7 +8827,7 @@ bind(DOM.btnDemo, "click", () => {
   b1.answers.mounting = "ceiling";
 
   const b2 = createEmptyCameraBlock();
-  b2.label = "Hall d'entrée";
+  b2.label = T("demo_block2");
   b2.qty = 2;
   b2.quality = "standard";
   b2.answers.use_case = demoUseCase;
@@ -8749,7 +8837,7 @@ bind(DOM.btnDemo, "click", () => {
   b2.answers.mounting = "ceiling";
 
   const b3 = createEmptyCameraBlock();
-  b3.label = "Extérieur façade";
+  b3.label = T("demo_block3");
   b3.qty = 6;
   b3.quality = "high";
   b3.answers.use_case = demoUseCase;
@@ -9437,7 +9525,7 @@ function initAdminGridUI(){
   packBtn.id = "btnExportPdfPack";
   packBtn.type = "button";
   packBtn.className = (pdfBtn.className || "btn").replace("primary", "secondary");
-  packBtn.textContent = "PDF + Fiches techniques";
+  packBtn.textContent = T("sum_export_pack");
   packBtn.style.marginLeft = "8px";
 
   pdfBtn.insertAdjacentElement("afterend", packBtn);
@@ -9450,7 +9538,7 @@ function initAdminGridUI(){
       await exportProjectPdfWithLocalDatasheetsZip();
     } finally {
       packBtn.disabled = false;
-      packBtn.textContent = "PDF + Fiches techniques";
+      packBtn.textContent = T("sum_export_pack");
     }
   });
 
