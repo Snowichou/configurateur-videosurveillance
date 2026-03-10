@@ -10,8 +10,16 @@ window.html2canvas = html2canvas;
 window.jspdf = { jsPDF };
 window.jsPDF = jsPDF;
 
-// Favicon
+// Favicon + viewport
 (function setupPageMeta() {
+  // Viewport pour mobile
+  if (!document.querySelector('meta[name="viewport"]')) {
+    const vp = document.createElement('meta');
+    vp.name = 'viewport';
+    vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    document.head.appendChild(vp);
+  }
+  
   const existingFavicon = document.querySelector('link[rel="icon"]');
   if (existingFavicon) {
     existingFavicon.href = '/assets/logosmall.png';
@@ -30,7 +38,7 @@ document.querySelector("#app").innerHTML = `
   <header class="appHeader appHeaderCentered">
     <div class="brandCenter" aria-label="COMELIT">
       <img class="brandLogoImg" src="/assets/logo.png" alt="COMELIT">
-      <div class="brandTitle">Configurateur Vidéosurveillance</div>
+      <div class="brandTitle" id="brandTitle">Configurateur Vidéosurveillance</div>
     </div>
     <div id="langSelectorWrap" style="position:absolute;top:12px;right:16px"></div>
   </header>
@@ -143,4 +151,8 @@ import("./app.js").then(() => {
   }
   if (typeof updateStepperLabels === "function") updateStepperLabels();
   if (typeof updateNavButtons === "function") updateNavButtons();
+  // i18n: mettre à jour le titre de l'app
+  const brandEl = document.getElementById("brandTitle");
+  if (brandEl && typeof T === "function") brandEl.textContent = T("app_title");
+  if (typeof T === "function") document.title = T("app_title") + " - Comelit";
 });

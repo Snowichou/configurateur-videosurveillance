@@ -4902,3 +4902,197 @@ body{
   border-color: var(--green-500);
   box-shadow: var(--green-glow);
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE — V4 REFONTE COMPLÈTE
+   Breakpoints : 768px (tablette), 480px (mobile)
+   ============================================================ */
+
+/* --- TABLETTE (< 768px) --- */
+@media (max-width: 768px) {
+  /* Header compact */
+  .appHeader, .appHeader.appHeaderCentered,
+  header.appHeader, header.appHeader.appHeaderCentered {
+    padding: 10px 12px 6px !important;
+    gap: 4px !important;
+  }
+  .brandLogoImg { height: 36px !important; }
+  .brandTitle { font-size: 14px !important; }
+
+  /* Stepper horizontal scroll */
+  .stepperSection { padding: 8px 8px 10px !important; }
+  .stepperTitle { font-size: 17px !important; }
+  .stepperSubtitle { font-size: 11px !important; margin-bottom: 10px !important; }
+  .stepperWrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; padding: 0 0 8px !important; }
+  .stepper { min-width: max-content; padding: 0 8px; }
+  .stepperDot { width: 32px !important; height: 32px !important; font-size: 13px !important; }
+  .stepperLabel { font-size: 9px !important; }
+  .stepperLine { min-width: 20px !important; max-width: 36px !important; height: 2px !important; margin-top: 15px !important; }
+  .stepperStep { min-width: 50px !important; gap: 5px !important; }
+
+  /* Navigation buttons */
+  .navActions { gap: 6px !important; flex-wrap: wrap !important; padding: 0 4px; }
+  .navActions .btn { font-size: 12px !important; padding: 8px 12px !important; min-width: auto !important; }
+  #btnCompute { min-width: 160px !important; height: 40px !important; font-size: 13px !important; }
+  #btnReset, #btnDemo { font-size: 11px !important; padding: 6px 10px !important; }
+
+  /* Layout — single column */
+  .appMain { padding: 8px !important; }
+  .appGrid { grid-template-columns: 1fr !important; gap: 8px !important; width: 100% !important; }
+  .stepSplit { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .proposalsCol { position: static !important; top: auto !important; }
+
+  /* Step intro compact */
+  .uiStepIntro { padding: 10px 12px !important; margin-bottom: 10px !important; flex-direction: row !important; text-align: left !important; }
+  .uiStepIntroIcon { width: 36px !important; height: 36px !important; font-size: 18px !important; border-radius: 10px !important; }
+  .uiStepIntroTitle { font-size: 14px !important; }
+  .uiStepIntroMsg { font-size: 12px !important; }
+
+  /* Sections */
+  .uiSection { border-radius: 10px !important; }
+  .uiSectionHeader { padding: 10px 12px !important; gap: 8px !important; }
+  .uiSectionBody { padding: 10px 12px !important; }
+  .uiSectionIcon { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+  /* Forms */
+  .uiFormGrid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .uiInput { height: 38px !important; font-size: 13px !important; }
+
+  /* KPI */
+  .uiKpiRow { grid-template-columns: repeat(3, 1fr) !important; gap: 6px !important; }
+  .uiKpiCard { padding: 8px !important; }
+  .uiKpiValue { font-size: 18px !important; }
+  .uiKpiLabel { font-size: 9px !important; }
+
+  /* Camera cards */
+  .cameraPickCard { padding: 10px !important; border-radius: 10px !important; }
+  .cameraPickTop { flex-direction: row !important; gap: 10px !important; }
+  .cameraPickImg { width: 72px !important; height: 72px !important; min-width: 72px !important; border-radius: 8px !important; }
+  .cameraPickActions { gap: 6px !important; }
+  .cameraPickActions .btnPrimary,
+  .cameraPickActions .btnDatasheet,
+  .cameraPickActions .btnGhost { height: 36px !important; font-size: 12px !important; padding: 0 10px !important; min-width: auto !important; }
+
+  /* Options page */
+  .optCard { border-radius: 10px !important; }
+  .optHeader { padding: 10px 12px !important; gap: 8px !important; }
+  .optBody { padding: 0 12px 12px !important; }
+  .optFormRow { grid-template-columns: 1fr 100px !important; gap: 8px !important; }
+  .optProduct { padding: 10px !important; gap: 8px !important; }
+  .optProductImg, .optProductImgPh { width: 44px !important; height: 44px !important; }
+
+  /* Summary */
+  .summaryActions { padding: 8px !important; border-radius: 10px !important; top: 60px !important; }
+  .summaryActionsRow { gap: 6px !important; }
+  .exportBtn { padding: 8px 12px !important; font-size: 12px !important; }
+  .finalSummary .finalGrid { grid-template-columns: 1fr !important; }
+  .finalSummary .sumRow { grid-template-columns: 48px 1fr !important; gap: 8px !important; padding: 8px !important; }
+  .finalSummary .sumThumb, .finalSummary .sumThumbImg { width: 48px !important; height: 48px !important; }
+
+  /* Reco cards */
+  .recoCard { padding: 10px !important; border-radius: 10px !important; }
+
+  /* Accessoires */
+  .uiProductCard { padding: 10px !important; border-radius: 10px !important; }
+  .uiProductImg { width: 56px !important; height: 48px !important; }
+
+  /* Lang selector */
+  .langSelect { font-size: 12px !important; padding: 4px 22px 4px 8px !important; }
+  #langSelectorWrap { top: 8px !important; right: 8px !important; }
+}
+
+/* --- MOBILE (< 480px) --- */
+@media (max-width: 480px) {
+  /* Header ultra compact */
+  .appHeader, .appHeader.appHeaderCentered,
+  header.appHeader, header.appHeader.appHeaderCentered {
+    padding: 8px 8px 4px !important;
+  }
+  .brandLogoImg { height: 28px !important; }
+  .brandTitle { font-size: 12px !important; }
+
+  /* Stepper encore plus petit */
+  .stepperTitle { font-size: 15px !important; }
+  .stepperSubtitle { font-size: 10px !important; display: none; }
+  .stepperDot { width: 26px !important; height: 26px !important; font-size: 11px !important; border-width: 2px !important; }
+  .stepperLabel { font-size: 8px !important; letter-spacing: 0 !important; }
+  .stepperLine { min-width: 14px !important; max-width: 24px !important; margin-top: 12px !important; }
+  .stepperStep { min-width: 38px !important; }
+  .stepperStep.active .stepperDot { width: 28px !important; height: 28px !important; }
+
+  /* Nav full width */
+  .navActions { flex-direction: column !important; gap: 6px !important; width: 100% !important; }
+  .navActions .btn { width: 100% !important; justify-content: center !important; }
+  #btnCompute { width: 100% !important; min-width: unset !important; order: -1; }
+  #btnReset, #btnDemo { display: inline-flex !important; width: 48% !important; }
+
+  /* Content */
+  .appMain { padding: 4px !important; }
+
+  /* Forms — 1 col */
+  .uiFormGrid { grid-template-columns: 1fr !important; }
+
+  /* KPI — 2 cols sur très petit */
+  .uiKpiRow { grid-template-columns: 1fr 1fr !important; }
+
+  /* Camera card compact */
+  .cameraPickImg { width: 60px !important; height: 60px !important; min-width: 60px !important; }
+  .cameraPickTitle { font-size: 12px !important; }
+  .cameraPickActions { flex-direction: column !important; }
+  .cameraPickActions .btnPrimary,
+  .cameraPickActions .btnDatasheet,
+  .cameraPickActions .btnGhost { width: 100% !important; justify-content: center !important; }
+
+  /* Options — form full width */
+  .optFormRow { grid-template-columns: 1fr !important; }
+  .optInputNarrow { max-width: 100% !important; }
+
+  /* Summary buttons stacked */
+  .summaryActionsRow { flex-direction: column !important; }
+  .exportBtn { width: 100% !important; justify-content: center !important; }
+
+  /* Badges wrap */
+  .badgeRow, .badgePill { font-size: 10px !important; }
+  
+  /* Block forms — camera page */
+  .stepSplit > .blocksCol > .recoCard > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Score badge */
+  .score { min-width: 36px !important; height: 28px !important; font-size: 11px !important; }
+
+  /* ZIP progress overlay responsive */
+  #zipProgressOverlay > div > div { min-width: 280px !important; padding: 20px !important; }
+}
+
+/* --- Touch improvements --- */
+@media (hover: none) and (pointer: coarse) {
+  /* Bigger tap targets */
+  .btn, .btnGhost, .btnPrimary, .btnDatasheet,
+  .optToggle, .pillBtn, .uiBtn, .exportBtn {
+    min-height: 44px !important;
+  }
+  
+  /* No hover effects on touch */
+  .cameraPickCard:hover,
+  .recoCard:hover,
+  .uiSection:hover,
+  .optCard:hover {
+    transform: none !important;
+    box-shadow: inherit !important;
+  }
+  
+  /* Smoother scrolling */
+  .stepperWrap, .appMain, .tableWrap {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* --- Safe area (notch) --- */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .appHeader { padding-top: calc(8px + env(safe-area-inset-top)) !important; }
+  .navActions { padding-bottom: env(safe-area-inset-bottom); }
+  .summaryActions { margin-bottom: env(safe-area-inset-bottom); }
+}

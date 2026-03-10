@@ -1554,8 +1554,8 @@ function localizedName(raw, field) {
 function localizedDatasheetUrl(url) {
   if (!url || url === "false") return url;
   const lang = (typeof _currentLang !== "undefined") ? _currentLang : "fr";
-  const localeMap = { fr: "fr_FR", en: "en_GB", it: "it_IT", es: "es_ES" };
-  const localeMapDash = { fr: "fr-fr", en: "en-gb", it: "it-it", es: "es-es" };
+  const localeMap = { fr: "fr_FR", en: "en_GB", it: "it_IT", es: "es_ES", de: "de_DE" };
+  const localeMapDash = { fr: "fr-fr", en: "en-gb", it: "it-it", es: "es-es", de: "de-de" };
   const targetLocale = localeMap[lang] || "fr_FR";
   const targetLocaleDash = localeMapDash[lang] || "fr-fr";
   let result = url.replace(/\/fr_FR\//g, "/" + targetLocale + "/");
@@ -1757,6 +1757,18 @@ function parsePipeList(v) {
       }
     }
     return [...set].sort((a, b) => a.localeCompare(b, "fr"));
+  }
+
+  // i18n: traduire les noms de use cases du CSV
+  function translateUseCase(uc) {
+    const map = {
+      "Résidentiel": T("uc_residential"),
+      "Tertiaire": T("uc_tertiary"),
+      "Logement collectif": T("uc_collective"),
+      "Intrusion humaine": T("uc_intrusion"),
+      "Intrusion humaine + Dissuasion active": T("uc_intrusion_active"),
+    };
+    return map[uc] || uc;
   }
 window._getCameraById = getCameraById;
   // ==========================================================
@@ -2551,7 +2563,7 @@ function invalidateIfNeeded(block, reason = "Modification") {
   const recordingMode =
     MODEL?.storage?.mode ??
     MODEL?.storageMode ??
-    "Continu";
+    T("pdf_continuous");
 
   return { days, ips, codec, marginPct, hoursPerDay, recordingMode };
 }
@@ -2664,7 +2676,7 @@ function computePerCameraBitrates() {
 
   const ips = clampNum(rec.fps, 1, 60, 12);
   const codec = String(rec.codec || "H.265");
-  const mode = String(rec.mode || "Continu");
+  const mode = String(rec.mode || T("pdf_continuous"));
 
   // -----------------------------
   // Débit par caméra : priorité bitrate_mbps_typical
@@ -3425,7 +3437,7 @@ function imgTag(family, ref) {
 
   function buildPdfHtml(proj) {
   const now = new Date();
-  const langLocale = { fr: "fr-FR", en: "en-GB", it: "it-IT", es: "es-ES" };
+  const langLocale = { fr: "fr-FR", en: "en-GB", it: "it-IT", es: "es-ES", de: "de-DE" };
   const dateStr = now.toLocaleString(langLocale[_currentLang] || "fr-FR");
 
   const safe = (v) =>
@@ -3468,7 +3480,7 @@ function imgTag(family, ref) {
 
   const frMode = (m) => {
     const s = String(m || "").toLowerCase().trim();
-    if (s === "continuous" || s === "continu" || s === "24/7") return "Continu";
+    if (s === "continuous" || s === "continu" || s === "24/7") return T("pdf_continuous");
     if (s === "motion" || s === "détection" || s === "detection") return "Sur détection";
     if (s === "mixed" || s === "mixte") return "Mixte";
     return m ? String(m) : "—";
@@ -3536,8 +3548,8 @@ function imgTag(family, ref) {
         <img class="brandLogo" src="${LOGO_SRC}" onerror="this.style.display='none'" alt="Comelit" loading="lazy">
 
         <div class="headerTitles">
-          <div class="mainTitle">Rapport de configuration</div>
-          <div class="mainTitle mainTitleSub">Vidéosurveillance</div>
+          <div class="mainTitle">${T("pdf_report_title")}</div>
+          <div class="mainTitle mainTitleSub">${T("pdf_report_subtitle")}</div>
         </div>
 
         <div class="headerRight">
@@ -3637,7 +3649,7 @@ function imgTag(family, ref) {
   const overheadPct = sp.overheadPct ?? MODEL?.recording?.overheadPct ?? 15;
   const codec = frCodec(sp.codec ?? MODEL?.recording?.codec ?? "H.265");
   const ips = sp.ips ?? MODEL?.recording?.fps ?? 12;
-  const mode = frMode(sp.mode ?? MODEL?.recording?.mode ?? "Continu");
+  const mode = frMode(sp.mode ?? MODEL?.recording?.mode ?? T("pdf_continuous"));
 
   // =========================================================================
   // =========================================================================
@@ -3694,13 +3706,13 @@ function imgTag(family, ref) {
     let pages = [];
     let currentRows = [];  // Buffer des lignes en cours
     let isFirstPage = true;
-    let pageSubtitle = "Caméras & accessoires caméras";
+    let pageSubtitle = T("pdf_cameras_accessories");
 
     // Fonction pour créer une page
     const flushPage = (isContinuation = false) => {
       if (currentRows.length === 0) return;
       
-      const subtitle = isContinuation ? "Caméras & accessoires (suite)" : pageSubtitle;
+      const subtitle = isContinuation ? T("pdf_cameras_accessories") + " (" + T("pdf_detail_zone_cont").split("(").pop() : pageSubtitle;
       
       if (isFirstPage) {
         // Première page avec KPI
@@ -3722,7 +3734,7 @@ function imgTag(family, ref) {
       <div class="kpiBox">
         <div class="kpiLabel">${T("pdf_rec_params")}</div>
         <div class="kpiValue">${safe(daysRetention)} jours</div>
-        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
+        <div class="muted">${safe(codec)} • ${safe(ips)} ${T("pdf_ips")} • ${safe(mode)} • ${T("pdf_margin_label")} ${safe(overheadPct)}%</div>
       </div>
     </div>
 
@@ -3815,7 +3827,7 @@ function imgTag(family, ref) {
       <div class="kpiBox">
         <div class="kpiLabel">${T("pdf_rec_params")}</div>
         <div class="kpiValue">${safe(daysRetention)} jours</div>
-        <div class="muted">${safe(codec)} • ${safe(ips)} IPS • ${safe(mode)} • Marge ${safe(overheadPct)}%</div>
+        <div class="muted">${safe(codec)} • ${safe(ips)} ${T("pdf_ips")} • ${safe(mode)} • ${T("pdf_margin_label")} ${safe(overheadPct)}%</div>
       </div>
     </div>
 
@@ -5224,7 +5236,7 @@ const buildSynopticHtml = (proj) => {
     ${qrDataUrl ? `
     <div class="qrBlock">
       <img src="${qrDataUrl}" class="qrImg" alt="QR Code" />
-      <div class="qrLabel">Scannez pour ouvrir ou modifier<br>cette configuration en ligne</div>
+      <div class="qrLabel">${T("pdf_qr_label")}</div>
     </div>
     ` : ""}
 
@@ -5275,10 +5287,10 @@ const buildSynopticHtml = (proj) => {
             <thead><tr><th>${T("pdf_param")}</th><th>${T("pdf_value")}</th></tr></thead>
             <tbody>
               <tr><td>${T("pdf_days_retention")}</td><td>${safe(daysRetention)}</td></tr>
-              <tr><td>Heures / jour</td><td>${safe(hoursPerDay)}</td></tr>
+              <tr><td>${T("pdf_hours_day_label")}</td><td>${safe(hoursPerDay)}</td></tr>
               <tr><td>Mode d’enregistrement</td><td>${safe(mode)}</td></tr>
               <tr><td>Codec</td><td>${safe(codec)}</td></tr>
-              <tr><td>IPS</td><td>${safe(ips)}</td></tr>
+              <tr><td>${T("pdf_ips")}</td><td>${safe(ips)}</td></tr>
               <tr><td>Marge</td><td>${safe(overheadPct)}%</td></tr>
             </tbody>
           </table>
@@ -5321,14 +5333,14 @@ const buildSynopticHtml = (proj) => {
                     : ``
                 }
                 <div class="muted" style="margin-top:6px">
-                  Total débit : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong>
+                  ${T("pdf_total_bitrate_label")} : <strong>${safe(totalMbps.toFixed(2))} Mbps</strong>
                 </div>
               `
               : `<div class="muted">—</div>`
           }
 
           <div class="muted" style="margin-top:6px">
-            Source : catalogue caméras → <em>bitrate_mbps_typical</em> (si vide : estimation).
+            ${T("pdf_source_catalog")} → <em>bitrate_mbps_typical</em> (${T("pdf_source_estimation")}).
           </div>
         </div>
       </div>
@@ -5783,7 +5795,7 @@ function camPickCardHTML(blk, cam, label) {
             ${
               canRecommendBlock(blk)
                 ? `✅ ${T("cam_criteria_ok")}`
-                : `⚠️ Remplis les champs obligatoires (<span style="color:#DC2626">*</span>) pour voir les propositions.`
+                : `⚠️ ${T("err_fill_required_fields")}`
             }
           </div>
 
@@ -5998,7 +6010,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           <div class="recoHeader">
             <div>
               <div class="recoName">${T("proj_title")}</div>
-              <div class="muted">Définition du périmètre et du contexte de l'installation.</div>
+              <div class="muted">${T("proj_desc_old")}</div>
             </div>
             <div class="score">📝</div>
           </div>
@@ -6027,7 +6039,7 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
               style="width:100%;margin-top:6px;padding:10px;border-radius:12px;border:1px solid ${useCase.trim() ? 'var(--line)' : 'rgba(220,38,38,.5)'};background:var(--panel2);color:var(--text)"
             >
               <option value="">${T("proj_type_select")}</option>
-              ${useCases.map(u => `<option value="${safeHtml(u)}" ${useCase === u ? "selected" : ""}>${safeHtml(u)}</option>`).join("")}
+              ${useCases.map(u => `<option value="${safeHtml(u)}" ${useCase === u ? "selected" : ""}>${safeHtml(translateUseCase(u))}</option>`).join("")}
             </select>
             <div class="muted" style="margin-top:6px">
               ${T("proj_type_hint")}
@@ -6803,7 +6815,15 @@ function showToast(message, type) {
   // ==========================================================
   // MAIN RENDER (manquait → causait "render is not defined")
   // ==========================================================
+// Debounce render pour éviter les re-renders multiples rapides
+let _renderRAF = null;
 function render() {
+  if (_renderRAF) cancelAnimationFrame(_renderRAF);
+  _renderRAF = requestAnimationFrame(_renderImmediate);
+}
+
+function _renderImmediate() {
+  _renderRAF = null;
   if (!Array.isArray(STEPS) || !STEPS.length) return;
 
   if (!Number.isFinite(MODEL.stepIndex)) MODEL.stepIndex = 0;
@@ -6831,15 +6851,10 @@ function render() {
   html = `<div class="recoCard" style="padding:12px"><div class="muted">Étape inconnue : ${safeHtml(stepId || "—")}</div></div>`;
   }
 
-
   DOM.stepsEl.innerHTML = html;
 
-  // ✅ Important: les boutons "Summary" sont recréés à chaque render()
   bindSummaryButtons();
-
   syncResultsUI?.();
-  
-  // ✅ Mettre à jour les boutons de navigation (Précédent/Suivant)
   updateNavButtons();
   updateProgress();
 }
@@ -7121,7 +7136,7 @@ async function buildPdfBlobProFromProject(proj) {
   }
   
   if (!proj) {
-    throw new Error("Projet non disponible. Veuillez d'abord compléter la configuration.");
+    throw new Error(T("err_project_unavailable"));
   }
 
   // 1) Créer le container offscreen
@@ -7590,7 +7605,7 @@ if (action === "projUseCase") {
     if (isComplete) {
       alertEl.className = "alert ok";
       alertEl.style.marginTop = "14px";
-      alertEl.innerHTML = "✅ Informations complètes. Vous pouvez passer à l'étape suivante.";
+      alertEl.innerHTML = "✅ " + T("msg_info_complete");
     } else {
       alertEl.className = "alert warn";
       alertEl.style.marginTop = "14px";
@@ -7935,7 +7950,7 @@ async function exportProjectPdfPro(proj) {
   }
   
   if (!proj) {
-    alert("Projet non disponible. Veuillez d'abord compléter la configuration et cliquer sur 'Suivant' ou 'Finaliser'.");
+    alert(T("err_project_unavailable"));
     return;
   }
 
@@ -8277,7 +8292,7 @@ async function exportProjectPdfWithLocalDatasheetsZip() {
   }
 
   if (!proj) {
-    alert("Projet non disponible. Complétez d'abord la configuration.");
+    alert(T("err_project_unavailable"));
     return;
   }
 
@@ -8307,137 +8322,151 @@ async function exportProjectPdfWithLocalDatasheetsZip() {
     reader.readAsDataURL(pdfBlob);
   });
 
-  // Collecter les IDs produits
-  const product_ids = collectProductIdsForPack(proj);
-  
   // Collecter les URLs de fiches techniques (localisées selon la langue)
   const datasheet_items = collectDatasheetUrlsFromProject(proj);
 
-  // ✅ Générer le nom du fichier ZIP basé sur le nom du projet
   const projectSlugZip = (MODEL?.projectName || "")
-    .trim()
-    .toLowerCase()
+    .trim().toLowerCase()
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
     .slice(0, 40) || "projet";
 
-  // ✅ Construire le payload
-  const payload = {
-    pdf_base64,
-    product_ids,
-    datasheet_urls: datasheet_items.map(d => ({ url: d.url, path: d.path })),
-    zip_name: `${projectSlugZip}_${day}.zip`,
+  const zipName = `${projectSlugZip}_${day}.zip`;
+
+  // ======== BUILD ZIP CLIENT-SIDE via proxy PDF ========
+  
+  // Créer la barre de progression
+  let progressOverlay = document.getElementById("zipProgressOverlay");
+  if (!progressOverlay) {
+    progressOverlay = document.createElement("div");
+    progressOverlay.id = "zipProgressOverlay";
+    progressOverlay.innerHTML = `
+      <div style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999">
+        <div style="background:#fff;border-radius:16px;padding:28px 32px;min-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.2);text-align:center">
+          <div style="font-size:24px;margin-bottom:8px">📦</div>
+          <div id="zipProgressTitle" style="font-weight:800;font-size:15px;color:#1C1F2A;margin-bottom:4px">${T("sum_export_pack")}</div>
+          <div id="zipProgressStatus" style="font-size:12px;color:#64748b;margin-bottom:14px">...</div>
+          <div style="width:100%;height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden">
+            <div id="zipProgressBar" style="width:0%;height:100%;border-radius:4px;background:linear-gradient(90deg,#00BC70,#00a863);transition:width .3s ease"></div>
+          </div>
+          <div id="zipProgressPct" style="font-size:11px;color:#94a3b8;margin-top:6px">0%</div>
+        </div>
+      </div>`;
+    document.body.appendChild(progressOverlay);
+  }
+  progressOverlay.style.display = "block";
+
+  const setProgress = (pct, status) => {
+    const bar = document.getElementById("zipProgressBar");
+    const pctEl = document.getElementById("zipProgressPct");
+    const statusEl = document.getElementById("zipProgressStatus");
+    if (bar) bar.style.width = pct + "%";
+    if (pctEl) pctEl.textContent = Math.round(pct) + "%";
+    if (statusEl) statusEl.textContent = status;
   };
 
-  // Endpoints à essayer
-  const endpoints = [
-    "/export/localzip",
-    "http://127.0.0.1:8000/export/localzip",
-    "http://localhost:8000/export/localzip",
-  ];
-
-  let response = null;
-  let lastError = "";
-
-  for (const endpoint of endpoints) {
-    try {
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) break;
-      lastError = await response.text().catch(() => `HTTP ${response.status}`);
-      response = null;
-    } catch (e) {
-      lastError = e.message;
-      response = null;
-    }
-  }
-
-  if (!response) {
-    // ======== FALLBACK CLIENT : construire le ZIP côté navigateur ========
-    console.log("[ZIP] Server unavailable, building ZIP client-side...");
-    try {
-      // Charger JSZip dynamiquement si pas déjà chargé
-      if (typeof JSZip === "undefined") {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement("script");
-          s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
-          s.onload = resolve;
-          s.onerror = () => reject(new Error("JSZip load failed"));
-          document.head.appendChild(s);
-        });
-      }
-
-      const zip = new JSZip();
-
-      // Ajouter le PDF principal
-      const pdfBytes = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
-      zip.file(`${projectSlugZip}_${day}.pdf`, pdfBytes);
-
-      // Télécharger les fiches techniques en parallèle
-      const fetchPromises = datasheet_items.map(async (item) => {
-        try {
-          const resp = await fetch(item.url, { mode: "cors" });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const contentType = resp.headers.get("content-type") || "";
-          if (!contentType.includes("pdf")) {
-            console.warn(`[ZIP] Skipping non-PDF: ${item.url}`);
-            return;
-          }
-          const blob = await resp.blob();
-          if (blob.size > 500) {
-            zip.file(item.path, blob);
-            console.log(`[ZIP] Added: ${item.path}`);
-          }
-        } catch (e) {
-          console.warn(`[ZIP] Failed to fetch: ${item.url}`, e.message);
-        }
-      });
-
-      await Promise.allSettled(fetchPromises);
-
-      // Générer et télécharger le ZIP
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = payload.zip_name;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
-      console.log("[ZIP] Client-side export OK:", payload.zip_name);
-      return;
-    } catch (clientErr) {
-      console.error("[ZIP] Client-side fallback failed:", clientErr);
-      alert("Export pack indisponible.\nDétail : " + lastError + "\nFallback: " + clientErr.message);
-      return;
-    }
-  }
-
-  // Télécharger le ZIP
+  setProgress(5, "PDF...");
+  
   try {
-    const zipBlob = await response.blob();
-    if (!zipBlob || zipBlob.size < 200) {
-      throw new Error("ZIP vide");
+    // Charger JSZip
+    if (typeof JSZip === "undefined") {
+      setProgress(8, "Loading JSZip...");
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+        s.onload = resolve;
+        s.onerror = () => reject(new Error("JSZip load failed"));
+        document.head.appendChild(s);
+      });
     }
 
-    const url = URL.createObjectURL(zipBlob);
+    const zip = new JSZip();
+
+    // 1) PDF principal
+    const pdfBytes = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
+    zip.file(`${projectSlugZip}_${day}.pdf`, pdfBytes);
+    setProgress(15, `PDF ✅ (${(pdfBytes.length / 1024).toFixed(0)} KB)`);
+    console.log(`[ZIP] ✅ PDF (${(pdfBytes.length / 1024).toFixed(0)} KB)`);
+
+    // 2) Fiches techniques via proxy (avec fallback FR si la langue cible n'existe pas)
+    let fetchedCount = 0;
+    const failedLinks = [];
+    const total = datasheet_items.length;
+
+    const fetchPdf = async (item, idx) => {
+      // URL localisée (ex: /de_DE/)
+      const localizedUrl = item.url;
+      // URL fallback FR (remplacer la locale par fr_FR)
+      const frUrl = localizedUrl
+        .replace(/\/(en_GB|it_IT|es_ES|de_DE)\//g, "/fr_FR/")
+        .replace(/\/(en-gb|it-it|es-es|de-de)\//g, "/fr-fr/");
+      
+      const urlsToTry = [localizedUrl];
+      if (frUrl !== localizedUrl) urlsToTry.push(frUrl);
+
+      for (const url of urlsToTry) {
+        try {
+          const proxyUrl = `/proxy-pdf?url=${encodeURIComponent(url)}`;
+          const resp = await fetch(proxyUrl);
+          if (!resp.ok) continue;
+          const blob = await resp.blob();
+          if (blob.size > 2000) {
+            const header = await blob.slice(0, 5).text();
+            if (header.startsWith("%PDF")) {
+              zip.file(item.path, blob);
+              fetchedCount++;
+              const lang = url === localizedUrl ? "" : " (FR)";
+              console.log(`[ZIP] ✅ ${item.path}${lang} (${(blob.size / 1024).toFixed(0)} KB)`);
+              return;
+            }
+          }
+        } catch (e) { /* try next */ }
+      }
+      console.warn(`[ZIP] ❌ ${item.path}`);
+      failedLinks.push(localizedUrl);
+    };
+
+    // Télécharger par batch de 4 avec progression
+    for (let i = 0; i < total; i += 4) {
+      const batch = datasheet_items.slice(i, i + 4);
+      await Promise.allSettled(batch.map((item, j) => fetchPdf(item, i + j)));
+      const done = Math.min(i + 4, total);
+      const pct = 15 + (done / total) * 70;
+      setProgress(pct, `${T("btn_datasheet")} ${done}/${total}...`);
+    }
+
+    // 3) Fichier liens pour les échouées
+    if (failedLinks.length > 0) {
+      zip.file("datasheets_links.txt",
+        "DATASHEETS\n" + "=".repeat(50) + "\n\n"
+        + failedLinks.map((u, i) => `${i + 1}. ${u}`).join("\n"));
+    }
+
+    console.log(`[ZIP] Result: ${fetchedCount}/${total} datasheets`);
+    setProgress(90, "ZIP...");
+
+    // 4) Générer le ZIP
+    const finalZip = await zip.generateAsync({ type: "blob" });
+    setProgress(98, `${(finalZip.size / 1024).toFixed(0)} KB`);
+
+    const dlUrl = URL.createObjectURL(finalZip);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = payload.zip_name;
+    a.href = dlUrl;
+    a.download = zipName;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    setTimeout(() => URL.revokeObjectURL(dlUrl), 2000);
 
-    console.log("[ZIP] Export OK:", payload.zip_name);
-  } catch (e) {
-    console.error("[ZIP] Download error:", e);
-    alert("Erreur téléchargement ZIP.");
+    console.log(`[ZIP] ✅ Export: ${(finalZip.size / 1024).toFixed(0)} KB, ${fetchedCount}/${total} datasheets`);
+    setProgress(100, `✅ ${fetchedCount}/${total} ${T("btn_datasheet")}`);
+    
+    setTimeout(() => { if (progressOverlay) progressOverlay.style.display = "none"; }, 1500);
+
+  } catch (err) {
+    console.error("[ZIP] Error:", err);
+    if (progressOverlay) progressOverlay.style.display = "none";
+    alert("Export: " + err.message);
   }
 }
 
@@ -8564,13 +8593,13 @@ function validateStep(stepId) {
   
   switch (stepId) {
     case "project":
-      if (!MODEL.projectName?.trim()) errors.push("Le nom du projet est obligatoire.");
-      if (!MODEL.projectUseCase?.trim()) errors.push("Le type de site est obligatoire.");
+      if (!MODEL.projectName?.trim()) errors.push(T("err_project_name_required"));
+      if (!MODEL.projectUseCase?.trim()) errors.push(T("err_site_type_required"));
       break;
       
     case "cameras": {
       const validatedCount = (MODEL.cameraBlocks || []).filter(b => b.validated).length;
-      if (validatedCount === 0) errors.push("Validez au moins une caméra avant de continuer.");
+      if (validatedCount === 0) errors.push(T("err_validate_one_camera"));
       // Vérifier que tous les blocs actifs ont des réponses complètes
       for (const blk of (MODEL.cameraBlocks || [])) {
         if (blk.validated) continue; // validé = OK
@@ -8630,7 +8659,7 @@ function showStepValidationErrors(errors) {
   });
   
   toast.innerHTML = `
-    <div style="font-weight:900;font-size:14px;margin-bottom:8px">⚠️ Impossible de continuer</div>
+    <div style="font-weight:900;font-size:14px;margin-bottom:8px">${"⚠️ " + T("err_cannot_continue")}</div>
     ${errors.map(e => `<div style="font-size:13px;margin-top:4px;opacity:0.9">• ${e}</div>`).join("")}
   `;
   
