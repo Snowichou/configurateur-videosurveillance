@@ -4090,3 +4090,1009 @@ header .brandCenter,
   color: var(--muted);
   line-height: 1.4;
 }
+
+/* ============================================================
+   TOOLTIP INFO (ℹ️)
+   ============================================================ */
+.infoTip{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(0,188,112,.12);
+  color: #00BC70;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: help;
+  position: relative;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.infoTip::after{
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1C1F2A;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  padding: 8px 12px;
+  border-radius: 10px;
+  white-space: normal;
+  width: max-content;
+  max-width: 280px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease, transform .15s ease;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,.2);
+}
+.infoTip:hover::after{
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+/* Flèche */
+.infoTip::before{
+  content: "";
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1C1F2A;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s ease;
+  z-index: 101;
+}
+.infoTip:hover::before{
+  opacity: 1;
+}
+
+/* ============================================================
+   TECHNICAL VALIDATION BADGES
+   ============================================================ */
+.techBadge{
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.techBadgeOk{
+  background: rgba(0,188,112,.08);
+  color: #166534;
+  border: 1px solid rgba(0,188,112,.2);
+}
+.techBadgeWarn{
+  background: rgba(245,158,11,.08);
+  color: #92400e;
+  border: 1px solid rgba(245,158,11,.2);
+}
+.techBadgeDanger{
+  background: rgba(220,38,38,.08);
+  color: #991b1b;
+  border: 1px solid rgba(220,38,38,.2);
+}
+
+/* ============================================================
+   SUMMARY ACTIONS
+   ============================================================ */
+.summaryActions{
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; border-radius: var(--r16);
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.95);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(2,6,23,.06);
+  position: sticky; top: 86px; z-index: 5;
+}
+.summaryActionsRow{
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.summaryActionsUtils{
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+@media(max-width:768px){
+  .summaryActionsRow{ flex-direction: column; }
+  .exportBtn{ width: 100%; justify-content: center; }
+}
+
+/* Summary banner */
+.summaryBanner{
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 20px; border-radius: var(--r16);
+  border: 1px solid rgba(0,188,112,.25);
+  background: linear-gradient(135deg, rgba(0,188,112,.06) 0%, rgba(0,188,112,.02) 100%);
+}
+.summaryBanner.warn{
+  border-color: rgba(245,158,11,.3);
+  background: linear-gradient(135deg, rgba(245,158,11,.06) 0%, rgba(245,158,11,.02) 100%);
+}
+.summaryBannerIcon{ font-size: 28px; flex-shrink: 0; }
+.summaryBannerTitle{ font-weight: 950; font-size: 15px; color: var(--cosmos); }
+.summaryBannerSub{ font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+/* Export buttons */
+.exportBtn{
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px; border-radius: 12px; border: 1px solid var(--line);
+  background: #fff; font-weight: 800; font-size: 13px;
+  cursor: pointer; transition: all .15s ease; white-space: nowrap;
+  flex: 1; justify-content: center;
+}
+.exportBtn:hover{
+  border-color: rgba(0,188,112,.35);
+  box-shadow: 0 4px 16px rgba(0,188,112,.10);
+  transform: translateY(-1px);
+}
+.exportBtn:active{ transform: translateY(0); }
+.exportBtnIcon{ font-size: 16px; }
+
+.exportBtnMain{
+  background: linear-gradient(135deg, #00BC70 0%, #00a863 100%);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 4px 16px rgba(0,188,112,.25);
+}
+.exportBtnMain:hover{ box-shadow: 0 6px 24px rgba(0,188,112,.35); border-color: transparent; }
+.exportBtnSecondary{ background: #fff; color: var(--cosmos); }
+.exportBtnGhost{ background: transparent; border-color: transparent; color: var(--muted); }
+.exportBtnGhost:hover{ background: rgba(0,0,0,.03); color: var(--cosmos); border-color: transparent; box-shadow: none; }
+
+.exportBtnCommercial{
+  background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+  color: #fff; border-color: transparent;
+  box-shadow: 0 4px 16px rgba(59,130,246,.25);
+}
+.exportBtnCommercial:hover{ box-shadow: 0 6px 24px rgba(59,130,246,.35); border-color: transparent; }
+
+/* NVR alt card hover */
+.nvrAltCard:hover{
+  background: rgba(0,188,112,.03);
+  border-color: rgba(0,188,112,.3) !important;
+}
+
+/* NVR Alternative Cards */
+.nvrAltCard{
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.nvrAltCard:last-child{ border-bottom: none; }
+.nvrAltCard:hover{
+  background: rgba(0,188,112,.04);
+}
+
+/* =============================================
+   OPTIONS / COMPLÉMENTS
+   ============================================= */
+.optGrid{ display:flex; flex-direction:column; gap:12px; }
+
+.optCard{
+  border-radius:14px;
+  border:1.5px solid var(--line);
+  background:#fff;
+  overflow:hidden;
+  transition:border-color .2s, box-shadow .2s;
+}
+.optCardActive{
+  border-color:rgba(0,188,112,.35);
+  box-shadow:0 0 0 3px rgba(0,188,112,.06);
+}
+
+.optHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:14px 18px;
+  gap:12px;
+}
+.optHeaderLeft{ display:flex; align-items:center; gap:12px; min-width:0; }
+.optIcon{
+  width:40px; height:40px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px;
+  background:rgba(0,188,112,.06);
+  flex-shrink:0;
+}
+.optCardActive .optIcon{ background:rgba(0,188,112,.1); }
+.optHeaderTxt{ min-width:0; }
+.optTitle{ font-size:14px; font-weight:800; color:var(--heading); }
+.optDesc{ font-size:12px; color:var(--muted); margin-top:1px; }
+
+/* Toggle switch */
+.optToggle{
+  width:44px; height:24px; border-radius:12px;
+  border:none; cursor:pointer; flex-shrink:0;
+  background:#d1d5db; position:relative;
+  transition:background .2s;
+}
+.optToggleOn{ background:#00BC70; }
+.optToggleDot{
+  position:absolute; top:2px; left:2px;
+  width:20px; height:20px; border-radius:50%;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.15);
+  transition:transform .2s;
+}
+.optToggleOn .optToggleDot{ transform:translateX(20px); }
+
+/* Body */
+.optBody{
+  padding:0 18px 16px;
+  border-top:1px solid var(--line);
+}
+
+/* Form */
+.optForm{ padding-top:12px; }
+.optFormRow{ display:grid; grid-template-columns:1fr 120px; gap:12px; }
+.optFormField{ display:flex; flex-direction:column; gap:4px; }
+.optLabel{ font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+.optInput{
+  height:38px; border-radius:8px; border:1.5px solid var(--line);
+  padding:0 10px; font-size:13px; background:#fff;
+  transition:border-color .15s;
+}
+.optInput:focus{ border-color:#00BC70; outline:none; }
+.optInputNarrow{ max-width:120px; }
+
+/* Product row */
+.optProduct{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px; margin-top:10px;
+  border-radius:10px; border:1px solid var(--line);
+  background:#fafbfc;
+  gap:12px;
+}
+.optProductInfo{ min-width:0; flex:1; }
+.optProductRef{ font-size:14px; font-weight:800; color:var(--heading); }
+.optProductName{ font-size:12px; color:var(--muted); margin-top:2px; }
+.optProductImg{
+  width:56px; height:56px; object-fit:contain;
+  border-radius:8px; border:1px solid var(--line);
+  background:#fff; flex-shrink:0;
+}
+.optProductImgPh{
+  width:56px; height:56px; border-radius:8px;
+  border:1px solid var(--line); background:#f0f2f5;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; flex-shrink:0;
+}
+
+/* Badges */
+.optBadges{ display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.optBadge{
+  font-size:11px; font-weight:700; padding:3px 8px;
+  border-radius:6px;
+  background:rgba(107,114,128,.08); color:#6b7280;
+}
+.optBadgeOk{ background:rgba(0,188,112,.08); color:#059669; }
+.optBadgeWarn{ background:rgba(245,158,11,.08); color:#b45309; }
+
+.optNoProduct{
+  padding:12px; margin-top:10px;
+  border-radius:10px; border:1px dashed var(--line);
+  background:#fafbfc; color:var(--muted);
+  font-size:12px; text-align:center;
+}
+
+@media(max-width:600px){
+  .optFormRow{ grid-template-columns:1fr; }
+  .optInputNarrow{ max-width:100%; }
+}
+
+
+/* ============================================================
+   V3 — REFONTE VISUELLE GLOBALE
+   Design : ultra-clean, intuitif, professionnel
+   ============================================================ */
+
+/* --- Tokens V3 --- */
+:root{
+  --green-50: rgba(0,188,112,.04);
+  --green-100: rgba(0,188,112,.08);
+  --green-200: rgba(0,188,112,.16);
+  --green-500: #00BC70;
+  --green-glow: 0 0 0 4px rgba(0,188,112,.12);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.04);
+  --shadow-card: 0 2px 12px rgba(0,0,0,.06);
+  --shadow-hover: 0 8px 28px rgba(0,0,0,.10);
+  --transition: .2s cubic-bezier(.4,0,.2,1);
+}
+
+/* ============================================================
+   HEADER V3 — ultra compact
+   ============================================================ */
+.appHeader, .appHeader.appHeaderCentered,
+header.appHeader, header.appHeader.appHeaderCentered{
+  padding: 14px 20px 10px !important;
+  gap: 4px !important;
+  border-bottom: 1px solid rgba(0,0,0,.06) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,.03) !important;
+}
+
+.brandLogoImg{
+  height: 44px !important;
+}
+
+.brandTitle{
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.2px !important;
+}
+
+.brandTagline{
+  display: none !important;
+}
+
+/* ============================================================
+   STEPPER V3 — simplifié, compact
+   ============================================================ */
+.stepperSection{
+  padding: 14px 16px 16px !important;
+  background: transparent !important;
+  border-top: none !important;
+}
+
+.stepperTitle{
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.3px !important;
+}
+
+.stepperSubtitle{
+  font-size: 13px !important;
+  margin-bottom: 14px !important;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.4;
+}
+
+.stepperWrap{
+  padding: 4px 0 12px !important;
+}
+
+.stepperStep{
+  gap: 6px !important;
+  min-width: 60px !important;
+}
+
+.stepperStep:hover{
+  transform: translateY(-1px) !important;
+}
+
+.stepperDot{
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 14px !important;
+  border-width: 2px !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.stepperLabel{
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.stepperLine{
+  height: 2px !important;
+  margin-top: 17px !important;
+  min-width: 24px !important;
+  max-width: 50px !important;
+}
+
+/* Active state V3 */
+.stepperStep.active .stepperDot{
+  width: 38px !important;
+  height: 38px !important;
+  border-width: 2.5px !important;
+  box-shadow: var(--green-glow), var(--shadow-card) !important;
+  animation: stepPulseV3 3s ease-in-out infinite !important;
+  transform: none !important;
+}
+
+@keyframes stepPulseV3{
+  0%, 100%{ box-shadow: var(--green-glow), var(--shadow-card); }
+  50%{ box-shadow: 0 0 0 6px rgba(0,188,112,.08), var(--shadow-card); }
+}
+
+.stepperStep.active .stepperLabel{
+  font-size: 11px !important;
+  color: var(--green-500) !important;
+  font-weight: 800 !important;
+}
+
+.stepperStep.completed .stepperDot{
+  box-shadow: 0 2px 8px rgba(0,188,112,.25) !important;
+}
+
+.stepperStep.future .stepperDot{
+  opacity: .5 !important;
+}
+
+/* ============================================================
+   NAV BUTTONS V3 — Suivant proéminent
+   ============================================================ */
+.navActions{
+  gap: 10px !important;
+  margin-top: 2px !important;
+}
+
+.navActions .btn{
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  height: 40px !important;
+}
+
+#btnCompute{
+  min-width: 180px !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0,188,112,.3) !important;
+  letter-spacing: -.1px;
+}
+
+#btnCompute:hover{
+  box-shadow: 0 6px 24px rgba(0,188,112,.4) !important;
+  transform: translateY(-1px);
+}
+
+#btnPrev{
+  opacity: .7 !important;
+}
+#btnPrev:hover{
+  opacity: 1 !important;
+}
+
+#btnReset, #btnDemo{
+  font-size: 12px !important;
+  padding: 8px 14px !important;
+  opacity: .6;
+}
+#btnReset:hover, #btnDemo:hover{
+  opacity: .9;
+}
+
+/* ============================================================
+   STEP INTRO V3 — bannière épurée
+   ============================================================ */
+.uiStepIntro{
+  padding: 14px 18px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(0,188,112,.15) !important;
+  background: linear-gradient(135deg, rgba(0,188,112,.03) 0%, rgba(0,188,112,.01) 100%) !important;
+  margin-bottom: 16px !important;
+}
+
+.uiStepIntroIcon{
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  background: var(--green-100);
+  font-size: 22px !important;
+}
+
+.uiStepIntroTitle{
+  font-size: 15px !important;
+  letter-spacing: -.2px;
+}
+
+.uiStepIntroMsg{
+  font-size: 13px !important;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   UI SECTION V3 — headers épurés
+   ============================================================ */
+.uiSection{
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+  border-color: rgba(0,0,0,.06) !important;
+}
+
+.uiSection:hover{
+  box-shadow: var(--shadow-hover) !important;
+}
+
+.uiSectionHeader{
+  padding: 12px 16px !important;
+  background: transparent !important;
+  border-bottom-color: rgba(0,0,0,.05) !important;
+}
+
+.uiSectionIcon{
+  width: 36px !important; height: 36px !important;
+  border-radius: 10px !important;
+  background: var(--green-50) !important;
+  border-color: rgba(0,188,112,.12) !important;
+  font-size: 18px !important;
+}
+
+.uiSectionTitle{
+  font-size: 13px !important;
+  letter-spacing: -.1px;
+}
+
+.uiSectionMeta{
+  font-size: 11px !important;
+  line-height: 1.4;
+}
+
+.uiSectionBody{
+  padding: 12px 16px !important;
+}
+
+/* ============================================================
+   INPUTS V3 — plus hauts, focus net
+   ============================================================ */
+.uiInput{
+  height: 40px !important;
+  padding: 0 12px !important;
+  border-radius: 10px !important;
+  border: 1.5px solid rgba(0,0,0,.08) !important;
+  background: #fff !important;
+  font-size: 14px !important;
+  transition: border-color var(--transition), box-shadow var(--transition) !important;
+}
+
+.uiInput:focus{
+  border-color: var(--green-500) !important;
+  box-shadow: var(--green-glow) !important;
+}
+
+.uiInputLabel{
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: rgba(15,23,42,.7) !important;
+}
+
+.uiHint{
+  font-size: 11px !important;
+  color: rgba(15,23,42,.45) !important;
+}
+
+/* ============================================================
+   KPI CARDS V3 — valeur plus visible
+   ============================================================ */
+.uiKpiCard{
+  border-radius: 10px !important;
+  padding: 12px !important;
+  border-color: rgba(0,0,0,.06) !important;
+  background: #fff !important;
+}
+
+.uiKpiCardAccent{
+  background: linear-gradient(135deg, rgba(0,188,112,.04) 0%, rgba(0,188,112,.02) 100%) !important;
+  border-color: rgba(0,188,112,.2) !important;
+}
+
+.uiKpiValue{
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.5px;
+}
+
+.uiKpiLabel{
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+/* ============================================================
+   PRODUCT CARDS V3 — plus aérées
+   ============================================================ */
+.uiProductCard{
+  border-radius: 12px !important;
+  border-color: rgba(0,0,0,.06) !important;
+  padding: 14px !important;
+  transition: all var(--transition) !important;
+}
+
+.uiProductCard:hover{
+  border-color: rgba(0,188,112,.3) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.uiProductTitle{
+  font-size: 14px !important;
+  font-weight: 800 !important;
+}
+
+.uiProductMeta{
+  font-size: 12px !important;
+}
+
+/* ============================================================
+   CAMERA CARDS V3 — propre, lisible
+   ============================================================ */
+.cameraPickCard{
+  border-radius: 12px !important;
+  padding: 12px !important;
+  border-left-width: 3px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.cameraPickCard:hover{
+  box-shadow: var(--shadow-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+.cameraPickImg{
+  border-radius: 10px !important;
+}
+
+.cameraPickTitle{
+  font-size: 13px !important;
+}
+
+.cameraPickActions .btnPrimary,
+.cameraPickActions .btnDatasheet{
+  height: 40px !important;
+  border-radius: 10px !important;
+}
+
+/* ============================================================
+   RECO CARD V3 — ombre réduite
+   ============================================================ */
+.recoCard{
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+  border-color: rgba(0,0,0,.06) !important;
+}
+
+.recoCard:hover{
+  box-shadow: var(--shadow-hover) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* ============================================================
+   OPTIONS V3 — cartes avec activation visuelle forte
+   ============================================================ */
+.optCard{
+  border-radius: 12px !important;
+  border-width: 1.5px !important;
+  transition: all var(--transition) !important;
+}
+
+.optCardActive{
+  border-color: var(--green-500) !important;
+  box-shadow: 0 0 0 3px rgba(0,188,112,.08), var(--shadow-card) !important;
+  background: linear-gradient(180deg, rgba(0,188,112,.02) 0%, #fff 40%) !important;
+}
+
+.optToggle{
+  width: 48px !important; height: 26px !important;
+  border-radius: 13px !important;
+}
+
+.optToggleDot{
+  width: 22px !important; height: 22px !important;
+}
+
+.optToggleOn .optToggleDot{
+  transform: translateX(22px) !important;
+}
+
+.optProduct{
+  border-radius: 10px !important;
+}
+
+.optBadge{
+  border-radius: 8px !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+}
+
+/* ============================================================
+   ALERTS V3 — plus subtiles
+   ============================================================ */
+.alert{
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+/* ============================================================
+   GLOBAL TYPOGRAPHY V3
+   ============================================================ */
+body{
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+}
+
+/* ============================================================
+   CARD V3 — ombres subtiles
+   ============================================================ */
+.card{
+  box-shadow: var(--shadow-card) !important;
+  border-color: rgba(0,0,0,.06) !important;
+}
+
+/* ============================================================
+   SUMMARY V3 — export bar
+   ============================================================ */
+.summaryActions{
+  border-radius: 12px !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.exportBtn{
+  border-radius: 10px !important;
+  font-size: 13px !important;
+  transition: all var(--transition) !important;
+}
+
+/* ============================================================
+   RESPONSIVE V3
+   ============================================================ */
+@media(max-width:600px){
+  .stepperDot{
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 12px !important;
+  }
+  .stepperLabel{
+    font-size: 8px !important;
+  }
+  .stepperLine{
+    margin-top: 14px !important;
+  }
+  .stepperStep{
+    min-width: 42px !important;
+  }
+  .uiStepIntro{
+    flex-direction: column !important;
+    text-align: center !important;
+  }
+  .uiStepIntroIcon{
+    margin: 0 auto;
+  }
+  #btnCompute{
+    width: 100% !important;
+    min-width: unset !important;
+  }
+}
+
+/* ============================================================
+   LANG SELECTOR
+   ============================================================ */
+.langSelect{
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(0,0,0,.03);
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 8px;
+  padding: 6px 28px 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cosmos);
+  cursor: pointer;
+  transition: all .15s ease;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231C1F2A' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.langSelect:hover{
+  border-color: rgba(0,188,112,.4);
+  background-color: rgba(0,188,112,.04);
+}
+.langSelect:focus{
+  outline: none;
+  border-color: var(--green-500);
+  box-shadow: var(--green-glow);
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE — V4 REFONTE COMPLÈTE
+   Breakpoints : 768px (tablette), 480px (mobile)
+   ============================================================ */
+
+/* --- TABLETTE (< 768px) --- */
+@media (max-width: 768px) {
+  /* Header compact */
+  .appHeader, .appHeader.appHeaderCentered,
+  header.appHeader, header.appHeader.appHeaderCentered {
+    padding: 10px 12px 6px !important;
+    gap: 4px !important;
+  }
+  .brandLogoImg { height: 36px !important; }
+  .brandTitle { font-size: 14px !important; }
+
+  /* Stepper horizontal scroll */
+  .stepperSection { padding: 8px 8px 10px !important; }
+  .stepperTitle { font-size: 17px !important; }
+  .stepperSubtitle { font-size: 11px !important; margin-bottom: 10px !important; }
+  .stepperWrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; padding: 0 0 8px !important; }
+  .stepper { min-width: max-content; padding: 0 8px; }
+  .stepperDot { width: 32px !important; height: 32px !important; font-size: 13px !important; }
+  .stepperLabel { font-size: 9px !important; }
+  .stepperLine { min-width: 20px !important; max-width: 36px !important; height: 2px !important; margin-top: 15px !important; }
+  .stepperStep { min-width: 50px !important; gap: 5px !important; }
+
+  /* Navigation buttons */
+  .navActions { gap: 6px !important; flex-wrap: wrap !important; padding: 0 4px; }
+  .navActions .btn { font-size: 12px !important; padding: 8px 12px !important; min-width: auto !important; }
+  #btnCompute { min-width: 160px !important; height: 40px !important; font-size: 13px !important; }
+  #btnReset, #btnDemo { font-size: 11px !important; padding: 6px 10px !important; }
+
+  /* Layout — single column */
+  .appMain { padding: 8px !important; }
+  .appGrid { grid-template-columns: 1fr !important; gap: 8px !important; width: 100% !important; }
+  .stepSplit { grid-template-columns: 1fr !important; gap: 8px !important; }
+  .proposalsCol { position: static !important; top: auto !important; }
+
+  /* Step intro compact */
+  .uiStepIntro { padding: 10px 12px !important; margin-bottom: 10px !important; flex-direction: row !important; text-align: left !important; }
+  .uiStepIntroIcon { width: 36px !important; height: 36px !important; font-size: 18px !important; border-radius: 10px !important; }
+  .uiStepIntroTitle { font-size: 14px !important; }
+  .uiStepIntroMsg { font-size: 12px !important; }
+
+  /* Sections */
+  .uiSection { border-radius: 10px !important; }
+  .uiSectionHeader { padding: 10px 12px !important; gap: 8px !important; }
+  .uiSectionBody { padding: 10px 12px !important; }
+  .uiSectionIcon { width: 32px !important; height: 32px !important; font-size: 16px !important; }
+
+  /* Forms */
+  .uiFormGrid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .uiInput { height: 38px !important; font-size: 13px !important; }
+
+  /* KPI */
+  .uiKpiRow { grid-template-columns: repeat(3, 1fr) !important; gap: 6px !important; }
+  .uiKpiCard { padding: 8px !important; }
+  .uiKpiValue { font-size: 18px !important; }
+  .uiKpiLabel { font-size: 9px !important; }
+
+  /* Camera cards */
+  .cameraPickCard { padding: 10px !important; border-radius: 10px !important; }
+  .cameraPickTop { flex-direction: row !important; gap: 10px !important; }
+  .cameraPickImg { width: 72px !important; height: 72px !important; min-width: 72px !important; border-radius: 8px !important; }
+  .cameraPickActions { gap: 6px !important; }
+  .cameraPickActions .btnPrimary,
+  .cameraPickActions .btnDatasheet,
+  .cameraPickActions .btnGhost { height: 36px !important; font-size: 12px !important; padding: 0 10px !important; min-width: auto !important; }
+
+  /* Options page */
+  .optCard { border-radius: 10px !important; }
+  .optHeader { padding: 10px 12px !important; gap: 8px !important; }
+  .optBody { padding: 0 12px 12px !important; }
+  .optFormRow { grid-template-columns: 1fr 100px !important; gap: 8px !important; }
+  .optProduct { padding: 10px !important; gap: 8px !important; }
+  .optProductImg, .optProductImgPh { width: 44px !important; height: 44px !important; }
+
+  /* Summary */
+  .summaryActions { padding: 8px !important; border-radius: 10px !important; top: 60px !important; }
+  .summaryActionsRow { gap: 6px !important; }
+  .exportBtn { padding: 8px 12px !important; font-size: 12px !important; }
+  .finalSummary .finalGrid { grid-template-columns: 1fr !important; }
+  .finalSummary .sumRow { grid-template-columns: 48px 1fr !important; gap: 8px !important; padding: 8px !important; }
+  .finalSummary .sumThumb, .finalSummary .sumThumbImg { width: 48px !important; height: 48px !important; }
+
+  /* Reco cards */
+  .recoCard { padding: 10px !important; border-radius: 10px !important; }
+
+  /* Accessoires */
+  .uiProductCard { padding: 10px !important; border-radius: 10px !important; }
+  .uiProductImg { width: 56px !important; height: 48px !important; }
+
+  /* Lang selector */
+  .langSelect { font-size: 12px !important; padding: 4px 22px 4px 8px !important; }
+  #langSelectorWrap { top: 8px !important; right: 8px !important; }
+}
+
+/* --- MOBILE (< 480px) --- */
+@media (max-width: 480px) {
+  /* Header ultra compact */
+  .appHeader, .appHeader.appHeaderCentered,
+  header.appHeader, header.appHeader.appHeaderCentered {
+    padding: 8px 8px 4px !important;
+  }
+  .brandLogoImg { height: 28px !important; }
+  .brandTitle { font-size: 12px !important; }
+
+  /* Stepper encore plus petit */
+  .stepperTitle { font-size: 15px !important; }
+  .stepperSubtitle { font-size: 10px !important; display: none; }
+  .stepperDot { width: 26px !important; height: 26px !important; font-size: 11px !important; border-width: 2px !important; }
+  .stepperLabel { font-size: 8px !important; letter-spacing: 0 !important; }
+  .stepperLine { min-width: 14px !important; max-width: 24px !important; margin-top: 12px !important; }
+  .stepperStep { min-width: 38px !important; }
+  .stepperStep.active .stepperDot { width: 28px !important; height: 28px !important; }
+
+  /* Nav full width */
+  .navActions { flex-direction: column !important; gap: 6px !important; width: 100% !important; }
+  .navActions .btn { width: 100% !important; justify-content: center !important; }
+  #btnCompute { width: 100% !important; min-width: unset !important; order: -1; }
+  #btnReset, #btnDemo { display: inline-flex !important; width: 48% !important; }
+
+  /* Content */
+  .appMain { padding: 4px !important; }
+
+  /* Forms — 1 col */
+  .uiFormGrid { grid-template-columns: 1fr !important; }
+
+  /* KPI — 2 cols sur très petit */
+  .uiKpiRow { grid-template-columns: 1fr 1fr !important; }
+
+  /* Camera card compact */
+  .cameraPickImg { width: 60px !important; height: 60px !important; min-width: 60px !important; }
+  .cameraPickTitle { font-size: 12px !important; }
+  .cameraPickActions { flex-direction: column !important; }
+  .cameraPickActions .btnPrimary,
+  .cameraPickActions .btnDatasheet,
+  .cameraPickActions .btnGhost { width: 100% !important; justify-content: center !important; }
+
+  /* Options — form full width */
+  .optFormRow { grid-template-columns: 1fr !important; }
+  .optInputNarrow { max-width: 100% !important; }
+
+  /* Summary buttons stacked */
+  .summaryActionsRow { flex-direction: column !important; }
+  .exportBtn { width: 100% !important; justify-content: center !important; }
+
+  /* Badges wrap */
+  .badgeRow, .badgePill { font-size: 10px !important; }
+  
+  /* Block forms — camera page */
+  .stepSplit > .blocksCol > .recoCard > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Score badge */
+  .score { min-width: 36px !important; height: 28px !important; font-size: 11px !important; }
+
+  /* ZIP progress overlay responsive */
+  #zipProgressOverlay > div > div { min-width: 280px !important; padding: 20px !important; }
+}
+
+/* --- Touch improvements --- */
+@media (hover: none) and (pointer: coarse) {
+  /* Bigger tap targets */
+  .btn, .btnGhost, .btnPrimary, .btnDatasheet,
+  .optToggle, .pillBtn, .uiBtn, .exportBtn {
+    min-height: 44px !important;
+  }
+  
+  /* No hover effects on touch */
+  .cameraPickCard:hover,
+  .recoCard:hover,
+  .uiSection:hover,
+  .optCard:hover {
+    transform: none !important;
+    box-shadow: inherit !important;
+  }
+  
+  /* Smoother scrolling */
+  .stepperWrap, .appMain, .tableWrap {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* --- Safe area (notch) --- */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .appHeader { padding-top: calc(8px + env(safe-area-inset-top)) !important; }
+  .navActions { padding-bottom: env(safe-area-inset-bottom); }
+  .summaryActions { margin-bottom: env(safe-area-inset-bottom); }
+}

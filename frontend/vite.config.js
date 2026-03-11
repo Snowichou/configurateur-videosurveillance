@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
+import pdfProxy from './vite-plugin-pdf-proxy.js'
 
 export default defineConfig({
+  plugins: [pdfProxy()],
   server: {
     proxy: {
       "/api": {
