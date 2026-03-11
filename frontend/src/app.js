@@ -8971,17 +8971,8 @@ bind(DOM.stepsEl, "input", onStepsInput);
       KPI.sendNowait('page_view', { app: 'configurateur', v: (window.APP_VERSION || null) });
 
       
-      // ✅ Dual-mode : JSON externe prioritaire, CSV en fallback silencieux
-      const loadJsonOrCsv = async (name, required = false) => {
-        try {
-          const jsonRes = await fetch(`/data/${name}.json`, { cache: "no-store" });
-          if (jsonRes.ok) {
-            const data = await jsonRes.json();
-            console.log(`[CATALOG] ${name}.json loaded (${Array.isArray(data) ? data.length : '?'} items)`);
-            return Array.isArray(data) ? data : [];
-          }
-        } catch {}
-        // Fallback CSV (silencieux)
+      // ✅ Chargement CSV direct (plus de tentative JSON)
+      const loadCsvSafe = async (name, required = false) => {
         try {
           return await loadCsv(`/data/${name}.csv`);
         } catch (e) {
@@ -9000,14 +8991,14 @@ bind(DOM.stepsEl, "input", onStepsInput);
         enclosuresRaw,
         signageRaw
       ] = await Promise.all([
-        loadJsonOrCsv("cameras", true),
-        loadJsonOrCsv("nvrs", true),
-        loadJsonOrCsv("hdds", true),
-        loadJsonOrCsv("switches", true),
-        loadJsonOrCsv("accessories", true),
-        loadJsonOrCsv("screens"),
-        loadJsonOrCsv("enclosures"),
-        loadJsonOrCsv("signage"),
+        loadCsvSafe("cameras", true),
+        loadCsvSafe("nvrs", true),
+        loadCsvSafe("hdds", true),
+        loadCsvSafe("switches", true),
+        loadCsvSafe("accessories", true),
+        loadCsvSafe("screens"),
+        loadCsvSafe("enclosures"),
+        loadCsvSafe("signage"),
       ]);
 
 

@@ -1,0 +1,27 @@
+{
+  "name": "Comelit Video Surveillance Configurator",
+  "short_name": "Comelit Config",
+  "description": "Configure your video surveillance system — cameras, NVR, storage, accessories",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#00BC70",
+  "icons": [
+    {
+      "src": "/assets/logosmall.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "lang": "fr",
+  "dir": "ltr"
+}

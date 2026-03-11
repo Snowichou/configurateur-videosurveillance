@@ -10,7 +10,7 @@ window.html2canvas = html2canvas;
 window.jspdf = { jsPDF };
 window.jsPDF = jsPDF;
 
-// Favicon + viewport
+// Favicon + viewport + PWA
 (function setupPageMeta() {
   // Viewport pour mobile
   if (!document.querySelector('meta[name="viewport"]')) {
@@ -20,6 +20,34 @@ window.jsPDF = jsPDF;
     document.head.appendChild(vp);
   }
   
+  // Theme color (barre de statut mobile)
+  if (!document.querySelector('meta[name="theme-color"]')) {
+    const tc = document.createElement('meta');
+    tc.name = 'theme-color';
+    tc.content = '#00BC70';
+    document.head.appendChild(tc);
+  }
+
+  // Apple mobile web app
+  if (!document.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
+    const awc = document.createElement('meta');
+    awc.name = 'apple-mobile-web-app-capable';
+    awc.content = 'yes';
+    document.head.appendChild(awc);
+    const aws = document.createElement('meta');
+    aws.name = 'apple-mobile-web-app-status-bar-style';
+    aws.content = 'black-translucent';
+    document.head.appendChild(aws);
+  }
+
+  // Manifest PWA
+  if (!document.querySelector('link[rel="manifest"]')) {
+    const mf = document.createElement('link');
+    mf.rel = 'manifest';
+    mf.href = '/manifest.json';
+    document.head.appendChild(mf);
+  }
+
   const existingFavicon = document.querySelector('link[rel="icon"]');
   if (existingFavicon) {
     existingFavicon.href = '/assets/logosmall.png';
@@ -156,3 +184,12 @@ import("./app.js").then(() => {
   if (brandEl && typeof T === "function") brandEl.textContent = T("app_title");
   if (typeof T === "function") document.title = T("app_title") + " - Comelit";
 });
+
+// PWA — Enregistrer le Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((reg) => console.log('[PWA] Service Worker registered:', reg.scope))
+      .catch((err) => console.warn('[PWA] SW registration failed:', err.message));
+  });
+}
