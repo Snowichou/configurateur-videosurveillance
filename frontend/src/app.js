@@ -839,20 +839,20 @@ function interpretScoreForBlock(block, cam){
 
     if (sc.typeWarning) {
       // Type inadapté (ex: PTZ pour courte distance)
-      const cleanWarn = sc.typeWarning.replace(/PTZ injustifiée.*/, "PTZ surdimensionnée pour cette distance");
+      const cleanWarn = sc.typeWarning.replace(/PTZ injustifiée.*/, T("cam_ptz_oversized"));
       message = cleanWarn;
     } else if (score >= 90) {
       message = `Choix optimal pour ${objLow} à ${dist}m en ${emLow}.`;
     } else if (score >= 80) {
       message = `${T("cam_good_choice").replace("{0}", objLow).replace("{1}", dist)}`;
     } else if (score >= 70) {
-      message = `Bonne option. Portée DORI suffisante pour ${dist}m.`;
+      message = `${T("cam_good_option_msg").replace("{0}", dist)}`;
     } else if (score >= 60) {
       message = `Utilisable mais portée DORI un peu juste pour ${dist}m.`;
     } else if (score >= 50) {
-      message = `Portée DORI limite. Envisager un modèle supérieur pour ${dist}m.`;
+      message = `${T("cam_limit_msg").replace("{0}", dist)}`;
     } else {
-      message = `Portée insuffisante pour ${objLow} à ${dist}m. Modèle non adapté.`;
+      message = `${T("cam_insufficient_msg").replace("{0}", objLow).replace("{1}", dist)}`;
     }
   } catch { message = message || "—"; }
 
@@ -1169,8 +1169,8 @@ const CONFIG = Object.freeze({
   scoring: {
     levels: {
       ok:   { icon: "✅", label: T("cam_recommended"), color: COLORS.green,  bg: COLORS.okBg },
-      warn: { icon: "⚠️", label: "Acceptable",  color: COLORS.warn,   bg: COLORS.warnBg },
-      bad:  { icon: "❌", label: "Non adaptée",  color: COLORS.danger, bg: COLORS.dangerBg },
+      warn: { icon: "⚠️", label: T("cam_acceptable"),  color: COLORS.warn,   bg: COLORS.warnBg },
+      bad:  { icon: "❌", label: T("cam_not_adapted"),  color: COLORS.danger, bg: COLORS.dangerBg },
     }
   },
 
@@ -5554,7 +5554,7 @@ function camPickCardHTML(blk, cam, label) {
   const levelConfig = {
     ok:   { icon: "✅", label: score >= 90 ? T("cam_optimal") : score >= 80 ? T("cam_recommended") : T("cam_good_option"), color: CLR.green, bg: CLR.okBg },
     warn: { icon: "⚠️", label: score >= 60 ? "Utilisable" : "Limite", color: "#F59E0B", bg: "rgba(245,158,11,.1)" },
-    bad:  { icon: "❌", label: "Non adaptée", color: CLR.danger, bg: CLR.dangerBg }
+    bad:  { icon: "❌", label: T("cam_not_adapted"), color: CLR.danger, bg: CLR.dangerBg }
   };
   const lvl = levelConfig[interp.level] || levelConfig.warn;
 
@@ -5650,10 +5650,10 @@ function camPickCardHTML(blk, cam, label) {
             <div style="padding:10px;margin-top:6px;background:var(--panel2);border-radius:10px;font-size:12px">
               ${interp.message ? `<div style="margin-bottom:8px">${safeHtml(interp.message)}</div>` : ""}
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;color:var(--muted)">
-                <div>• Gamme: ${safeHtml(cam.brand_range || "—")}</div>
-                <div>• Focale: ${cam.focal_min_mm || "—"}${cam.focal_max_mm ? `-${cam.focal_max_mm}` : ""}mm</div>
-                <div>• Low light: ${cam.low_light ? "Oui" : "Non"}</div>
-                <div>• PoE: ${cam.poe_w || "—"}W</div>
+                <div>• ${T("cam_range")}: ${safeHtml(cam.brand_range || "—")}</div>
+                <div>• ${T("cam_focal")}: ${cam.focal_min_mm || "—"}${cam.focal_max_mm ? `-${cam.focal_max_mm}` : ""}mm</div>
+                <div>• ${T("cam_low_light")}: ${cam.low_light ? T("cam_yes") : T("cam_no")}</div>
+                <div>• ${T("cam_poe")}: ${cam.poe_w || "—"}W</div>
               </div>
             </div>
           </details>
@@ -6212,13 +6212,13 @@ rightHtml += toolbarHtml + compareHtml + cardsHtml;
           ⚠️ ${T("nvr_storage_capped").replace("{0}", proj.disks ? proj.disks.maxTotalTB : "—").replace("{1}", nvr.hdd_bays)}
         </div>` : ""}
         <div class="techValidation" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-          ${proj.totalCameras <= nvr.channels ? '<span class="techBadge techBadgeOk">✅ Canaux</span>' : '<span class="techBadge techBadgeWarn">⚠️ Canaux</span>'}
-          ${proj.totalInMbps <= (nvr.max_in_mbps || 256) ? '<span class="techBadge techBadgeOk">✅ Débit</span>' : '<span class="techBadge techBadgeWarn">⚠️ Débit</span>'}
-          ${!proj.storageCapped ? '<span class="techBadge techBadgeOk">✅ Stockage</span>' : '<span class="techBadge techBadgeWarn">⚠️ Stockage</span>'}
+          ${proj.totalCameras <= nvr.channels ? '<span class="techBadge techBadgeOk">${"✅ " + T("nvr_badge_channels")}</span>' : '<span class="techBadge techBadgeWarn">${"⚠️ " + T("nvr_badge_channels")}</span>'}
+          ${proj.totalInMbps <= (nvr.max_in_mbps || 256) ? '<span class="techBadge techBadgeOk">${"✅ " + T("nvr_badge_bitrate")}</span>' : '<span class="techBadge techBadgeWarn">${"⚠️ " + T("nvr_badge_bitrate")}</span>'}
+          ${!proj.storageCapped ? '<span class="techBadge techBadgeOk">${"✅ " + T("nvr_badge_storage")}</span>' : '<span class="techBadge techBadgeWarn">${"⚠️ " + T("nvr_badge_storage")}</span>'}
         </div>
         ${nvr.image_url ? `<div style="text-align:center;margin:10px 0"><img style="max-height:100px;border-radius:8px" src="${nvr.image_url}" alt="" loading="lazy"></div>` : ""}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-          ${nvr.datasheet_url ? `<a class="uiLink" href="${localizedDatasheetUrl(nvr.datasheet_url)}" target="_blank" rel="noreferrer">${T("nvr_datasheet")}</a>` : ""}
+          ${nvr.datasheet_url ? `<a class="uiLink" href="${localizedDatasheetUrl(nvr.datasheet_url)}" target="_blank" rel="noreferrer">${T("nvr_datasheet_label")}</a>` : ""}
           ${proj.disks?.hddRef?.datasheet_url ? `<a class="uiLink" href="${localizedDatasheetUrl(proj.disks.hddRef.datasheet_url)}" target="_blank" rel="noreferrer">💾 HDD ${safeHtml(proj.disks.hddRef.id || "")}</a>` : ""}
           ${isManual ? '<button data-action="resetNvr" class="uiLink" style="background:none;border:none;cursor:pointer;color:#DC2626;font-size:12px;font-weight:700">✕ Auto</button>' : ""}
         </div>
@@ -7361,8 +7361,8 @@ function renderCameraPickCard(cam, blk, sc, mainReason) {
   // Icône et couleur selon le niveau
   const levelConfig = {
     ok: { icon: "✅", label: T("cam_recommended"), color: "var(--comelit-green)" },
-    warn: { icon: "⚠️", label: "Acceptable", color: "#F59E0B" },
-    bad: { icon: "❌", label: "Non adaptée", color: CLR.danger }
+    warn: { icon: "⚠️", label: T("cam_acceptable"), color: "#F59E0B" },
+    bad: { icon: "❌", label: T("cam_not_adapted"), color: CLR.danger }
   };
   const level = levelConfig[interp.level] || levelConfig.warn;
 
